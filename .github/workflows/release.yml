@@ -102,7 +102,7 @@ jobs:
           docker image rm "${image}"
           gzip -dc "${archive}" | docker load
           test "$(docker image inspect --format '{{index .RepoTags 0}}' "${image}")" = "${image}"
-          test "$(docker image inspect --format '{{index .Config.Labels \"org.opencontainers.image.version\"}}' "${image}")" = "${version}"
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "${image}")" = "${version}"
           test "$(docker image inspect --format '{{.Architecture}}' "${image}")" = "amd64"
 
       - name: Smoke-test loaded image
