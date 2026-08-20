@@ -14,6 +14,12 @@ describe('api client', () => {
     await expect(api.me()).rejects.toMatchObject({ status: 401, code: 'unauthorized', message: '로그인이 필요합니다.' });
   });
 
+  it('preserves application data fields when the caller requests the full envelope', async () => {
+    const response = { version: { id: 'v1', checksum: 'abc' }, section: 'stages', data: [{ id: 'stage-1' }] };
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(response), { status: 200, headers: { 'content-type': 'application/json' } }));
+    await expect(api.requestEnvelope<typeof response>('/api/v1/admin/realmguard/drafts/stages')).resolves.toEqual(response);
+  });
+
   it('parses OpenAI-compatible SSE deltas incrementally', async () => {
     const stream = 'data: {"choices":[{"delta":{"content":"안녕"}}]}\n\ndata: {"choices":[{"delta":{"content":"하세요"}}]}\n\ndata: [DONE]\n\n';
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(stream, { status: 200, headers: { 'content-type': 'text/event-stream' } }));

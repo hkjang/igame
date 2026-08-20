@@ -34,7 +34,7 @@ gzip -dc dist/igame-v$(cat VERSION).tar.gz | docker load
 docker image inspect "igame:v$(cat VERSION)"
 ```
 
-기동한 후보 이미지의 실제 브라우저 경로는 별도의 QA host에서 Playwright로 확인할 수 있습니다. 이 도구는 제품 이미지나 repository dependency에 들어가지 않습니다. 아래 컨테이너와 npm package를 연결 가능한 빌드/QA 구간에서 미리 반입·고정하고, 서비스 페이지가 로그인부터 RealmGuard canvas, Designer, preview와 deep refresh까지 외부 HTTP 요청·console/page/request 오류 없이 동작하는지 검사합니다.
+기동한 후보 이미지의 실제 브라우저 경로는 별도의 QA host에서 Playwright로 확인할 수 있습니다. 이 도구는 제품 이미지나 repository dependency에 들어가지 않습니다. 아래 컨테이너와 npm package를 연결 가능한 빌드/QA 구간에서 미리 반입·고정하고, 서비스 페이지가 로그인부터 RealmGuard canvas, Designer, preview와 deep refresh까지 외부 HTTP 요청·console/page/request 오류 없이 동작하는지 검사합니다. Designer는 화면 제목만 확인하지 않고 stages JSON이 실제 array로 채워지고 저장 가능한지 검사하며, invalid JSON 또는 빈 데이터 상태가 렌더링되면 실패합니다.
 
 ```bash
 export IGAME_BASE_URL='http://127.0.0.1:8080'

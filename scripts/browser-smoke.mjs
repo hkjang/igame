@@ -96,6 +96,34 @@ try {
   await page.goto(`${baseURL}/admin/realmguard`, { waitUntil: 'networkidle' });
   await page.reload({ waitUntil: 'networkidle' });
   await visible(page.getByRole('heading', { name: 'RealmGuard Designer' }), 'RealmGuard Designer heading');
+  const stagesEditor = page.getByLabel('stages JSON 편집기');
+  const noDraftNotice = page.getByText('편집 가능한 Draft가 없습니다.', { exact: false });
+  await Promise.any([
+    stagesEditor.waitFor({ state: 'visible', timeout: 20_000 }),
+    noDraftNotice.waitFor({ state: 'visible', timeout: 20_000 }),
+  ]).catch(() => { throw new Error('RealmGuard Designer rendered neither a stages editor nor a valid no-draft state'); });
+  for (const invalidText of [/not valid JSON/i, /JSON 오류/i, /표시할 데이터가 없습니다/]) {
+    if (await page.getByText(invalidText).first().isVisible().catch(() => false)) {
+      throw new Error(`RealmGuard Designer rendered an invalid or empty editor state: ${invalidText}`);
+    }
+  }
+  if (await stagesEditor.isVisible().catch(() => false)) {
+    const editorText = await stagesEditor.inputValue();
+    let stages;
+    try {
+      stages = JSON.parse(editorText);
+    } catch (error) {
+      throw new Error(`RealmGuard Designer stages editor does not contain valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    if (!Array.isArray(stages) || stages.length < 11) {
+      throw new Error(`RealmGuard Designer stages editor is incomplete: expected at least 11 stages, got ${Array.isArray(stages) ? stages.length : typeof stages}`);
+    }
+    if (await page.getByRole('button', { name: 'Draft 저장' }).isDisabled()) {
+      throw new Error('RealmGuard Designer loaded content but left Draft 저장 disabled');
+    }
+  } else {
+    await visible(noDraftNotice, 'no editable RealmGuard draft notice');
+  }
 
   const versionsResponse = await context.request.get(`${baseURL}/api/v1/admin/realmguard/versions`);
   if (!versionsResponse.ok()) throw new Error(`RealmGuard versions returned HTTP ${versionsResponse.status()}`);

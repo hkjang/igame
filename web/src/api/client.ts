@@ -57,7 +57,7 @@ function normalizeRanking(entry: RankingEntry): RankingEntry {
 interface KeyMutationResponse { secret?: string; key?: string; api_key?: PersonalKey; item?: PersonalKey }
 interface KeyListResponse extends ApiList<PersonalKey> { available_permissions?: string[] }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, init: RequestInit = {}, preserveEnvelope = false): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   const csrf = csrfToken();
@@ -81,7 +81,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const message = apiError?.message || (typeof body === 'string' && body) || `요청을 처리하지 못했습니다. (${response.status})`;
     throw new ApiError(message, response.status, apiError?.code, body);
   }
-  return unwrap<T>(body as Envelope<T>);
+  return preserveEnvelope ? body as T : unwrap<T>(body as Envelope<T>);
+}
+
+/** Use only when `data` is an application field alongside envelope metadata. */
+async function requestEnvelope<T>(path: string, init: RequestInit = {}): Promise<T> {
+  return request<T>(path, init, true);
 }
 
 async function list<T>(path: string): Promise<ApiList<T>> {
@@ -139,6 +144,7 @@ export async function streamAI(
 
 export const api = {
   request,
+  requestEnvelope,
   publicConfig: () => request<PublicConfig>('/api/v1/public/config'),
   version: async (): Promise<VersionInfo> => {
     const raw = await request<Record<string, string>>('/api/v1/version');
