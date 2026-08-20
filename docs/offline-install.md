@@ -22,6 +22,8 @@ gzip -t igame-vX.Y.Z.tar.gz
 
 GitHub 워크플로는 SPDX JSON SBOM을 생성해 검증 증적으로 보관하지만, “Docker 이미지만 릴리스” 원칙에 따라 SBOM과 checksum 파일을 별도 Release asset으로 게시하지 않습니다.
 
+`v0.2.0` RealmGuard의 Phaser runtime과 코드 생성 graphic도 같은 image layer에 포함됩니다. 반입 검사에서는 `/licenses/web`과 `/licenses/sdk/gamehub-js`의 locked package metadata, `/licenses/phaser`의 package metadata/MIT license, workflow SBOM의 Phaser·SDK version을 함께 확인합니다. 브라우저가 Phaser, map, sprite 또는 balance 데이터를 인터넷에서 내려받지 않습니다.
+
 ## PostgreSQL 준비
 
 전용 데이터베이스와 최소 권한 소유자를 생성하고 `UTF8` 인코딩을 사용합니다. 애플리케이션은 시작 시 포함된 마이그레이션을 적용하므로 해당 데이터베이스의 schema 생성·변경 권한이 필요합니다. 다른 데이터베이스에 대한 권한은 부여하지 않습니다.

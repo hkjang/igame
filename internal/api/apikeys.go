@@ -12,7 +12,7 @@ import (
 )
 
 var allowedAPIKeyPermissions = []string{
-	"api:access", "mcp:access", "games:read", "sessions:write", "scores:write", "rankings:read", "profile:read", "ai:invoke", "workflow:write", "admin:*",
+	"api:access", "mcp:access", "games:read", "sessions:write", "scores:write", "rankings:read", "profile:read", "profile:write", "ai:invoke", "workflow:write", "admin:*",
 }
 
 type apiKeyPolicy struct {
@@ -22,15 +22,17 @@ type apiKeyPolicy struct {
 	MaxTTLDays           int                 `json:"max_ttl_days"`
 }
 
-func (s *Server) loadAPIKeyPolicy(r *http.Request) apiKeyPolicy {
+func (s *Server) loadAPIKeyPolicy(r *http.Request) (apiKeyPolicy, error) {
 	return s.loadAPIKeyPolicyContext(r.Context())
 }
 
-func (s *Server) loadAPIKeyPolicyContext(ctx context.Context) apiKeyPolicy {
+func (s *Server) loadAPIKeyPolicyContext(ctx context.Context) (apiKeyPolicy, error) {
 	// Keep the package-level allowlist immutable: encoding/json may reuse the
 	// backing array of a non-nil destination slice while decoding settings.
 	p := apiKeyPolicy{AvailablePermissions: append([]string(nil), allowedAPIKeyPermissions...), MaxKeys: 10, MaxTTLDays: 365}
-	_ = s.setting(ctx, "api_keys", &p)
+	if err := s.setting(ctx, "api_keys", &p); err != nil {
+		return apiKeyPolicy{}, err
+	}
 	if p.MaxKeys < 1 {
 		p.MaxKeys = 1
 	}
@@ -43,7 +45,7 @@ func (s *Server) loadAPIKeyPolicyContext(ctx context.Context) apiKeyPolicy {
 	if p.MaxTTLDays > 3650 {
 		p.MaxTTLDays = 3650
 	}
-	return p
+	return p, nil
 }
 
 type apiKeyInput struct {
@@ -95,7 +97,11 @@ func effectiveKeyPermissions(p Principal, stored []string, policy apiKeyPolicy) 
 
 func (s *Server) listAPIKeys(w http.ResponseWriter, r *http.Request) {
 	p, _ := principalFrom(r)
-	policy := s.loadAPIKeyPolicy(r)
+	policy, err := s.loadAPIKeyPolicy(r)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "api_key_policy_unavailable", "API key policy is unavailable")
+		return
+	}
 	rows, err := s.DB.Query(r.Context(), `SELECT id,name,key_prefix,permissions,expires_at,last_used_at,revoked_at,created_at FROM api_keys WHERE user_id=$1 ORDER BY created_at DESC`, p.UserID)
 	if err != nil {
 		dbError(w, err)
@@ -120,7 +126,11 @@ func (s *Server) listAPIKeys(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createAPIKey(w http.ResponseWriter, r *http.Request) {
 	p, _ := principalFrom(r)
-	policy := s.loadAPIKeyPolicy(r)
+	policy, err := s.loadAPIKeyPolicy(r)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "api_key_policy_unavailable", "API key policy is unavailable")
+		return
+	}
 	var in apiKeyInput
 	if !decodeJSON(w, r, &in) {
 		return
@@ -164,7 +174,11 @@ func (s *Server) createAPIKey(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) updateAPIKey(w http.ResponseWriter, r *http.Request) {
 	p, _ := principalFrom(r)
-	policy := s.loadAPIKeyPolicy(r)
+	policy, err := s.loadAPIKeyPolicy(r)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "api_key_policy_unavailable", "API key policy is unavailable")
+		return
+	}
 	id, ok := parseUUIDParam(w, r, "id")
 	if !ok {
 		return

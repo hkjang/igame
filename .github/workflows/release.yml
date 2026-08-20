@@ -104,6 +104,8 @@ jobs:
           test "$(docker image inspect --format '{{index .RepoTags 0}}' "${image}")" = "${image}"
           test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "${image}")" = "${version}"
           test "$(docker image inspect --format '{{.Architecture}}' "${image}")" = "amd64"
+          docker run --rm --env "EXPECTED_VERSION=${version}" --entrypoint /bin/sh "${image}" -c \
+            'test -r /licenses/web/package.json && test -r /licenses/web/package-lock.json && test -r /licenses/sdk/gamehub-js/package.json && test -r /licenses/sdk/gamehub-js/package-lock.json && test -r /licenses/phaser/package.json && test -r /licenses/phaser/LICENSE.md && grep -Fq "\"version\": \"${EXPECTED_VERSION}\"" /licenses/web/package.json && grep -Fq "\"version\": \"${EXPECTED_VERSION}\"" /licenses/sdk/gamehub-js/package.json && grep -Fq "\"node_modules/phaser\"" /licenses/web/package-lock.json && grep -Fq "\"name\": \"phaser\"" /licenses/phaser/package.json && grep -iq MIT /licenses/phaser/LICENSE.md'
 
       - name: Smoke-test loaded image
         shell: bash
@@ -144,6 +146,8 @@ jobs:
             http://127.0.0.1:8080/api/v1/auth/login >/dev/null
           curl --fail --silent --show-error --cookie "${cookie_jar}" \
             http://127.0.0.1:8080/api/v1/me >/dev/null
+          bash ./scripts/smoke-realmguard.sh \
+            http://127.0.0.1:8080 ci-admin ci-only-bootstrap-password
           for endpoint in dashboard analytics settings games categories users seasons events tournaments achievements rewards notices banners rankings workflow/requests audit; do
             curl --fail --silent --show-error --cookie "${cookie_jar}" \
               "http://127.0.0.1:8080/api/v1/admin/${endpoint}" >/dev/null
@@ -164,8 +168,17 @@ jobs:
           set -Eeuo pipefail
           version="$(cat VERSION)"
           archive="igame-v${version}.tar.gz"
+          sbom="igame-v${version}.spdx.json"
+          phaser_version="$(node -p "require('./web/node_modules/phaser/package.json').version")"
+          sdk_version="$(node -p "require('./sdk/gamehub-js/package.json').version")"
+          jq --exit-status --arg version "${phaser_version}" \
+            '.packages[]? | select((.name | ascii_downcase) == "phaser" and .versionInfo == $version)' \
+            "dist/${sbom}" >/dev/null
+          jq --exit-status --arg version "${sdk_version}" \
+            '.packages[]? | select(.name == "@igame/gamehub-js" and .versionInfo == $version)' \
+            "dist/${sbom}" >/dev/null
           archive_sha="$(awk -v name="${archive}" '$2 == name {print $1}' dist/SHA256SUMS)"
-          sbom_sha="$(awk -v name="igame-v${version}.spdx.json" '$2 == name {print $1}' dist/SHA256SUMS)"
+          sbom_sha="$(awk -v name="${sbom}" '$2 == name {print $1}' dist/SHA256SUMS)"
           test -n "${archive_sha}"
           test -n "${sbom_sha}"
           echo "archive=dist/${archive}" >> "${GITHUB_OUTPUT}"

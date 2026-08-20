@@ -29,7 +29,7 @@ export function LoginPage() {
       <Stack justifyContent="center" sx={{ p: { xs: 3, sm: 7, xl: 11 }, position: 'relative', zIndex: 1 }}>
         <Stack direction="row" alignItems="center" spacing={1.3} mb={6}><Box sx={{ width: 48, height: 48, borderRadius: 2.5, display: 'grid', placeItems: 'center', bgcolor: 'primary.main', color: 'primary.contrastText' }}><SportsEsportsRounded fontSize="large" /></Box><Typography variant="h3" sx={{ fontWeight: 900 }}>igame</Typography></Stack>
         <Box maxWidth={510}><Typography variant="h1">잠깐의 플레이,<br /><Box component="span" color="primary.main">새로운 연결.</Box></Typography><Typography mt={2} color="text.secondary" sx={{ fontSize: '1.1rem' }}>동료들과 가볍게 경쟁하고 함께 즐기는 사내 게임 플랫폼입니다.</Typography></Box>
-        <Stack direction="row" spacing={1} mt={5} flexWrap="wrap" useFlexGap>{['5가지 기본 게임', '팀·부서 랭킹', '사내 SSO'].map((label) => <Box key={label} sx={{ px: 1.5, py: .8, border: 1, borderColor: 'divider', borderRadius: 99, color: 'text.secondary' }}>{label}</Box>)}</Stack>
+        <Stack direction="row" spacing={1} mt={5} flexWrap="wrap" useFlexGap>{['6가지 기본 게임', '팀·부서 랭킹', '사내 SSO'].map((label) => <Box key={label} sx={{ px: 1.5, py: .8, border: 1, borderColor: 'divider', borderRadius: 99, color: 'text.secondary' }}>{label}</Box>)}</Stack>
       </Stack>
       <Stack justifyContent="center" alignItems="center" sx={{ p: 3, bgcolor: 'rgba(14,28,43,.62)', borderLeft: { lg: 1 }, borderColor: 'divider' }}>
         <Card sx={{ width: '100%', maxWidth: 500, boxShadow: '0 30px 90px rgba(0,0,0,.32)' }}><CardContent sx={{ p: { xs: 3, sm: 5 } }}>

@@ -30,13 +30,14 @@
 | POST | `/api/v1/games/{gameId}/sessions` | `sessions:write`, server session/token 생성 |
 | POST | `/api/v1/sessions/{sessionId}/finish` | `sessions:write`, 결과 종료 |
 | POST | `/api/v1/scores` | `scores:write`, 검증 가능한 점수 제출 |
-| POST | `/api/v1/telemetry` | `sessions:write`, 세션 token으로 SDK event 제출 |
+| POST | `/api/v1/telemetry` | `sessions:write`, 세션 token으로 SDK event 제출; RealmGuard는 UUID/순서 원장 계약 적용 |
 | GET | `/api/v1/rankings` | `rankings:read`, 기간/팀/부서 랭킹 |
 | GET | `/api/v1/rankings/{gameId}` | `rankings:read`, 게임별 랭킹 |
 | GET | `/api/v1/achievements` | 로그인, 업적 목록 |
-| POST | `/api/v1/me/achievements` | 로그인, client-unlockable 업적 해제 |
+| POST | `/api/v1/me/achievements` | `scores:write`, client-unlockable 업적 해제 |
 | GET | `/api/v1/me` | `profile:read`, 본인 프로필 |
-| PATCH | `/api/v1/me` | 본인 개인정보/공개 설정 |
+| PATCH | `/api/v1/me` | `profile:write`, 본인 개인정보/공개 설정 |
+| GET/PUT | `/api/v1/me/preferences` | `profile:read` 조회 / `profile:write` 변경 |
 | PUT | `/api/v1/me/password` | interactive session 전용, 로컬 비밀번호 변경 |
 | GET | `/api/v1/me/history` | 본인 플레이 기록 |
 | GET/POST | `/api/v1/me/api-keys` | 개인 키 목록/생성; 원문은 생성 응답 1회 |
@@ -44,11 +45,18 @@
 | POST | `/api/v1/me/api-keys/{id}/rotate` | 개인 키 즉시 회전; 새 원문은 응답 1회 |
 | GET | `/api/v1/events` | 공개 가능한 이벤트 |
 | GET | `/api/v1/events/{eventId}` | 이벤트 상세와 본인 참가 상태 |
-| POST | `/api/v1/events/{eventId}/join` | 이벤트 참가 |
+| POST/DELETE | `/api/v1/games/{gameId}/favorite` | `profile:write`, 즐겨찾기 추가/해제 |
+| POST | `/api/v1/events/{eventId}/join` | `profile:write`, 이벤트 참가 |
 | GET | `/api/v1/seasons` | 시즌 목록 |
 | GET | `/api/v1/notices` | 게시된 공지 목록 |
 | GET | `/api/v1/banners` | 현재 노출 가능한 배너 목록 |
 | POST | `/api/v1/ai/chat/completions` | AI 게임용 기본 streaming proxy |
+| GET | `/api/v1/realmguard/config` | `games:read`, 현재 게시된 RealmGuard 실행 설정 |
+| GET | `/api/v1/realmguard/version` | `games:read`, 게시 version tuple/checksum |
+| GET | `/api/v1/realmguard/progress` | `profile:read`, 본인 진행도 조회 |
+| PUT | `/api/v1/realmguard/progress` | `profile:write`, 본인 loadout·개인 설정 변경 |
+| POST | `/api/v1/realmguard/results` | `scores:write`, 세션에 고정된 설정으로 전투 결과 검증·완료 |
+| GET | `/api/v1/realmguard/rankings` | `rankings:read`, RealmGuard 전용 필터 랭킹 |
 | GET | `/api/v1/admin/dashboard` | 관리자/운영자 session 또는 `admin:*`, 운영 요약 |
 | GET | `/api/v1/admin/analytics` | 관리자/운영자 session 또는 `admin:*`, DAU/WAU/MAU 등 |
 | GET | `/api/v1/admin/settings` | admin session 또는 admin 역할 + `admin:*` 키, 전체 설정 조회 |
@@ -58,11 +66,18 @@
 | GET/POST/PUT/DELETE | `/api/v1/admin/{games,categories,seasons,events,achievements}` | 카탈로그와 참여 콘텐츠 관리 |
 | GET/POST/PUT/DELETE | `/api/v1/admin/{tournaments,rewards,notices,banners}` | 운영 콘텐츠 관리 |
 | GET/PUT/DELETE | `/api/v1/admin/rankings[/{id}]` | 점수 검토·제외 |
+| GET/POST | `/api/v1/admin/realmguard/versions` | admin/operator session; 개인 키는 동일 role + `admin:*`, 목록/초안 생성 |
+| GET/PUT/POST/DELETE | `/api/v1/admin/realmguard/drafts/{section}[/*]` | admin/operator session; 개인 키는 동일 role + `admin:*`, section/item 편집 |
+| POST | `/api/v1/admin/realmguard/versions/{id}/{test,publish}` | admin/operator session; 개인 키는 동일 role + `admin:*`; 승인 사용 시 최종 publish는 admin |
+| GET | `/api/v1/admin/realmguard/telemetry` | admin/operator session; 개인 키는 동일 role + `admin:*`, `days=1..365` 집계 |
+| GET | `/api/v1/realmguard/versions/pending` | manager/admin session; 개인 키는 동일 role + `admin:*`, 검토 대기 version |
+| GET | `/api/v1/realmguard/versions/{id}/preview` | manager/operator/admin session; 개인 키는 동일 role + `admin:*`, 비공개 연습 설정 |
+| POST | `/api/v1/realmguard/versions/{id}/review` | manager/admin session; 개인 키는 동일 role + `admin:*`, 승인/반려 (`approve` alias) |
 | GET | `/api/v1/admin/audit` | admin session 또는 admin 역할 + `admin:*` 키, 감사 조회 |
 
 OIDC client secret과 AI API key는 write-only입니다. 설정 조회 응답은 원문 대신 `client_secret_configured` 또는 `api_key_configured` 상태를 반환합니다.
 
-개인 키 생성·변경·회전·폐기와 로컬 비밀번호 변경은 로그인된 브라우저 session에서만 허용되며, 개인 API 키로 키나 비밀번호를 관리할 수 없습니다. 관리자 API를 개인 키로 호출하려면 관리자 역할과 `admin:*` scope가 모두 필요합니다. 기존에 발급된 키도 매 요청 시 저장 scope와 현재 전역 허용 목록·현재 역할 정책의 교집합만 유효하므로, 관리자가 권한을 제거하거나 사용자 역할을 바꾸면 즉시 축소 적용됩니다.
+개인 키 생성·변경·회전·폐기와 로컬 비밀번호 변경은 로그인된 브라우저 session에서만 허용되며, 개인 API 키로 키나 비밀번호를 관리할 수 없습니다. 관리자 API를 개인 키로 호출하려면 관리자 역할과 `admin:*` scope가 모두 필요합니다. 기존에 발급된 키도 매 요청 시 저장 scope와 현재 전역 허용 목록·현재 역할 정책의 교집합만 유효하므로, 관리자가 권한을 제거하거나 사용자 역할을 바꾸면 즉시 축소 적용됩니다. `profile:write`는 `profile:read`와 별도이며 기존 키의 저장 scope에 자동 추가되지 않습니다. 개인 변경 API가 필요한 사용자는 관리자가 역할 정책에 허용한 뒤 브라우저 개인화 페이지에서 명시적으로 scope를 추가하거나 새 키를 발급합니다.
 
 로컬 비밀번호 변경 요청은 `current_password`와 12자 이상의 다른 `new_password`를 받습니다. 성공하면 현재 session을 제외한 해당 사용자의 다른 session을 폐기합니다. OIDC 전용 사용자처럼 로컬 password hash가 없는 계정에는 적용되지 않습니다.
 
@@ -94,6 +109,105 @@ Content-Type: application/json
 
 정상 저장은 201, 게임에 설정된 점수·플레이 시간 규칙 위반은 422, 같은 세션의 중복 제출은 409를 반환합니다.
 
+RealmGuard는 일반 점수·랭킹 endpoint를 사용하지 않습니다. `/api/v1/scores`에 RealmGuard 세션을 보내면 `409 authoritative_result_required`, `/api/v1/rankings/realmguard` 또는 `/api/v1/rankings?game_id=realmguard`는 `409 realmguard_ranking_required`를 반환합니다. 공식 랭킹은 `/api/v1/realmguard/rankings`를 사용합니다.
+
+## RealmGuard runtime
+
+게임 실행 전 `GET /api/v1/realmguard/config`를 읽고 응답 `version.id`를 세션 요청 metadata의 `realmguard_version_id`로 그대로 보냅니다. 세션 transaction은 그 UUID가 요청 시점에도 현재 `published`인지 확인한 뒤 같은 snapshot을 고정합니다. 값이 없으면 `428 realmguard_version_required`, UUID가 stale·unpublished·존재하지 않으면 `409 realmguard_config_stale`이며 클라이언트는 최신 config를 다시 읽어야 합니다.
+
+```http
+POST /api/v1/games/realmguard/sessions HTTP/1.1
+Authorization: Bearer igk_...
+Content-Type: application/json
+
+{"metadata":{"client":"gamehub-js","client_version":"0.2.0","realmguard_version_id":"9ea33ec1-39a7-4e65-ad57-ae11a6b2790f"}}
+```
+
+성공 응답의 `session.realmguard_version_id`는 요청한 UUID와 같습니다. `GET /api/v1/realmguard/config`는 stage의 전체 path, tower spot, wave와 gimmick을 포함한 실행 설정을 반환합니다. `GET /api/v1/realmguard/version`은 게시 version의 `content_version`, `stage_version`, `balance_version`, `asset_version`과 checksum을 반환합니다. 전투 결과의 `stage_version`에는 이 전역 stage-content version이 아니라 선택한 stage 객체의 `version`을 제출합니다. 응답은 둘을 각각 `stage_version`, `stage_content_version`으로 구분합니다.
+
+RealmGuard 전투 event는 일반 SDK event보다 강한 세션 원장 계약을 사용합니다. `client_event_id`는 요청 최상위의 유효한 UUID, `sequence`는 세션별 1부터 빈틈없이 증가하는 1~100,000 정수입니다. `data`는 event당 최대 4 KiB입니다. 같은 `client_event_id`·event·sequence·data의 재전송은 `202`와 `duplicate:true`로 같은 event를 재사용하며, 같은 ID의 다른 payload는 `409 telemetry_event_conflict`, 순서 누락·역전은 `409 telemetry_sequence_conflict`입니다.
+
+한도는 필수 milestone이 선택 event에 밀려 사라지지 않도록 class별로 분리합니다.
+
+| Event class | 세션당 수신 한도 |
+| --- | ---: |
+| 필수가 아닌 event 전체 | 128 |
+| `realmguard.battle.ready` | 1 |
+| `realmguard.battle.complete` | 1 |
+| `realmguard.wave.start` | 10,001 |
+| `realmguard.wave.complete` | 10,000 |
+| `realmguard.tower.build` + `tower.upgrade` + `tower.sell` 합계 | 10,000 |
+
+해당 class가 차면 `429 telemetry_limit`입니다. 한 class의 포화는 다른 필수 class의 예약 용량을 사용하지 않습니다.
+
+```http
+POST /api/v1/telemetry HTTP/1.1
+Authorization: Bearer igk_...
+Content-Type: application/json
+
+{
+  "game_id":"realmguard",
+  "session_id":"...",
+  "session_token":"igs_...",
+  "event":"realmguard.battle.ready",
+  "client_event_id":"8b184b42-bc41-49f6-aed4-227694307011",
+  "sequence":1,
+  "data":{"stage_id":"stage-1","difficulty":"normal","hero_id":"aerin"}
+}
+```
+
+검증 가능한 전투에는 시작 직후 `realmguard.battle.ready`, 도달한 각 wave의 순서대로 `realmguard.wave.start`, 완료한 각 wave의 `realmguard.wave.complete`, 마지막 `realmguard.battle.complete`가 필요합니다. `wave.complete`는 lives/gold/earned/spent/sold/kills/escaped/spawned/hero level과 `defeated_by_enemy`, `escaped_by_enemy`, `spawned_by_enemy` 누적 histogram을 포함합니다. `battle.complete`는 이 최종 누적값, `waves`/`waves_completed`, hero, 승패와 네 version을 결과 요청과 정확히 맞춥니다. 서버는 수신 시각, 연속 sequence, wave 순서·최소 milestone 시간, 누적값 단조성, tower build/upgrade/sell 원장, 적별 spawn 예산·보상·life damage를 확인합니다.
+
+공식 결과 요청은 session ID/token, stage/mode/difficulty, duration, remaining lives/gold, earned/spent/sold gold, kills/escaped/spawned, completed waves, 적별 누적 histogram, hero와 네 version 값을 포함합니다. 난이도별 시작금은 `round(stage.starting_gold × balance.difficulties[difficulty].gold)`이고, `hero_level`은 계정 영웅 레벨이 아니라 해당 전투에서 검증된 처치 수로 올라간 전투 레벨입니다. 각 수치의 허용 범위는 세션에 고정된 stage/wave snapshot, 서버 경과 시간과 서버가 수신한 event 원장에서 계산됩니다. 브라우저는 실제 Scene이 수집한 통계를 SDK의 `completeAuthoritatively`로 전달합니다.
+
+서버가 score, star, 승리, 경제 예산과 영웅 XP를 다시 계산하고 RealmGuard result, 공통 score, session 종료, progress와 unlock을 하나의 transaction으로 반영합니다. 첫 성공은 `201`이며 응답의 `verification_method`와 `attestation.method`는 `server_received_telemetry_v1`입니다. 이는 인증된 session token으로 브라우저가 자가 보고한 event를 서버가 실제 수신해 순서·시각·누적 원장 일관성을 검증했다는 뜻입니다. 서버가 모든 프레임·적 이동·충돌을 독립적으로 재실행하는 완전한 서버 시뮬레이션이나 replay 증명은 아닙니다. 요청의 호환용 `proof`와 `events`는 공식 증거로 사용하거나 저장하지 않고, 서버가 attestation digest를 포함한 암호화 receipt를 별도로 생성합니다.
+
+같은 세션/token의 성공 결과 재전송은 저장된 공식 결과와 `idempotent:true`를 `200`으로 반환합니다. 다른 방식으로 이미 종료된 세션, 세션/token 또는 version 불일치는 `409`, 전투 수치 또는 필수 telemetry 불일치는 `422`입니다.
+
+`PUT /api/v1/realmguard/progress`는 다음처럼 잠금 해제된 hero/skill loadout과 최대 64 KiB JSON object인 개인 설정만 변경합니다. stage, 난이도, star, score, hero level 또는 unlock을 포함하면 `400 authoritative_progress`입니다.
+
+```json
+{"hero_id":"aerin","skill_ids":["meteor"],"settings":{"camera_shake":true}}
+```
+
+RealmGuard 랭킹 query는 다음 값을 조합합니다.
+
+| Query | 값/기본값 |
+| --- | --- |
+| `mode` | `campaign`(기본), `endless` |
+| `difficulty` | 비우거나 `casual`, `normal`, `veteran` |
+| `group` | `individual`(기본), `stage` alias, `department`, `hero` |
+| `metric` | `score`(기본); `stars`는 부서 캠페인 랭킹에서만 지원 |
+| `period` | `daily`, `weekly`, `monthly`, `season`, `all`/`all_time` |
+| `stage_id`, `hero_id` | 선택 필터 |
+| `limit` | 기본 50, 최대 200 |
+
+랭킹은 현재 게시 콘텐츠 version, 검증·moderation된 결과, 랭킹 opt-out과 조직 공개 설정을 적용합니다. Campaign은 성공해 star를 받은 결과만 공식 랭킹에 들어가고 패배 기록은 progress/telemetry에만 반영됩니다. `stars`와 `individual|hero` 조합은 `400 metric_not_supported`이며 Endless mode는 star를 부여하지 않으므로 score metric을 사용합니다.
+
+## RealmGuard Designer와 검토
+
+Designer section은 `stages`, `waves`, `enemies`, `bosses`, `towers`, `heroes`, `skills`, `balance`입니다. Section 전체 조회·교체 경로는 `/api/v1/admin/realmguard/drafts/{section}`이고 `version_id` query로 draft를 지정할 수 있습니다. Array section은 하위 `/items` POST와 `/items/{itemID}` PUT/DELETE도 지원하지만 `balance`는 section 전체 PUT만 사용합니다. 모든 편집은 전체 문서 스키마와 참조를 검증하고 version 상태를 `draft`로 되돌립니다. 콘텐츠 ID는 소문자로 시작하고 이후 소문자·숫자·`_`·`-`만 사용하는 1~32자 값입니다. 일반 enemy는 10~16종, boss는 2~4종, wave 하나의 entry는 최대 8개이고 entry count 합계는 최대 500입니다. 모든 적 ID를 최대 누적값으로 넣은 `battle.complete` histogram의 실제 JSON이 4 KiB 이하여야 하며, endless 10,000 wave를 확장한 `BaseSpawns`와 splitting/boss 소환을 포함한 `MaxSpawns`도 각각 signed 32-bit 이하여야 Test를 통과합니다.
+
+Draft section GET은 현재 SHA-256 checksum을 응답 `version.checksum`과 `ETag`에 제공합니다. Section PUT과 item POST/PUT/DELETE는 이 값을 `If-Match: "<checksum>"`으로 보내야 합니다. 헤더가 없으면 `428 precondition_required`, 다른 작업이 먼저 저장해 값이 오래되었으면 `409 stale_version`이며, 성공 응답의 새 checksum/ETag로 다음 변경을 이어갑니다. 형식이 잘못된 checksum은 `400 invalid_precondition`입니다.
+
+```http
+POST /api/v1/admin/realmguard/versions/{id}/test
+POST /api/v1/admin/realmguard/versions/{id}/publish
+```
+
+초안을 만든 뒤 `/test`를 반드시 성공시켜 `testing` 상태로 전환합니다. 승인 정책이 꺼져 있으면 admin/operator가 이 tested version을 `200`으로 즉시 publish합니다. 켜져 있으면 publish 요청이 `202`와 `pending_approval`을 반환하고 manager/admin이 다음 endpoint에서 검토합니다. `decision`을 생략하면 `approved`입니다. 반려에는 comment가 필수이고 version은 comment/review 시각을 보존한 편집 가능한 `draft`로 돌아갑니다.
+
+```http
+POST /api/v1/realmguard/versions/{id}/review HTTP/1.1
+Content-Type: application/json
+
+{"decision":"rejected","comment":"veteran 시작금과 9번 stage wave 구성을 다시 조정하세요."}
+```
+
+승인되면 admin이 같은 version의 publish endpoint를 호출해 최종 게시합니다. `separation_of_duties` 자기 검토 금지를 서버가 강제합니다. Manager 자신의 team이 비어 있으면 pending 목록 조회가 `403 team_required`이고, 목록에는 team이 비어 있지 않으며 manager와 같은 team인 작성자의 version만 나타납니다. Manager preview/review는 manager와 작성자 어느 한쪽이라도 team이 없으면 `403 team_required`, 다르면 `403 different_team`으로 fail-closed합니다. `/review`의 `/approve` alias와 관리자 prefix alias도 같은 검토 handler를 사용하지만 route guard와 내부 승인 역할 검사를 모두 통과해야 합니다.
+
+`GET /api/v1/realmguard/versions/{id}/preview`는 해당 version의 complete config envelope에 `practice_only:true`를 붙입니다. Manager preview에는 위의 same-team/fail-closed 조건을 적용합니다. 미게시 초안 검증용이며 이 응답으로 공식 score/progress를 제출할 수 없습니다.
+
 ## AI streaming
 
 AI 설정은 관리자 화면에서 OpenAI-compatible base URL, 기본 model, API key, timeout과 최대 token을 저장합니다. 클라이언트는 공급자 key를 보내지 않습니다.
@@ -113,7 +227,7 @@ Content-Type: application/json
 
 ## 선택형 승인 API
 
-관리자 승인 정책이 활성화된 경우 지원되는 게임 생성·변경을 `/api/v1/workflow/requests`로 제출하고 관리자는 `/api/v1/admin/workflow/requests/{id}/review`에서 승인 또는 반려합니다. 팀장은 `/api/v1/workflow/reviews`에서 검토 대상을 조회하고 `/api/v1/workflow/requests/{id}/review`에서 처리합니다. 정책이 비활성이면 별도 검토 상태를 만들지 않고 요청 payload를 바로 반영합니다. 정상 처리는 `pending → applied|rejected`이며 적용에 실패하면 다시 `pending`으로 남습니다. `separation_of_duties`는 기본적으로 자기 요청 검토를 막고, 팀장 역할은 요청자와 검토자 모두의 팀 정보가 있을 때 같은 팀 요청으로 제한되며, 반려에는 비어 있지 않은 `comment`가 필요합니다. 처리 내역은 감사 로그에 기록됩니다.
+관리자 승인 정책이 활성화된 경우 지원되는 게임 생성·변경을 `/api/v1/workflow/requests`로 제출하고 관리자는 `/api/v1/admin/workflow/requests/{id}/review`에서 승인 또는 반려합니다. 팀장은 `/api/v1/workflow/reviews`에서 검토 대상을 조회하고 `/api/v1/workflow/requests/{id}/review`에서 처리합니다. 정책이 비활성이면 별도 검토 상태를 만들지 않고 요청 payload를 바로 반영합니다. 정상 처리는 `pending → applied|rejected`이며 적용에 실패하면 다시 `pending`으로 남습니다. `separation_of_duties`는 기본적으로 자기 요청 검토를 막습니다. Manager 자신의 team이 비어 있으면 review 목록을 `403 team_required`로 거부하고, 목록에는 team이 비어 있지 않은 동일 team 요청만 포함합니다. 직접 review도 manager와 요청자 어느 한쪽의 team이 비면 `403 team_required`, 다르면 `403 different_team`입니다. 반려에는 비어 있지 않은 `comment`가 필요하며 처리 내역은 감사 로그에 기록됩니다. 내장 authoritative runtime의 식별자를 보호하기 위해 일반 게임을 `realmguard` slug로 바꾸거나 RealmGuard의 slug를 다른 값으로 바꾸는 변경은 직접 관리자 API와 workflow 승인 적용 단계에서 모두 거부됩니다.
 
 ## 배포 경계의 요청 제한
 

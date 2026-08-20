@@ -47,7 +47,8 @@ export interface FinishInput extends ScoreInput {
 }
 
 export interface LeaderboardOptions {
-  period?: 'daily' | 'weekly' | 'monthly' | 'season' | 'all';
+  /** `all` is retained for v0.1 callers and is sent to the API as `all_time`. */
+  period?: 'daily' | 'weekly' | 'monthly' | 'season' | 'all_time' | 'all';
   limit?: number;
   scope?: 'individual' | 'team' | 'department';
 }
@@ -56,6 +57,13 @@ export interface TelemetryInput {
   event: GameHubEvent;
   payload?: Record<string, unknown>;
   occurredAt?: string;
+  clientEventId?: string;
+  sequence?: number;
+}
+
+export interface AuthoritativeCompletionInput {
+  path: `/api/v1/${string}`;
+  payload: Record<string, unknown>;
 }
 
 interface ApiEnvelope<T> {
@@ -188,7 +196,7 @@ export class GameHubClient {
 
   async getLeaderboard(options: LeaderboardOptions = {}): Promise<unknown> {
     const query = new URLSearchParams({ game_id: this.gameId });
-    if (options.period) query.set('period', options.period);
+    if (options.period) query.set('period', options.period === 'all' ? 'all_time' : options.period);
     if (options.limit) query.set('limit', String(options.limit));
     if (options.scope) query.set('group', options.scope);
     return this.request(`/api/v1/rankings?${query.toString()}`);
@@ -233,8 +241,31 @@ export class GameHubClient {
         event: input.event,
         data: input.payload ?? {},
         occurred_at: input.occurredAt ?? new Date().toISOString(),
+        client_event_id: input.clientEventId,
+        sequence: input.sequence,
       }),
     });
+  }
+
+  /**
+   * Completes a server-authoritative game in one backend transaction. The SDK
+   * injects the active session credentials and deliberately does not call the
+   * generic score or finish endpoints afterwards.
+   */
+  async completeAuthoritatively<T = unknown>({ path, payload }: AuthoritativeCompletionInput): Promise<T> {
+    const sessionId = this.requireSession();
+    const response = await this.request<T>(path, {
+      method: 'POST',
+      body: JSON.stringify({
+        ...payload,
+        game_id: this.gameId,
+        session_id: sessionId,
+        session_token: this.currentSession?.session_token,
+      }),
+    });
+    this.currentSession = undefined;
+    this.scoreSubmitted = false;
+    return response;
   }
 
   private requireSession(): string {
@@ -311,6 +342,7 @@ export const GameHub = {
   getUser() { return this.client().getUser(); },
   finish(input?: Partial<FinishInput>) { return this.client().finish(input); },
   telemetry(input: TelemetryInput) { return this.client().telemetry(input); },
+  completeAuthoritatively<T = unknown>(input: AuthoritativeCompletionInput) { return this.client().completeAuthoritatively<T>(input); },
 };
 
 export default GameHub;

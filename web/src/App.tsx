@@ -22,6 +22,8 @@ import { AdminResourcePage } from './pages/admin/AdminResourcePage';
 import { AdminSettingsPage } from './pages/admin/AdminSettingsPage';
 import { AIGameLabPage } from './pages/AIGameLabPage';
 import { ReviewsPage } from './pages/ReviewsPage';
+import { RealmGuardPreviewPage } from './pages/RealmGuardPreviewPage';
+import { RealmGuardDesignerPage } from './pages/admin/realmguard/RealmGuardDesignerPage';
 import { useAuth } from './state/AuthContext';
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -52,6 +54,7 @@ export function App() {
       <Route path="events" element={<EventsPage />} />
       <Route path="ai" element={<AIGameLabPage />} />
       <Route path="reviews" element={<ReviewsPage />} />
+      <Route path="realmguard/preview/:id" element={<RealmGuardPreviewPage />} />
       <Route path="developer" element={<DeveloperPage />} />
       <Route path="profile" element={<ProfileLayout />}>
         <Route index element={<ProfileOverviewPage />} />
@@ -65,6 +68,7 @@ export function App() {
       <Route path="users" element={adminOnly(<AdminResourcePage resource="users" />)} />
       <Route path="audit" element={adminOnly(<AdminResourcePage resource="audit" />)} />
       <Route path="analytics" element={<AdminAnalyticsPage />} />
+      <Route path="realmguard" element={<RealmGuardDesignerPage />} />
       <Route path="approvals" element={<AdminSettingsPage section="approval" />} />
       <Route path="keys" element={adminOnly(<AdminSettingsPage section="api_keys" />)} />
       <Route path="security" element={adminOnly(<AdminSettingsPage section="oidc" />)} />

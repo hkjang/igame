@@ -157,7 +157,7 @@ func mcpTools() []map[string]any {
 		{"name": "leaderboard_get", "description": "Get an individual, department, or team leaderboard.", "inputSchema": map[string]any{"type": "object", "properties": map[string]any{"game_id": map[string]any{"type": "string"}, "period": map[string]any{"type": "string", "enum": []string{"daily", "weekly", "monthly", "season", "all_time"}}, "group": map[string]any{"type": "string", "enum": []string{"individual", "department", "team"}}, "limit": map[string]any{"type": "integer", "minimum": 1, "maximum": 200}}, "required": []string{"game_id"}, "additionalProperties": false}},
 		{"name": "profile_get", "description": "Get the authenticated user's iGame profile.", "inputSchema": map[string]any{"type": "object", "properties": map[string]any{}, "additionalProperties": false}},
 		{"name": "events_list", "description": "List available company game events.", "inputSchema": map[string]any{"type": "object", "properties": map[string]any{}, "additionalProperties": false}},
-		{"name": "game_session_start", "description": "Start a signed game session. Requires sessions:write for API keys.", "inputSchema": map[string]any{"type": "object", "properties": map[string]any{"game_id": map[string]any{"type": "string"}}, "required": []string{"game_id"}, "additionalProperties": false}},
+		{"name": "game_session_start", "description": "Start a signed game session. RealmGuard requires realmguard_version_id from its published config. Requires sessions:write for API keys.", "inputSchema": map[string]any{"type": "object", "properties": map[string]any{"game_id": map[string]any{"type": "string"}, "realmguard_version_id": map[string]any{"type": "string", "format": "uuid", "description": "Published RealmGuard config version UUID; required when game_id resolves to RealmGuard."}}, "required": []string{"game_id"}, "additionalProperties": false}},
 		{"name": "score_submit", "description": "Submit a score for a signed game session. Requires scores:write for API keys.", "inputSchema": map[string]any{"type": "object", "properties": map[string]any{"session_id": map[string]any{"type": "string"}, "session_token": map[string]any{"type": "string"}, "game_id": map[string]any{"type": "string"}, "score": map[string]any{"type": "integer"}, "duration_ms": map[string]any{"type": "integer", "minimum": 0}, "metadata": map[string]any{"type": "object"}}, "required": []string{"session_id", "session_token", "score"}, "additionalProperties": false}},
 	}
 }
@@ -221,7 +221,15 @@ func (s *Server) callMCPTool(r *http.Request, name string, args map[string]any) 
 		if game == "" {
 			return nil, fmt.Errorf("game_id is required")
 		}
-		return s.captureHandler(r, http.MethodPost, "/api/v1/games/"+url.PathEscape(game)+"/sessions", s.startGameSession, "id", game)
+		metadata := map[string]any{}
+		if versionID, exists := args["realmguard_version_id"]; exists {
+			metadata["realmguard_version_id"] = versionID
+		}
+		body, err := json.Marshal(map[string]any{"metadata": metadata})
+		if err != nil {
+			return nil, fmt.Errorf("invalid session arguments")
+		}
+		return s.captureHandlerRouteBody(r, http.MethodPost, "/api/v1/games/"+url.PathEscape(game)+"/sessions", s.startGameSession, body, "id", game)
 	case "score_submit":
 		body, err := json.Marshal(args)
 		if err != nil {
@@ -234,8 +242,17 @@ func (s *Server) callMCPTool(r *http.Request, name string, args map[string]any) 
 }
 
 func (s *Server) captureHandlerBody(parent *http.Request, method, target string, handler http.HandlerFunc, body []byte) (any, error) {
+	return s.captureHandlerRouteBody(parent, method, target, handler, body, "", "")
+}
+
+func (s *Server) captureHandlerRouteBody(parent *http.Request, method, target string, handler http.HandlerFunc, body []byte, param, value string) (any, error) {
 	request := httptest.NewRequest(method, target, bytes.NewReader(body)).WithContext(parent.Context())
 	request.Header.Set("Content-Type", "application/json")
+	if param != "" {
+		route := chi.NewRouteContext()
+		route.URLParams.Add(param, value)
+		request = request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, route))
+	}
 	recorder := httptest.NewRecorder()
 	handler(recorder, request)
 	if recorder.Code >= 400 {

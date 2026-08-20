@@ -13,7 +13,10 @@ COPY web/package.json web/package-lock.json ./web/
 RUN --mount=type=cache,target=/root/.npm \
     npm --prefix web ci
 COPY web ./web
-RUN npm --prefix web run build
+COPY VERSION ./VERSION
+COPY scripts/check-offline-bundle.sh ./scripts/check-offline-bundle.sh
+RUN npm --prefix web run build \
+    && sh ./scripts/check-offline-bundle.sh /src
 
 FROM golang:1.24-alpine AS go-build
 WORKDIR /src
@@ -59,6 +62,12 @@ LABEL org.opencontainers.image.title="igame" \
 
 COPY --from=go-build --chown=igame:igame /out/igame /app/igame
 COPY LICENSE /licenses/LICENSE
+COPY --from=web-build /src/web/package.json /licenses/web/package.json
+COPY --from=web-build /src/web/package-lock.json /licenses/web/package-lock.json
+COPY --from=web-build /src/sdk/gamehub-js/package.json /licenses/sdk/gamehub-js/package.json
+COPY --from=web-build /src/sdk/gamehub-js/package-lock.json /licenses/sdk/gamehub-js/package-lock.json
+COPY --from=web-build /src/web/node_modules/phaser/package.json /licenses/phaser/package.json
+COPY --from=web-build /src/web/node_modules/phaser/LICENSE.md /licenses/phaser/LICENSE.md
 
 USER 10001:10001
 WORKDIR /app

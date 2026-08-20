@@ -506,7 +506,10 @@ func (s *Server) createWorkflowRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var cfg approvalSetting
-	_ = s.setting(r.Context(), "approval", &cfg)
+	if err := s.setting(r.Context(), "approval", &cfg); err != nil {
+		writeError(w, http.StatusServiceUnavailable, "approval_setting_unavailable", "approval policy is unavailable")
+		return
+	}
 	if !cfg.Enabled {
 		id, err := s.applyWorkflow(r.Context(), p, in)
 		if err != nil {
@@ -558,6 +561,13 @@ func (s *Server) applyWorkflow(ctx context.Context, p Principal, in workflowInpu
 	if !s.canModifyGame(ctx, p, *in.ResourceID) {
 		return uuid.Nil, fmt.Errorf("only the game owner or an operator can update this game")
 	}
+	var currentSlug string
+	if err := s.DB.QueryRow(ctx, `SELECT slug FROM games WHERE id=$1`, *in.ResourceID).Scan(&currentSlug); err != nil {
+		return uuid.Nil, fmt.Errorf("load game identity: %w", err)
+	}
+	if (currentSlug == realmGuardSlug) != (game.Slug == realmGuardSlug) {
+		return uuid.Nil, fmt.Errorf("protected game identity: the RealmGuard slug is reserved for its built-in authoritative runtime")
+	}
 	tag, err := s.DB.Exec(ctx, `UPDATE games SET slug=$2,name=$3,description=$4,category_id=$5,tags=$6,thumbnail_url=$7,banner_url=$8,game_url=$9,game_type=$10,multiplayer=$11,ranking_enabled=$12,achievement_enabled=$13,season_enabled=$14,min_players=$15,max_players=$16,status=$17,version=$18,developer=$19,score_order=$20,score_rules=$21,updated_at=now() WHERE id=$1`, *in.ResourceID, game.Slug, game.Name, game.Description, game.CategoryID, game.Tags, game.ThumbnailURL, game.BannerURL, game.GameURL, game.GameType, game.Multiplayer, game.RankingEnabled, game.AchievementEnabled, game.SeasonEnabled, game.MinPlayers, game.MaxPlayers, game.Status, game.Version, game.Developer, game.ScoreOrder, game.ScoreRules)
 	if err != nil {
 		return uuid.Nil, err
@@ -569,10 +579,10 @@ func (s *Server) applyWorkflow(ctx context.Context, p Principal, in workflowInpu
 }
 func (s *Server) listMyWorkflowRequests(w http.ResponseWriter, r *http.Request) {
 	p, _ := principalFrom(r)
-	s.queryWorkflow(w, r, &p.UserID, "all")
+	s.queryWorkflow(w, r, &p.UserID, nil, "all")
 }
 func (s *Server) adminListWorkflowRequests(w http.ResponseWriter, r *http.Request) {
-	s.queryWorkflow(w, r, nil, "all")
+	s.queryWorkflow(w, r, nil, nil, "all")
 }
 func (s *Server) listWorkflowReviews(w http.ResponseWriter, r *http.Request) {
 	p, _ := principalFrom(r)
@@ -588,10 +598,19 @@ func (s *Server) listWorkflowReviews(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "invalid_status", "invalid review status")
 		return
 	}
-	s.queryWorkflow(w, r, nil, status)
+	var reviewerTeam *string
+	if p.Role == "manager" {
+		team := strings.TrimSpace(p.Team)
+		if team == "" {
+			writeError(w, 403, "team_required", "managers require a team assignment to view review requests")
+			return
+		}
+		reviewerTeam = &team
+	}
+	s.queryWorkflow(w, r, nil, reviewerTeam, status)
 }
-func (s *Server) queryWorkflow(w http.ResponseWriter, r *http.Request, requester *uuid.UUID, status string) {
-	rows, err := s.DB.Query(r.Context(), `SELECT wr.id,wr.requester_id,COALESCE(u.username,''),COALESCE(u.display_name,''),COALESCE(u.department,''),COALESCE(u.team,''),wr.reviewer_id,COALESCE(reviewer.username,''),wr.action,wr.resource_type,wr.resource_id,wr.payload,wr.status,wr.comment,wr.created_at,wr.reviewed_at,wr.applied_at FROM workflow_requests wr LEFT JOIN users u ON u.id=wr.requester_id LEFT JOIN users reviewer ON reviewer.id=wr.reviewer_id WHERE ($1::uuid IS NULL OR wr.requester_id=$1) AND ($2='all' OR wr.status=$2) ORDER BY wr.created_at DESC`, requester, status)
+func (s *Server) queryWorkflow(w http.ResponseWriter, r *http.Request, requester *uuid.UUID, reviewerTeam *string, status string) {
+	rows, err := s.DB.Query(r.Context(), `SELECT wr.id,wr.requester_id,COALESCE(u.username,''),COALESCE(u.display_name,''),COALESCE(u.department,''),COALESCE(u.team,''),wr.reviewer_id,COALESCE(reviewer.username,''),wr.action,wr.resource_type,wr.resource_id,wr.payload,wr.status,wr.comment,wr.created_at,wr.reviewed_at,wr.applied_at FROM workflow_requests wr LEFT JOIN users u ON u.id=wr.requester_id LEFT JOIN users reviewer ON reviewer.id=wr.reviewer_id WHERE ($1::uuid IS NULL OR wr.requester_id=$1) AND ($2::text IS NULL OR (u.team=$2 AND u.team<>'')) AND ($3='all' OR wr.status=$3) ORDER BY wr.created_at DESC`, requester, reviewerTeam, status)
 	if err != nil {
 		dbError(w, err)
 		return
@@ -639,7 +658,10 @@ func (s *Server) reviewWorkflowRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var cfg approvalSetting
-	_ = s.setting(r.Context(), "approval", &cfg)
+	if err := s.setting(r.Context(), "approval", &cfg); err != nil {
+		writeError(w, http.StatusServiceUnavailable, "approval_setting_unavailable", "approval policy is unavailable")
+		return
+	}
 	if cfg.ManagerRequired && p.Role != "manager" && p.Role != "admin" {
 		writeError(w, 403, "manager_required", "a manager must review this request")
 		return
@@ -664,9 +686,16 @@ func (s *Server) reviewWorkflowRequest(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 403, "self_approval_forbidden", "requesters cannot review their own requests")
 		return
 	}
-	if p.Role == "manager" && p.Team != "" && requesterTeam != "" && p.Team != requesterTeam {
-		writeError(w, 403, "different_team", "managers can only review requests from their team")
-		return
+	if p.Role == "manager" {
+		managerTeam, creatorTeam := strings.TrimSpace(p.Team), strings.TrimSpace(requesterTeam)
+		if managerTeam == "" || creatorTeam == "" {
+			writeError(w, 403, "team_required", "manager and requester require team assignments for review")
+			return
+		}
+		if managerTeam != creatorTeam {
+			writeError(w, 403, "different_team", "managers can only review requests from their team")
+			return
+		}
 	}
 	_, err = tx.Exec(r.Context(), `UPDATE workflow_requests SET status=$2,reviewer_id=$3,comment=$4,reviewed_at=now() WHERE id=$1`, id, in.Decision, p.UserID, in.Comment)
 	if err != nil {

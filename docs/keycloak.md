@@ -48,7 +48,7 @@ igame은 issuer의 `/.well-known/openid-configuration`을 이용해 authorizatio
 
 ## 역할 매핑
 
-설정한 group claim은 `admin`, `operator`, `manager` 그룹 목록과 비교하고 어느 쪽에도 해당하지 않으면 `user`로 provisioning됩니다. 여러 목록에 일치할 때 우선순위는 `admin → operator → manager`이며 OIDC 사용자의 역할은 로그인 때 다시 계산됩니다. `department`와 `team`도 지정한 claim에서 갱신됩니다. 승인 queue는 소속별 reviewer에게 자동 배정하지 않지만, 팀장 역할의 검토는 요청자와 검토자 양쪽에 team 값이 있으면 같은 팀으로 제한됩니다. 조직별 분리를 사용할 때는 team claim mapping의 누락을 함께 점검합니다.
+설정한 group claim은 `admin`, `operator`, `manager` 그룹 목록과 비교하고 어느 쪽에도 해당하지 않으면 `user`로 provisioning됩니다. 여러 목록에 일치할 때 우선순위는 `admin → operator → manager`이며 OIDC 사용자의 역할은 로그인 때 다시 계산됩니다. `department`와 `team`도 지정한 claim에서 갱신됩니다. 승인 queue는 소속별 reviewer에게 자동 배정하지 않습니다. RealmGuard manager에게 team claim이 없으면 pending 목록을 거부하고, 목록에는 같은 비어 있지 않은 team 작성자의 항목만 표시합니다. Preview/review는 manager나 작성자 어느 한쪽의 team claim이 누락되어도 `team_required`로 fail-closed합니다. 배포 전 manager와 작성자 시험 계정으로 team claim mapping을 확인합니다.
 
 ## Secret 회전
 

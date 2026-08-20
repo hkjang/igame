@@ -26,13 +26,25 @@ curl --fail --max-time 5 http://127.0.0.1:8080/readyz
 - 플레이 정책: 허용 시간, 일일 제한, 게임별 예외
 - 브라우저 연결 정책: iframe과 API 연결 허용 origin
 
-승인 워크플로가 꺼져 있으면 지원되는 게임 생성·변경 요청을 바로 반영합니다. 켜져 있을 때만 pending 요청을 만들고, reviewer 역할 또는 `manager_required` 설정에 따라 팀장/관리자가 승인·반려합니다. 기본적으로 요청자는 자기 요청을 검토할 수 없고 팀장 역할은 양쪽에 팀 정보가 있으면 같은 팀의 요청만 검토할 수 있습니다. 반려 사유는 필수이며 모든 전이는 감사 로그에 남깁니다.
+일반 카탈로그 승인 워크플로가 꺼져 있으면 지원되는 게임 생성·변경 요청을 바로 반영합니다. 켜져 있을 때만 pending 요청을 만들고, reviewer 역할 또는 `manager_required` 설정에 따라 팀장/관리자가 승인·반려합니다. 기본적으로 요청자는 자기 요청을 검토할 수 없습니다. 일반 workflow와 RealmGuard Designer 모두 manager 자신의 team이 없으면 review 목록을 거부하고 비어 있지 않은 동일 team 작성자의 항목만 보여 줍니다. 직접 preview/review가 있는 경로는 manager와 작성자 어느 한쪽의 team이 없으면 `team_required`, 서로 다르면 `different_team`으로 fail-closed합니다. 반려 사유는 필수이며 모든 전이는 감사 로그에 남깁니다. 일반 카탈로그의 직접 변경과 승인된 workflow 적용 모두 내장 RealmGuard의 예약 slug 전환을 거부합니다.
 
 ## AI 운영
 
 브라우저는 공급자 API를 직접 호출하지 않습니다. 서버가 자격 증명을 복호화해 호출하며 기본 응답은 SSE streaming입니다. `max_tokens`는 최대 262,144이며 요청이 관리자 설정 상한을 넘으면 거부합니다. 공급자 자체 상한은 관리자가 그보다 작게 설정해야 합니다. 연결 해제 시 upstream 요청을 취소하며 서버가 AI 요청을 자동 재시도하지는 않습니다.
 
 AI가 비활성 또는 미설정이면 AI 게임과 메뉴는 숨기고 일반 게임 기능은 정상 운영합니다.
+
+## RealmGuard 운영
+
+RealmGuard는 `/games/realmguard`에서 실행하고 runtime은 현재 `published` 콘텐츠만 사용합니다. 브라우저는 config를 읽은 뒤 그 `version.id`를 세션 metadata의 `realmguard_version_id`로 pin합니다. 게시 race로 UUID가 stale이면 서버가 `409 realmguard_config_stale`로 시작을 막고 UI가 최신 config를 다시 읽으므로, 이 오류를 연습 모드로 조용히 우회하지 않습니다. 게시 전에는 Designer의 Stages, Waves, Enemies, Bosses, Towers, Heroes, Skills, Balance, Versions, Telemetry 탭에서 참조 무결성과 운영 지표를 확인하고, Test 단계에서 campaign 최소 10개·endless 최소 1개, stage별 8~15 waves, wave당 entry 8개·기본 spawn 500 상한, path/tower spot, 1~32자 ID grammar, 일반 enemy 10~16종과 boss 2~4종 및 최악 조건 histogram의 4 KiB budget을 검증합니다. Endless는 10,000 wave까지 확장한 기본·파생 최대 spawn counter가 signed 32-bit 안에 드는지도 확인합니다. 난이도별 시작금, 전투 중 처치 기반 hero level, 18/10 lives의 star 경계와 결과 제출을 representative stage에서 직접 시험합니다.
+
+승인 정책을 사용하지 않아도 draft를 Test로 전환한 뒤 admin/operator가 게시합니다. 정책을 사용하면 test 후 게시 요청, 팀장/관리자 검토, 관리자 최종 게시 순서가 적용됩니다. RealmGuard manager에게 team이 없으면 pending 목록을 거부하고 목록에는 비어 있지 않은 동일 team 작성자의 항목만 표시합니다. Preview/review는 manager 또는 작성자의 team이 빠져도 fail-closed합니다. 작성자와 검토자의 분리 및 이 team 제한을 지키고, 반려할 때는 수정 근거가 되는 comment를 남깁니다. 게시 직전과 직후에 version tuple/checksum, 작성자·검토자, 기준 telemetry를 감사 기록과 change ticket에 남깁니다. 미게시 version의 preview는 `practice_only`이므로 공식 기록 검증에는 사용하지 않습니다.
+
+Designer section 조회 응답의 `ETag`/checksum을 저장 요청의 `If-Match`에 넣습니다. `428 precondition_required`면 client가 checksum을 보내지 않은 것이고, `409 stale_version`이면 다른 변경이 먼저 저장된 것이므로 자동 덮어쓰지 말고 최신 section을 다시 읽어 차이를 병합합니다. 정상 저장 응답의 새 ETag를 다음 편집에 사용합니다.
+
+새 게시물은 이후 시작한 세션에만 적용됩니다. 진행 중 세션은 시작 시 고정된 snapshot으로 계속 검증되므로 balance 변경 중 강제로 종료하지 않습니다. 이상이 있으면 이전 이미지만 되돌리지 말고 알려진 정상 콘텐츠를 새 draft로 복구해 같은 절차로 게시하거나, 해당 이미지·DB backup 쌍을 함께 복원합니다. 전용 telemetry는 run/unique user/평균 score·duration/최고 wave/승리·거부, 실패 wave와 stage·hero·난이도 breakdown을 제공하며 `realmguard.tower.build`/`realmguard.skill.cast` event를 tower·skill 사용량으로 집계합니다.
+
+공식 결과 전에는 UUID `client_event_id`와 1-based 연속 `sequence`로 ready, wave start/complete와 battle complete를 전송합니다. 완료 snapshot의 적별 defeated/escaped/spawned histogram과 전투 누적값은 뒤로 갈 수 없습니다. 같은 event 재전송은 전체 payload가 같을 때만 idempotent하며 sequence conflict는 누락 event부터 다시 보내야 합니다. Event `data` 4 KiB 한도를 지키고 고빈도 frame/position event는 보내지 않습니다. 선택 event 전체는 128개, ready/complete는 각 1개, wave start/complete는 각각 10,001/10,000개, tower build/upgrade/sell은 합계 10,000개까지 받습니다. 필수 class별 용량은 독립적으로 예약되며 해당 class가 차면 `telemetry_limit`을 반환합니다. `server_received_telemetry_v1`은 이 브라우저 자가보고 원장의 서버 수신·순서·시각·누적 일관성 검증이며 완전한 서버 시뮬레이션은 아닙니다. 운영 분석과 이상 탐지는 이 보장 경계를 기준으로 해석합니다.
 
 ## 무중단에 가까운 업그레이드
 
@@ -56,6 +68,14 @@ DB 마이그레이션은 전진 적용을 기본으로 합니다. 이전 이미�
 | AI 응답 중단 | provider 접근, timeout, SSE buffering, 모델 token 상한 |
 | 게임 iframe 차단 | allowlist, CSP frame-src, 게임의 frame-ancestors/X-Frame-Options |
 | 점수 미반영 | session token/소유권, 같은 세션의 중복 점수, 게임별 점수·시간 규칙 |
+| RealmGuard `version_mismatch` | 세션 시작 후 게시 변경 여부, 결과의 content/balance/asset 및 stage 객체 version |
+| RealmGuard `realmguard_version_required`/`realmguard_config_stale` | config의 `version.id`를 session metadata에 보냈는지, 게시 변경 후 config를 다시 읽었는지 |
+| RealmGuard `invalid_gold` | 난이도 시작금 multiplier, kill/wave/조기 호출 보상과 build/upgrade/sell 합계 |
+| RealmGuard `hero_level_mismatch` | 계정 level이 아닌 해당 전투의 처치 기반 hero level 제출 여부 |
+| RealmGuard `telemetry_sequence_conflict` | 세션별 sequence가 1부터 연속인지, 재시도 queue에서 누락·중복 순서가 없는지 |
+| RealmGuard `telemetry_attestation_failed` | ready/wave/battle milestone, receipt 시간, 누적 histogram과 tower/economy 원장이 최종 결과와 일치하는지 |
+| Designer `precondition_required`/`stale_version` | GET의 최신 ETag를 `If-Match`로 보냈는지, 충돌 편집을 다시 읽고 병합했는지 |
+| Manager `team_required`/`different_team` | manager와 작성자 양쪽 team claim이 비어 있지 않고 정확히 같은지 |
 
 ## 프록시
 

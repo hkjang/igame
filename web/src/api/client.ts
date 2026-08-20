@@ -42,7 +42,7 @@ function normalizeGame(game: Game): Game {
     tags: game.tags ?? [],
     ranking: game.ranking ?? game.ranking_enabled ?? false,
     achievement: game.achievement ?? game.achievement_enabled ?? false,
-    game_type: game.game_type === 'embedded' && ['2048', 'snake', 'memory', 'reaction', 'typing'].includes(game.slug || game.id) ? 'builtin' : game.game_type,
+    game_type: game.game_type === 'embedded' && ['2048', 'snake', 'memory', 'reaction', 'typing', 'realmguard'].includes(game.slug || game.id) ? 'builtin' : game.game_type,
   };
 }
 

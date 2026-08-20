@@ -10,7 +10,7 @@ import { useSnackbar } from '../../state/SnackbarContext';
 import { ReviewQueue } from '../../components/ReviewQueue';
 
 type Values = Record<string, unknown>;
-const allPermissions = ['api:access', 'mcp:access', 'games:read', 'sessions:write', 'scores:write', 'rankings:read', 'profile:read', 'ai:invoke', 'workflow:write', 'admin:*'];
+const allPermissions = ['api:access', 'mcp:access', 'games:read', 'sessions:write', 'scores:write', 'rankings:read', 'profile:read', 'profile:write', 'ai:invoke', 'workflow:write', 'admin:*'];
 const roles = ['user', 'manager', 'operator', 'admin'];
 const roleLabels: Record<string, string> = { user: '일반 사용자', manager: '팀장', operator: '게임 운영자', admin: '서비스 관리자' };
 

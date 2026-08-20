@@ -6,7 +6,7 @@ IMAGE := igame:v$(VERSION)
 COMMIT := $(shell git rev-parse --short=12 HEAD 2>/dev/null || printf unknown)
 BUILD_DATE := $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 
-.PHONY: help deps fmt lint test sdk-build web-build build docker-build smoke release verify-release check-contract clean
+.PHONY: help deps fmt lint test sdk-build web-build check-offline-bundle build docker-build smoke realmguard-smoke release verify-release check-contract clean
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*## "; printf "igame build targets:\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -36,6 +36,9 @@ sdk-build: ## Build the JavaScript Game SDK
 
 web-build: sdk-build ## Build the React portal
 	npm --prefix web run build
+	bash ./scripts/check-offline-bundle.sh
+
+check-offline-bundle: web-build ## Verify Phaser and RealmGuard are bundled without remote assets
 
 build: web-build ## Build the versioned Go binary
 	bash ./scripts/build-local.sh "$(VERSION)" "$(COMMIT)" "$(BUILD_DATE)"
@@ -53,6 +56,9 @@ docker-build: check-contract ## Build the single offline image
 
 smoke: ## Smoke-test a running service; override URL=...
 	bash ./scripts/smoke-test.sh "$(or $(URL),http://127.0.0.1:8080)"
+
+realmguard-smoke: ## Test RealmGuard on a disposable fresh service; set ADMIN and PASSWORD
+	bash ./scripts/smoke-realmguard.sh "$(or $(URL),http://127.0.0.1:8080)" "$(ADMIN)" "$(PASSWORD)"
 
 release: check-contract ## Build the single release asset plus local SBOM/checksum evidence
 	bash ./scripts/release.sh

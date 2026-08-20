@@ -2,6 +2,11 @@ import type { Game } from '../types';
 
 export const BUILTIN_GAMES: Game[] = [
   {
+    id: 'realmguard', slug: 'realmguard', name: 'RealmGuard', category: '전략', tags: ['전략', '타워 디펜스', '캠페인'],
+    description: '영웅과 네 종류의 타워로 장막 너머 Realm을 수호하세요.', game_type: 'builtin', status: 'active',
+    ranking: true, achievement: true, version: '0.2.0', developer: 'igame', accent: '#7fe0c1', icon: 'RG',
+  },
+  {
     id: '2048', slug: '2048', name: '2048', category: '퍼즐', tags: ['퍼즐', '숫자', '싱글'],
     description: '같은 숫자 타일을 합쳐 2048을 완성하세요.', game_type: 'builtin', status: 'active',
     ranking: true, achievement: true, version: '1.0.0', developer: 'igame', accent: '#ffad5c', icon: '2048',

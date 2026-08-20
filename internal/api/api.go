@@ -120,6 +120,16 @@ func (s *Server) Router() http.Handler {
 		a.Post("/api/v1/events/{id}/join", s.joinEvent)
 		a.Get("/api/v1/notices", s.listPublicNotices)
 		a.Get("/api/v1/banners", s.listPublicBanners)
+		a.Get("/api/v1/realmguard/config", s.realmGuardConfig)
+		a.Get("/api/v1/realmguard/version", s.realmGuardVersion)
+		a.Get("/api/v1/realmguard/progress", s.realmGuardProgress)
+		a.Put("/api/v1/realmguard/progress", s.putRealmGuardProgress)
+		a.Post("/api/v1/realmguard/results", s.submitRealmGuardResult)
+		a.Get("/api/v1/realmguard/rankings", s.realmGuardRankings)
+		a.With(s.requireRole("manager", "admin")).Get("/api/v1/realmguard/versions/pending", s.listPendingRealmGuardVersions)
+		a.With(s.requireRole("manager", "admin")).Post("/api/v1/realmguard/versions/{id}/approve", s.approveRealmGuardVersion)
+		a.With(s.requireRole("manager", "admin")).Post("/api/v1/realmguard/versions/{id}/review", s.approveRealmGuardVersion)
+		a.With(s.requireRole("manager", "operator", "admin")).Get("/api/v1/realmguard/versions/{id}/preview", s.previewRealmGuardVersion)
 		a.Post("/api/v1/workflow/requests", s.createWorkflowRequest)
 		a.Get("/api/v1/workflow/requests", s.listMyWorkflowRequests)
 		a.Post("/api/v1/workflow/requests/{id}/review", s.reviewWorkflowRequest)
@@ -181,6 +191,18 @@ func (s *Server) Router() http.Handler {
 			admin.Delete("/rankings/{id}", s.excludeRanking)
 			admin.Get("/workflow/requests", s.adminListWorkflowRequests)
 			admin.Post("/workflow/requests/{id}/review", s.reviewWorkflowRequest)
+			admin.Get("/realmguard/drafts/{section}", s.getRealmGuardDraftSection)
+			admin.Put("/realmguard/drafts/{section}", s.putRealmGuardDraftSection)
+			admin.Post("/realmguard/drafts/{section}/items", s.createRealmGuardDraftItem)
+			admin.Put("/realmguard/drafts/{section}/items/{itemID}", s.updateRealmGuardDraftItem)
+			admin.Delete("/realmguard/drafts/{section}/items/{itemID}", s.deleteRealmGuardDraftItem)
+			admin.Get("/realmguard/versions", s.listRealmGuardVersions)
+			admin.Post("/realmguard/versions", s.createRealmGuardVersion)
+			admin.Post("/realmguard/versions/{id}/test", s.testRealmGuardVersion)
+			admin.Post("/realmguard/versions/{id}/approve", s.approveRealmGuardVersion)
+			admin.Post("/realmguard/versions/{id}/review", s.approveRealmGuardVersion)
+			admin.Post("/realmguard/versions/{id}/publish", s.publishRealmGuardVersion)
+			admin.Get("/realmguard/telemetry", s.realmGuardTelemetry)
 			admin.With(s.requireRole("admin")).Get("/audit", s.listAuditLogs)
 		})
 	})
@@ -314,7 +336,11 @@ func (s *Server) authenticateAPIKey(ctx context.Context, raw string) (Principal,
 	// Apply the current global and role policy on every request. This makes
 	// permission removal and role changes effective immediately for existing
 	// keys without exposing or rewriting their original secret.
-	p.Permissions = effectiveKeyPermissions(p, p.Permissions, s.loadAPIKeyPolicyContext(ctx))
+	policy, err := s.loadAPIKeyPolicyContext(ctx)
+	if err != nil {
+		return Principal{}, fmt.Errorf("load API key policy: %w", err)
+	}
+	p.Permissions = effectiveKeyPermissions(p, p.Permissions, policy)
 	p.AuthType = "api_key"
 	_, _ = s.DB.Exec(ctx, `UPDATE api_keys SET last_used_at=now() WHERE key_hash=$1 AND (last_used_at IS NULL OR last_used_at<now()-interval '5 minutes')`, hash[:])
 	return p, nil
@@ -349,6 +375,20 @@ func (s *Server) enforceAPIKeyPermissions(next http.Handler) http.Handler {
 		switch {
 		case strings.HasPrefix(path, "/api/v1/admin/"):
 			required = "admin:*"
+		case strings.HasPrefix(path, "/api/v1/realmguard/versions/"):
+			required = "admin:*"
+		case path == "/api/v1/realmguard/results":
+			required = "scores:write"
+		case path == "/api/v1/realmguard/progress":
+			if r.Method == http.MethodGet {
+				required = "profile:read"
+			} else {
+				required = "profile:write"
+			}
+		case path == "/api/v1/realmguard/rankings":
+			required = "rankings:read"
+		case path == "/api/v1/realmguard/config" || path == "/api/v1/realmguard/version":
+			required = "games:read"
 		case strings.Contains(path, "/api-keys"):
 			writeError(w, 403, "forbidden", "API keys cannot manage API keys")
 			return
@@ -364,6 +404,14 @@ func (s *Server) enforceAPIKeyPermissions(next http.Handler) http.Handler {
 			required = "workflow:write"
 		case strings.Contains(path, "/rankings"):
 			required = "rankings:read"
+		case path == "/api/v1/me" && r.Method == http.MethodPatch || path == "/api/v1/me/preferences" && r.Method == http.MethodPut:
+			required = "profile:write"
+		case strings.HasSuffix(path, "/favorite") && (r.Method == http.MethodPost || r.Method == http.MethodDelete):
+			required = "profile:write"
+		case strings.HasSuffix(path, "/join") && r.Method == http.MethodPost:
+			required = "profile:write"
+		case path == "/api/v1/me/achievements" && r.Method == http.MethodPost:
+			required = "scores:write"
 		case strings.Contains(path, "/me"):
 			required = "profile:read"
 		case strings.Contains(path, "/games") || strings.Contains(path, "/events") || strings.Contains(path, "/seasons") || strings.Contains(path, "/achievements") || strings.Contains(path, "/notices") || strings.Contains(path, "/banners"):

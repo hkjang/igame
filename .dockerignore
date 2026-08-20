@@ -7,13 +7,15 @@ dist
 coverage
 data
 docs
-scripts
+scripts/*
+!scripts/check-offline-bundle.sh
 web/node_modules
 web/dist
 sdk/gamehub-js/node_modules
 sdk/gamehub-js/dist
 *.coverprofile
 *.log
+.tmp-*
 .env
 .env.*
 *.pem

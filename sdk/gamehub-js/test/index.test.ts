@@ -59,4 +59,54 @@ describe('GameHubClient', () => {
       expect.objectContaining({ credentials: 'include' }),
     );
   });
+
+  it('normalizes the legacy all period to the backend all_time value', async () => {
+    const fetcher = vi.fn().mockResolvedValue(response({ items: [] }));
+    const client = new GameHubClient({ gameId: 'snake', fetch: fetcher });
+
+    await client.getLeaderboard({ period: 'all' });
+
+    expect(fetcher).toHaveBeenCalledWith(
+      '/api/v1/rankings?game_id=snake&period=all_time',
+      expect.objectContaining({ credentials: 'include' }),
+    );
+  });
+
+  it('sends RealmGuard attestation identity at the telemetry envelope top level', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(response({ session: { id: 'rg-session', session_token: 'rg-token' } }))
+      .mockResolvedValueOnce(response({ accepted: true }));
+    const client = new GameHubClient({ gameId: 'realmguard', fetch: fetcher });
+    await client.start();
+    await client.telemetry({
+      event: 'realmguard.wave.complete', payload: { wave: 1 }, occurredAt: '2026-08-20T10:00:00.000Z',
+      clientEventId: '22222222-2222-4222-8222-222222222222', sequence: 3,
+    });
+    expect(fetcher).toHaveBeenNthCalledWith(2, '/api/v1/telemetry', expect.objectContaining({
+      body: JSON.stringify({
+        game_id: 'realmguard', session_id: 'rg-session', session_token: 'rg-token', event: 'realmguard.wave.complete',
+        data: { wave: 1 }, occurred_at: '2026-08-20T10:00:00.000Z', client_event_id: '22222222-2222-4222-8222-222222222222', sequence: 3,
+      }),
+    }));
+  });
+
+  it('atomically completes a server-authoritative game with session credentials', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(response({ session: { id: 'rg-session', session_token: 'rg-token' } }))
+      .mockResolvedValueOnce(response({ result: { score: 1234, stars: 3 } }));
+    const client = new GameHubClient({ gameId: 'realmguard', fetch: fetcher });
+
+    await client.start();
+    const completed = await client.completeAuthoritatively<{ result: { score: number } }>({
+      path: '/api/v1/realmguard/results',
+      payload: { stage_id: 'stage-1', remaining_lives: 20 },
+    });
+
+    expect(completed.result.score).toBe(1234);
+    expect(fetcher).toHaveBeenNthCalledWith(2, '/api/v1/realmguard/results', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ stage_id: 'stage-1', remaining_lives: 20, game_id: 'realmguard', session_id: 'rg-session', session_token: 'rg-token' }),
+    }));
+    expect(client.session).toBeUndefined();
+  });
 });

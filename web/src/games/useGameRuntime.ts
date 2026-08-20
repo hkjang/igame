@@ -20,6 +20,11 @@ export function useGameRuntime(gameId: string) {
       setOnline(true);
       return true;
     } catch (cause) {
+      if (cause instanceof GameHubError && cause.code === 'realmguard_config_stale') {
+        setOnline(true);
+        notify('RealmGuard 콘텐츠가 갱신되었습니다. 최신 설정을 다시 불러왔습니다. 시작 버튼을 다시 눌러 주세요.', 'warning');
+        return false;
+      }
       setOnline(false);
       if (cause instanceof GameHubError && cause.code === 'play_policy_denied') {
         notify('관리자가 설정한 플레이 허용 시간이 아닙니다.', 'error');
@@ -41,5 +46,23 @@ export function useGameRuntime(gameId: string) {
       notify(cause instanceof Error ? cause.message : '점수를 저장하지 못했습니다.', 'error');
     }
   }, [notify]);
-  return { start, finish, online };
+  const telemetry = useCallback(async (event: string, data: Record<string, unknown> = {}) => {
+    if (!client.current?.session) throw new GameHubError('기록 세션이 없어 검증 로그를 전송할 수 없습니다.', { code: 'telemetry_session_required' });
+    const { client_event_id: clientEventId, sequence, occurred_at: occurredAt, ...payload } = data;
+    await client.current.telemetry({
+      event, payload,
+      clientEventId: typeof clientEventId === 'string' ? clientEventId : undefined,
+      sequence: Number.isInteger(sequence) ? Number(sequence) : undefined,
+      occurredAt: typeof occurredAt === 'string' ? occurredAt : undefined,
+    });
+  }, []);
+  const completeAuthoritatively = useCallback(async (payload: unknown) => {
+    if (!client.current?.session) return undefined;
+    return client.current.completeAuthoritatively({
+      path: '/api/v1/realmguard/results',
+      payload: payload && typeof payload === 'object' ? payload as Record<string, unknown> : {},
+    });
+  }, []);
+  const isRecording = useCallback(() => Boolean(client.current?.session), []);
+  return { start, finish, telemetry, completeAuthoritatively, isRecording, online };
 }

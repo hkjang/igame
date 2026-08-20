@@ -13,8 +13,8 @@ import { useAsync } from '../hooks/useAsync';
 import { useSnackbar } from '../state/SnackbarContext';
 import type { PersonalKey } from '../types';
 
-const fallbackPermissions = ['games:read', 'sessions:write', 'scores:write', 'rankings:read', 'profile:read', 'ai:invoke', 'workflow:write', 'api:access', 'mcp:access'];
-const permissionLabels: Record<string, string> = { 'games:read': '게임 조회', 'sessions:write': '세션 생성', 'scores:write': '점수 제출', 'rankings:read': '랭킹 조회', 'profile:read': '프로필 조회', 'ai:invoke': 'AI 호출', 'workflow:write': '승인 워크플로', 'api:access': 'REST API', 'mcp:access': 'MCP 도구' };
+const fallbackPermissions = ['games:read', 'sessions:write', 'scores:write', 'rankings:read', 'profile:read', 'profile:write', 'ai:invoke', 'workflow:write', 'api:access', 'mcp:access'];
+const permissionLabels: Record<string, string> = { 'games:read': '게임 조회', 'sessions:write': '세션 생성', 'scores:write': '점수 제출', 'rankings:read': '랭킹 조회', 'profile:read': '프로필 조회', 'profile:write': '프로필·개인 설정 변경', 'ai:invoke': 'AI 호출', 'workflow:write': '승인 워크플로', 'api:access': 'REST API', 'mcp:access': 'MCP 도구' };
 
 export function PersonalKeysPage() {
   const { notify } = useSnackbar();

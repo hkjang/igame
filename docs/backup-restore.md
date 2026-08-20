@@ -1,6 +1,6 @@
 # 백업과 복구
 
-PostgreSQL에는 사용자, 관리자 설정, 암호화된 OIDC/AI secret, 키 메타데이터, 게임·점수·감사 기록이 저장됩니다. `/app/data`를 사용하는 업로드 자산이 있다면 DB와 같은 복구 시점으로 함께 보관합니다. `ENCRYPTION_KEY`가 없으면 DB의 암호화된 값은 복구할 수 없으므로 데이터 백업과 분리된 비밀 관리소에 escrow해야 합니다.
+PostgreSQL에는 사용자, 관리자 설정, 암호화된 OIDC/AI secret, 키 메타데이터, 게임·점수·감사 기록과 RealmGuard content version, draft/published snapshot, progress/loadout/result 및 세션 telemetry 원장이 저장됩니다. RealmGuard result의 `verification_method`/`attestation`/서버 생성 암호화 proof와 `game_telemetry.client_event_id`/`sequence_no`는 결과 검증 증적이므로 result와 같은 복구 시점으로 보존합니다. `/app/data`를 사용하는 업로드 자산이 있다면 DB와 같은 복구 시점으로 함께 보관합니다. `ENCRYPTION_KEY`가 없으면 DB의 암호화된 값은 복구할 수 없으므로 데이터 백업과 분리된 비밀 관리소에 escrow해야 합니다.
 
 ## 권장 정책
 
@@ -55,6 +55,9 @@ unset POSTGRES_DSN
 4. 개인 키가 기존 정책대로 인증되고 폐기 키는 거부됨
 5. 게임 실행, 점수, 랭킹, 감사 로그의 기준 시점 일치
 6. 로그인 화면과 프로필 버전 확인
+7. RealmGuard active content/balance version, published checksum, progress와 result version tuple 일치
+8. RealmGuard result의 `server_received_telemetry_v1` attestation/digest와 연결 session의 1-based telemetry sequence·UUID가 보존됨
+9. `/games/realmguard`와 ready/wave/battle telemetry를 거친 공식 결과 제출이 외부 연결 없이 동작
 
 ## 키 분실과 회전
 

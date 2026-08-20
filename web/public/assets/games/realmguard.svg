@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">RealmGuard</title><desc id="desc">별빛 성문과 방패를 표현한 RealmGuard 고유 문장</desc>
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#102f32"/><stop offset="1" stop-color="#211634"/></linearGradient><linearGradient id="shield" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#8bf1d2"/><stop offset="1" stop-color="#3b8ca0"/></linearGradient></defs>
+  <rect width="512" height="512" rx="92" fill="url(#bg)"/>
+  <circle cx="256" cy="235" r="174" fill="none" stroke="#9b76d8" stroke-width="12" opacity=".5"/>
+  <path d="M256 74l31 63 69 10-50 49 12 69-62-33-62 33 12-69-50-49 69-10z" fill="#ffd36b" opacity=".9"/>
+  <path d="M118 217l138-69 138 69v99c0 79-58 123-138 149-80-26-138-70-138-149z" fill="url(#shield)" stroke="#d9fff2" stroke-width="9"/>
+  <path d="M174 336V225h164v111h-44v-70h-76v70z" fill="#112338"/>
+  <path d="M154 221l34-58 34 58 34-72 34 72 34-58 34 58z" fill="#f1cf76" stroke="#fff0ba" stroke-width="5"/>
+  <circle cx="256" cy="302" r="13" fill="#9a75d7"/>
+</svg>

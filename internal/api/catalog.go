@@ -196,18 +196,32 @@ func (s *Server) startGameSession(w http.ResponseWriter, r *http.Request) {
 	if !decodeOptionalJSON(w, r, &in) {
 		return
 	}
+	metadata := map[string]any{}
 	if len(in.Metadata) == 0 {
 		in.Metadata = []byte("{}")
 	} else {
-		var object map[string]any
-		if json.Unmarshal(in.Metadata, &object) != nil {
+		if json.Unmarshal(in.Metadata, &metadata) != nil {
 			writeError(w, 400, "invalid_metadata", "metadata must be a JSON object")
 			return
 		}
 	}
+	requestedRealmGuardVersion, err := requestedRealmGuardVersionID(metadata)
+	if err != nil {
+		writeError(w, 400, "invalid_metadata", err.Error())
+		return
+	}
 	gameID, err := s.parseGameIdentifier(r)
 	if err != nil {
 		dbError(w, err)
+		return
+	}
+	var gameSlug string
+	if err := s.DB.QueryRow(r.Context(), `SELECT slug FROM games WHERE id=$1`, gameID).Scan(&gameSlug); err != nil {
+		dbError(w, err)
+		return
+	}
+	if gameSlug == realmGuardSlug && requestedRealmGuardVersion == nil {
+		writeError(w, http.StatusPreconditionRequired, "realmguard_version_required", "realmguard_version_id from the published configuration is required")
 		return
 	}
 	if ok, msg := s.playAllowed(r, gameID); !ok {
@@ -231,6 +245,7 @@ func (s *Server) startGameSession(w http.ResponseWriter, r *http.Request) {
 	raw := "igs_" + rawRandom
 	hash := sha256.Sum256([]byte(raw))
 	var id uuid.UUID
+	var pinnedRealmGuardVersion *uuid.UUID
 	var started time.Time
 	tx, err := s.DB.Begin(r.Context())
 	if err != nil {
@@ -244,10 +259,17 @@ func (s *Server) startGameSession(w http.ResponseWriter, r *http.Request) {
 		_, err = tx.Exec(r.Context(), `UPDATE game_sessions SET status='abandoned',ended_at=now(),duration_ms=GREATEST(0,extract(epoch FROM(now()-started_at))*1000)::bigint WHERE user_id=$1 AND game_id=$2 AND status='active'`, p.UserID, gameID)
 	}
 	if err == nil {
-		err = tx.QueryRow(r.Context(), `INSERT INTO game_sessions(user_id,game_id,season_id,session_token_hash,client_info)
-			SELECT $1,g.id,(SELECT id FROM seasons WHERE status='active' AND now() BETWEEN starts_at AND ends_at ORDER BY starts_at DESC LIMIT 1),$2,$4 FROM games g WHERE g.id=$3 AND g.status='active' RETURNING id,started_at`, p.UserID, hash[:], gameID, in.Metadata).Scan(&id, &started)
+		err = tx.QueryRow(r.Context(), `INSERT INTO game_sessions(user_id,game_id,season_id,session_token_hash,client_info,realmguard_content_version_id)
+			SELECT $1,g.id,(SELECT id FROM seasons WHERE status='active' AND now() BETWEEN starts_at AND ends_at ORDER BY starts_at DESC LIMIT 1),$2,$4,
+			CASE WHEN g.slug='realmguard' THEN (SELECT id FROM realmguard_content_versions WHERE status='published' AND ($5::uuid IS NULL OR id=$5)) END
+			FROM games g WHERE g.id=$3 AND g.status='active' AND (g.slug<>'realmguard' OR EXISTS(SELECT 1 FROM realmguard_content_versions WHERE status='published' AND ($5::uuid IS NULL OR id=$5)))
+			RETURNING id,started_at,realmguard_content_version_id`, p.UserID, hash[:], gameID, in.Metadata, requestedRealmGuardVersion).Scan(&id, &started, &pinnedRealmGuardVersion)
 	}
 	if err != nil {
+		if err == pgx.ErrNoRows && requestedRealmGuardVersion != nil {
+			writeError(w, 409, "realmguard_config_stale", "RealmGuard content changed; reload the published configuration before starting")
+			return
+		}
 		dbError(w, err)
 		return
 	}
@@ -257,7 +279,27 @@ func (s *Server) startGameSession(w http.ResponseWriter, r *http.Request) {
 	}
 	_, _ = s.DB.Exec(r.Context(), `INSERT INTO user_achievements(user_id,achievement_id) SELECT $1,id FROM achievements WHERE code='first-play' ON CONFLICT DO NOTHING`, p.UserID)
 	_, _ = s.DB.Exec(r.Context(), `INSERT INTO user_achievements(user_id,achievement_id) SELECT $1,a.id FROM achievements a WHERE a.code='explorer' AND (SELECT count(DISTINCT game_id) FROM game_sessions WHERE user_id=$1)>=5 ON CONFLICT DO NOTHING`, p.UserID)
-	writeJSON(w, 201, map[string]any{"session": map[string]any{"id": id, "game_id": gameID, "status": "active", "started_at": started, "session_token": raw}, "user": p})
+	session := map[string]any{"id": id, "game_id": gameID, "status": "active", "started_at": started, "session_token": raw}
+	if pinnedRealmGuardVersion != nil {
+		session["realmguard_version_id"] = *pinnedRealmGuardVersion
+	}
+	writeJSON(w, 201, map[string]any{"session": session, "user": p})
+}
+
+func requestedRealmGuardVersionID(metadata map[string]any) (*uuid.UUID, error) {
+	raw, exists := metadata["realmguard_version_id"]
+	if !exists {
+		return nil, nil
+	}
+	value, ok := raw.(string)
+	if !ok || strings.TrimSpace(value) == "" {
+		return nil, fmt.Errorf("realmguard_version_id must be a UUID string")
+	}
+	id, err := uuid.Parse(value)
+	if err != nil || id == uuid.Nil {
+		return nil, fmt.Errorf("realmguard_version_id must be a non-zero UUID")
+	}
+	return &id, nil
 }
 
 func (s *Server) playAllowed(r *http.Request, gameID uuid.UUID) (bool, string) {
@@ -388,13 +430,18 @@ func (s *Server) submitScore(w http.ResponseWriter, r *http.Request) {
 	var started time.Time
 	var status string
 	var rules json.RawMessage
-	err = tx.QueryRow(r.Context(), `SELECT gs.game_id,gs.season_id,gs.started_at,gs.status,g.score_rules FROM game_sessions gs JOIN games g ON g.id=gs.game_id WHERE gs.id=$1 AND gs.user_id=$2 AND gs.session_token_hash=$3 FOR UPDATE`, in.SessionID, p.UserID, hash[:]).Scan(&gameID, &seasonID, &started, &status, &rules)
+	var gameSlug string
+	err = tx.QueryRow(r.Context(), `SELECT gs.game_id,gs.season_id,gs.started_at,gs.status,g.score_rules,g.slug FROM game_sessions gs JOIN games g ON g.id=gs.game_id WHERE gs.id=$1 AND gs.user_id=$2 AND gs.session_token_hash=$3 FOR UPDATE`, in.SessionID, p.UserID, hash[:]).Scan(&gameID, &seasonID, &started, &status, &rules, &gameSlug)
 	if err != nil {
 		writeError(w, 409, "invalid_session", "session or token is invalid")
 		return
 	}
 	if status != "active" && status != "finished" {
 		writeError(w, 409, "invalid_session", "session cannot accept a score")
+		return
+	}
+	if gameSlug == "realmguard" {
+		writeError(w, 409, "authoritative_result_required", "RealmGuard scores must be submitted through /api/v1/realmguard/results")
 		return
 	}
 	if in.GameID != "" {
@@ -452,16 +499,20 @@ func (s *Server) submitScore(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, statusCode, map[string]any{"score": map[string]any{"id": scoreID, "game_id": gameID, "score": in.Score, "verified": verified, "rejection_reason": reason}})
 }
 
+type telemetryInput struct {
+	GameID        string          `json:"game_id"`
+	SessionID     uuid.UUID       `json:"session_id"`
+	SessionToken  string          `json:"session_token"`
+	Event         string          `json:"event"`
+	Data          json.RawMessage `json:"data"`
+	OccurredAt    *time.Time      `json:"occurred_at"`
+	ClientEventID *uuid.UUID      `json:"client_event_id,omitempty"`
+	Sequence      *int            `json:"sequence,omitempty"`
+}
+
 func (s *Server) submitTelemetry(w http.ResponseWriter, r *http.Request) {
 	p, _ := principalFrom(r)
-	var in struct {
-		GameID       string          `json:"game_id"`
-		SessionID    uuid.UUID       `json:"session_id"`
-		SessionToken string          `json:"session_token"`
-		Event        string          `json:"event"`
-		Data         json.RawMessage `json:"data"`
-		OccurredAt   *time.Time      `json:"occurred_at"`
-	}
+	var in telemetryInput
 	if !decodeJSON(w, r, &in) {
 		return
 	}
@@ -479,6 +530,10 @@ func (s *Server) submitTelemetry(w http.ResponseWriter, r *http.Request) {
 	if len(in.Data) == 0 {
 		in.Data = []byte("{}")
 	}
+	if len(in.Data) > 64<<10 {
+		writeError(w, 400, "invalid_telemetry", "telemetry data must be at most 64 KiB")
+		return
+	}
 	occurred := s.Now()
 	if in.OccurredAt != nil {
 		occurred = *in.OccurredAt
@@ -489,10 +544,29 @@ func (s *Server) submitTelemetry(w http.ResponseWriter, r *http.Request) {
 	}
 	hash := sha256.Sum256([]byte(in.SessionToken))
 	var gameID uuid.UUID
-	err := s.DB.QueryRow(r.Context(), `SELECT game_id FROM game_sessions WHERE id=$1 AND user_id=$2 AND session_token_hash=$3 AND status IN ('active','finished')`, in.SessionID, p.UserID, hash[:]).Scan(&gameID)
+	var gameSlug, sessionStatus string
+	err := s.DB.QueryRow(r.Context(), `SELECT gs.game_id,g.slug,gs.status FROM game_sessions gs JOIN games g ON g.id=gs.game_id WHERE gs.id=$1 AND gs.user_id=$2 AND gs.session_token_hash=$3 AND gs.status IN ('active','finished')`, in.SessionID, p.UserID, hash[:]).Scan(&gameID, &gameSlug, &sessionStatus)
 	if err != nil {
 		writeError(w, 403, "invalid_session", "session or token is invalid")
 		return
+	}
+	if gameSlug == realmGuardSlug {
+		if sessionStatus != "active" {
+			writeError(w, 409, "session_finished", "RealmGuard telemetry is only accepted while the battle session is active")
+			return
+		}
+		if !validRealmGuardTelemetryEvent(in.Event) {
+			writeError(w, 400, "invalid_telemetry", "unsupported RealmGuard telemetry event")
+			return
+		}
+		if len(in.Data) > 4<<10 {
+			writeError(w, 400, "invalid_telemetry", "RealmGuard telemetry data must be at most 4 KiB")
+			return
+		}
+		if in.ClientEventID == nil || *in.ClientEventID == uuid.Nil || in.Sequence == nil || *in.Sequence < 1 || *in.Sequence > 100000 {
+			writeError(w, 400, "invalid_telemetry_sequence", "RealmGuard telemetry requires client_event_id and a positive session-local sequence")
+			return
+		}
 	}
 	if in.GameID != "" {
 		var claimed uuid.UUID
@@ -501,9 +575,13 @@ func (s *Server) submitTelemetry(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if gameSlug == realmGuardSlug {
+		s.insertRealmGuardTelemetry(w, r, p, in, gameID, occurred, hash[:])
+		return
+	}
 	var count int
 	_ = s.DB.QueryRow(r.Context(), `SELECT count(*) FROM game_telemetry WHERE session_id=$1`, in.SessionID).Scan(&count)
-	if count >= 5000 {
+	if count >= 500 {
 		writeError(w, 429, "telemetry_limit", "session telemetry limit reached")
 		return
 	}
@@ -513,6 +591,88 @@ func (s *Server) submitTelemetry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusAccepted)
+}
+
+func (s *Server) insertRealmGuardTelemetry(w http.ResponseWriter, r *http.Request, p Principal, in telemetryInput, gameID uuid.UUID, occurred time.Time, tokenHash []byte) {
+	tx, err := s.DB.Begin(r.Context())
+	if err != nil {
+		dbError(w, err)
+		return
+	}
+	defer tx.Rollback(r.Context())
+	var status string
+	if err = tx.QueryRow(r.Context(), `SELECT status FROM game_sessions WHERE id=$1 AND user_id=$2 AND game_id=$3 AND session_token_hash=$4 FOR UPDATE`, in.SessionID, p.UserID, gameID, tokenHash).Scan(&status); err != nil {
+		writeError(w, 403, "invalid_session", "session or token is invalid")
+		return
+	}
+	if status != "active" {
+		writeError(w, 409, "session_finished", "RealmGuard telemetry is only accepted while the battle session is active")
+		return
+	}
+	var existingEvent string
+	var existingSequence int
+	var sameData bool
+	err = tx.QueryRow(r.Context(), `SELECT event,sequence_no,data=$3::jsonb FROM game_telemetry WHERE session_id=$1 AND client_event_id=$2`, in.SessionID, *in.ClientEventID, in.Data).Scan(&existingEvent, &existingSequence, &sameData)
+	if err == nil {
+		if existingEvent != in.Event || existingSequence != *in.Sequence || !sameData {
+			writeError(w, 409, "telemetry_event_conflict", "client_event_id was already used for different telemetry")
+			return
+		}
+		if err = tx.Commit(r.Context()); err != nil {
+			dbError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "duplicate": true, "client_event_id": in.ClientEventID, "sequence": in.Sequence})
+		return
+	}
+	if err != pgx.ErrNoRows {
+		dbError(w, err)
+		return
+	}
+	var lastSequence int
+	if err = tx.QueryRow(r.Context(), `SELECT COALESCE(max(sequence_no),0) FROM game_telemetry WHERE session_id=$1`, in.SessionID).Scan(&lastSequence); err != nil {
+		dbError(w, err)
+		return
+	}
+	rows, err := tx.Query(r.Context(), `SELECT event,count(*) FROM game_telemetry WHERE session_id=$1 GROUP BY event`, in.SessionID)
+	if err != nil {
+		dbError(w, err)
+		return
+	}
+	eventCounts := map[string]int{}
+	for rows.Next() {
+		var event string
+		var count int
+		if err = rows.Scan(&event, &count); err != nil {
+			rows.Close()
+			dbError(w, err)
+			return
+		}
+		eventCounts[event] = count
+	}
+	rows.Close()
+	if err = rows.Err(); err != nil {
+		dbError(w, err)
+		return
+	}
+	if realmGuardTelemetryLimitReached(in.Event, eventCounts) {
+		writeError(w, 429, "telemetry_limit", "RealmGuard telemetry class limit reached")
+		return
+	}
+	if *in.Sequence != lastSequence+1 {
+		writeError(w, 409, "telemetry_sequence_conflict", fmt.Sprintf("expected RealmGuard telemetry sequence %d", lastSequence+1))
+		return
+	}
+	_, err = tx.Exec(r.Context(), `INSERT INTO game_telemetry(session_id,user_id,game_id,event,data,occurred_at,client_event_id,sequence_no) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, in.SessionID, p.UserID, gameID, in.Event, in.Data, occurred, in.ClientEventID, in.Sequence)
+	if err != nil {
+		dbError(w, err)
+		return
+	}
+	if err = tx.Commit(r.Context()); err != nil {
+		dbError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "duplicate": false, "client_event_id": in.ClientEventID, "sequence": in.Sequence})
 }
 
 func (s *Server) rankings(w http.ResponseWriter, r *http.Request) {
@@ -525,10 +685,14 @@ func (s *Server) rankings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var id uuid.UUID
-	var order, gameName string
-	err := s.DB.QueryRow(r.Context(), `SELECT id,score_order,name FROM games WHERE id::text=$1 OR slug=$1`, gameID).Scan(&id, &order, &gameName)
+	var order, gameName, gameSlug string
+	err := s.DB.QueryRow(r.Context(), `SELECT id,score_order,name,slug FROM games WHERE id::text=$1 OR slug=$1`, gameID).Scan(&id, &order, &gameName, &gameSlug)
 	if err != nil {
 		dbError(w, err)
+		return
+	}
+	if gameSlug == realmGuardSlug {
+		writeError(w, 409, "realmguard_ranking_required", "RealmGuard rankings must use /api/v1/realmguard/rankings")
 		return
 	}
 	period := r.URL.Query().Get("period")

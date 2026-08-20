@@ -562,6 +562,15 @@ func (s *Server) updateGame(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "invalid_game", err.Error())
 		return
 	}
+	var currentSlug string
+	if err := s.DB.QueryRow(r.Context(), `SELECT slug FROM games WHERE id=$1`, id).Scan(&currentSlug); err != nil {
+		dbError(w, err)
+		return
+	}
+	if (currentSlug == realmGuardSlug) != (in.Slug == realmGuardSlug) {
+		writeError(w, 409, "protected_game_identity", "the RealmGuard slug is reserved for its built-in authoritative runtime")
+		return
+	}
 	tag, err := s.DB.Exec(r.Context(), `UPDATE games SET slug=$2,name=$3,description=$4,category_id=$5,tags=$6,thumbnail_url=$7,banner_url=$8,game_url=$9,game_type=$10,multiplayer=$11,ranking_enabled=$12,achievement_enabled=$13,season_enabled=$14,min_players=$15,max_players=$16,status=$17,version=$18,developer=$19,score_order=$20,score_rules=$21,updated_at=now() WHERE id=$1`, id, in.Slug, in.Name, in.Description, in.CategoryID, in.Tags, in.ThumbnailURL, in.BannerURL, in.GameURL, in.GameType, in.Multiplayer, in.RankingEnabled, in.AchievementEnabled, in.SeasonEnabled, in.MinPlayers, in.MaxPlayers, in.Status, in.Version, in.Developer, in.ScoreOrder, in.ScoreRules)
 	if err != nil {
 		writeError(w, 409, "game_conflict", "game slug already exists or data is invalid")
