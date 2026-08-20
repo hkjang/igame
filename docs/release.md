@@ -34,14 +34,15 @@ gzip -dc dist/igame-v$(cat VERSION).tar.gz | docker load
 docker image inspect "igame:v$(cat VERSION)"
 ```
 
-기동한 후보 이미지의 실제 브라우저 경로는 별도의 QA host에서 Playwright로 확인할 수 있습니다. 이 도구는 제품 이미지나 repository dependency에 들어가지 않습니다. 아래 컨테이너와 npm package를 연결 가능한 빌드/QA 구간에서 미리 반입·고정하고, 서비스 페이지가 로그인부터 RealmGuard canvas, Designer, preview와 deep refresh까지 외부 HTTP 요청·console/page/request 오류 없이 동작하는지 검사합니다. Designer는 화면 제목만 확인하지 않고 stages JSON이 실제 array로 채워지고 저장 가능한지 검사하며, invalid JSON 또는 빈 데이터 상태가 렌더링되면 실패합니다.
+Release workflow는 clean-load한 후보 이미지의 API/RealmGuard smoke 직후, 앱 컨테이너를 정리하기 전에 Playwright `v1.55.0-noble` 컨테이너로 브라우저 gate를 자동 실행합니다. npm package도 `playwright@1.55.0`으로 정확히 고정하며 설치 또는 browser smoke가 실패하면 Release 게시를 중단합니다. Playwright는 제품 이미지나 repository dependency에 들어가지 않습니다. 아래 명령은 같은 gate를 QA host에서 수동 재현하는 방법입니다. 서비스 페이지가 로그인부터 RealmGuard canvas, Designer, preview와 deep refresh까지 외부 HTTP 요청·console/page/request 오류 없이 동작하는지 검사합니다. Designer는 앞선 RealmGuard API smoke가 남긴 editable draft를 반드시 열어 stages JSON array 11개 이상과 활성화된 저장 버튼을 확인하며, invalid JSON 또는 빈 데이터 상태가 렌더링되면 실패합니다.
 
 ```bash
 export IGAME_BASE_URL='http://127.0.0.1:8080'
 export IGAME_USERNAME='admin'
+export IGAME_REQUIRE_DESIGNER_DRAFT=true
 read -r -s -p 'Bootstrap password: ' IGAME_PASSWORD; export IGAME_PASSWORD
 docker run --rm --network host \
-  -e IGAME_BASE_URL -e IGAME_USERNAME -e IGAME_PASSWORD \
+  -e IGAME_BASE_URL -e IGAME_USERNAME -e IGAME_PASSWORD -e IGAME_REQUIRE_DESIGNER_DRAFT \
   -e PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
   -v "$PWD:/work:ro" -w /tmp \
   mcr.microsoft.com/playwright:v1.55.0-noble \

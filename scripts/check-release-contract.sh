@@ -236,8 +236,15 @@ if ! grep -Fq 'writeError(w, 403, "team_required", "managers require a team assi
   exit 1
 fi
 
-if ! grep -Fq 'scripts/smoke-realmguard.sh' "${REPO_DIR}/.github/workflows/release.yml"; then
-  printf '%s\n' 'Release CI must smoke-test RealmGuard runtime, rankings, results, preview, approval, and rejection.' >&2
+if ! grep -Fq 'scripts/smoke-realmguard.sh' "${REPO_DIR}/.github/workflows/release.yml" \
+  || ! grep -Fq 'mcr.microsoft.com/playwright:v1.55.0-noble' "${REPO_DIR}/.github/workflows/release.yml" \
+  || ! grep -Fq 'node /work/scripts/browser-smoke.mjs' "${REPO_DIR}/.github/workflows/release.yml" \
+  || ! grep -Fq 'IGAME_REQUIRE_DESIGNER_DRAFT=true' "${REPO_DIR}/.github/workflows/release.yml" \
+  || ! grep -Fq -- '--network host' "${REPO_DIR}/.github/workflows/release.yml" \
+  || ! grep -Fq '${GITHUB_WORKSPACE}:/work:ro' "${REPO_DIR}/.github/workflows/release.yml" \
+  || ! grep -Fq 'stages.length < 11' "${REPO_DIR}/scripts/browser-smoke.mjs" \
+  || ! grep -Fq 'RealmGuard Designer rendered an invalid or empty editor state' "${REPO_DIR}/scripts/browser-smoke.mjs"; then
+  printf '%s\n' 'Release CI must API-smoke RealmGuard and hard-fail on the pinned loaded-image Playwright browser gate.' >&2
   exit 1
 fi
 

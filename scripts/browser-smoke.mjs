@@ -13,6 +13,7 @@ try {
 const baseURL = (process.env.IGAME_BASE_URL ?? process.argv[2] ?? 'http://127.0.0.1:8080').replace(/\/$/, '');
 const username = process.env.IGAME_USERNAME ?? process.argv[3] ?? '';
 const password = process.env.IGAME_PASSWORD ?? process.argv[4] ?? '';
+const requireDesignerDraft = process.env.IGAME_REQUIRE_DESIGNER_DRAFT === 'true';
 if (!username || !password) {
   console.error('Usage: IGAME_USERNAME=<user> IGAME_PASSWORD=<password> [IGAME_BASE_URL=http://127.0.0.1:8080] node scripts/browser-smoke.mjs');
   process.exit(2);
@@ -96,7 +97,7 @@ try {
   await page.goto(`${baseURL}/admin/realmguard`, { waitUntil: 'networkidle' });
   await page.reload({ waitUntil: 'networkidle' });
   await visible(page.getByRole('heading', { name: 'RealmGuard Designer' }), 'RealmGuard Designer heading');
-  const stagesEditor = page.getByLabel('stages JSON 편집기');
+  const stagesEditor = page.locator('textarea[aria-label="stages JSON 편집기"]:not([aria-hidden="true"]), [aria-label="stages JSON 편집기"] textarea:not([aria-hidden="true"])').first();
   const noDraftNotice = page.getByText('편집 가능한 Draft가 없습니다.', { exact: false });
   await Promise.any([
     stagesEditor.waitFor({ state: 'visible', timeout: 20_000 }),
@@ -122,6 +123,7 @@ try {
       throw new Error('RealmGuard Designer loaded content but left Draft 저장 disabled');
     }
   } else {
+    if (requireDesignerDraft) throw new Error('RealmGuard release smoke requires the API-created editable draft and its stages editor');
     await visible(noDraftNotice, 'no editable RealmGuard draft notice');
   }
 
