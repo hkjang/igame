@@ -1,0 +1,41 @@
+name: igame
+
+services:
+  igame:
+    image: igame:v0.1.0
+    pull_policy: never
+    container_name: igame
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    pids_limit: 256
+    ports:
+      - "8080:8080"
+    environment:
+      POSTGRES_DSN: "${POSTGRES_DSN:?POSTGRES_DSN is required}"
+      BOOTSTRAP_ADMIN: "${BOOTSTRAP_ADMIN:?BOOTSTRAP_ADMIN is required}"
+      BOOTSTRAP_ADMIN_PASSWORD: "${BOOTSTRAP_ADMIN_PASSWORD:?BOOTSTRAP_ADMIN_PASSWORD is required}"
+      ENCRYPTION_KEY: "${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}"
+    volumes:
+      - igame-data:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: "5"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  igame-data:

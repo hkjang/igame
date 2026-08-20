@@ -1,0 +1,217 @@
+name: Release offline image
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Existing release tag, for example v1.2.3
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.version || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: igame
+          POSTGRES_USER: igame
+          POSTGRES_PASSWORD: ci-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U igame -d igame"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      RELEASE_TAG: ${{ inputs.version || github.ref_name }}
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+
+      - name: Validate tag and version
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          [[ "${RELEASE_TAG}" == "v${version}" ]] || {
+            printf 'Release tag %s does not match VERSION v%s\n' "${RELEASE_TAG}" "${version}" >&2
+            exit 1
+          }
+          git rev-parse --verify --quiet "refs/tags/${RELEASE_TAG}^{commit}" >/dev/null || {
+            printf 'The manual release input must name an existing tag: %s\n' "${RELEASE_TAG}" >&2
+            exit 1
+          }
+          bash ./scripts/check-release-contract.sh
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            sdk/gamehub-js/package-lock.json
+            web/package-lock.json
+
+      - name: Install locked dependencies and test
+        run: |
+          make deps
+          make lint
+          make test
+
+      - name: Install Syft
+        id: syft
+        uses: anchore/sbom-action/download-syft@v0
+
+      - name: Put Syft on PATH
+        shell: bash
+        run: echo "$(dirname '${{ steps.syft.outputs.cmd }}')" >> "${GITHUB_PATH}"
+
+      - name: Build offline release archive and evidence
+        run: bash ./scripts/release.sh
+
+      - name: Prove clean Docker load retains image tag
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          version="$(cat VERSION)"
+          image="igame:v${version}"
+          archive="dist/igame-v${version}.tar.gz"
+          docker image rm "${image}"
+          gzip -dc "${archive}" | docker load
+          test "$(docker image inspect --format '{{index .RepoTags 0}}' "${image}")" = "${image}"
+          test "$(docker image inspect --format '{{index .Config.Labels \"org.opencontainers.image.version\"}}' "${image}")" = "${version}"
+          test "$(docker image inspect --format '{{.Architecture}}' "${image}")" = "amd64"
+
+      - name: Smoke-test loaded image
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          version="$(cat VERSION)"
+          cookie_jar="$(mktemp)"
+          data_volume="igame-ci-data-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          container_id="$(docker run --detach --init --network host \
+            --read-only --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
+            --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 256 \
+            --volume "${data_volume}:/app/data" \
+            --env 'POSTGRES_DSN=postgres://igame:ci-only-password@127.0.0.1:5432/igame?sslmode=disable' \
+            --env 'BOOTSTRAP_ADMIN=ci-admin' \
+            --env 'BOOTSTRAP_ADMIN_PASSWORD=ci-only-bootstrap-password' \
+            --env 'ENCRYPTION_KEY=01234567890123456789012345678901' \
+            "igame:v${version}")"
+          cleanup() {
+            docker logs "${container_id}" || true
+            docker rm --force "${container_id}" >/dev/null 2>&1 || true
+            docker volume rm "${data_volume}" >/dev/null 2>&1 || true
+            rm -f -- "${cookie_jar}"
+          }
+          trap cleanup EXIT
+          ready=false
+          for attempt in {1..30}; do
+            if bash ./scripts/smoke-test.sh http://127.0.0.1:8080; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+          [[ "${ready}" == true ]]
+
+          curl --fail --silent --show-error --cookie-jar "${cookie_jar}" \
+            --header 'Content-Type: application/json' \
+            --data '{"username":"ci-admin","password":"ci-only-bootstrap-password"}' \
+            http://127.0.0.1:8080/api/v1/auth/login >/dev/null
+          curl --fail --silent --show-error --cookie "${cookie_jar}" \
+            http://127.0.0.1:8080/api/v1/me >/dev/null
+          for endpoint in dashboard analytics settings games categories users seasons events tournaments achievements rewards notices banners rankings workflow/requests audit; do
+            curl --fail --silent --show-error --cookie "${cookie_jar}" \
+              "http://127.0.0.1:8080/api/v1/admin/${endpoint}" >/dev/null
+          done
+          curl --fail --silent --show-error --request PUT --cookie "${cookie_jar}" \
+            --header 'Content-Type: application/json' \
+            --data '{"current_password":"ci-only-bootstrap-password","new_password":"ci-rotated-bootstrap-password"}' \
+            http://127.0.0.1:8080/api/v1/me/password >/dev/null
+          curl --fail --silent --show-error --cookie-jar "${cookie_jar}" \
+            --header 'Content-Type: application/json' \
+            --data '{"username":"ci-admin","password":"ci-rotated-bootstrap-password"}' \
+            http://127.0.0.1:8080/api/v1/auth/login >/dev/null
+
+      - name: Record supply-chain evidence
+        id: evidence
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          version="$(cat VERSION)"
+          archive="igame-v${version}.tar.gz"
+          archive_sha="$(awk -v name="${archive}" '$2 == name {print $1}' dist/SHA256SUMS)"
+          sbom_sha="$(awk -v name="igame-v${version}.spdx.json" '$2 == name {print $1}' dist/SHA256SUMS)"
+          test -n "${archive_sha}"
+          test -n "${sbom_sha}"
+          echo "archive=dist/${archive}" >> "${GITHUB_OUTPUT}"
+          echo "archive_sha=${archive_sha}" >> "${GITHUB_OUTPUT}"
+          echo "sbom_sha=${sbom_sha}" >> "${GITHUB_OUTPUT}"
+          {
+            printf '## igame %s supply-chain evidence\n\n' "${RELEASE_TAG}"
+            printf -- '- `%s` SHA-256: `%s`\n' "${archive}" "${archive_sha}"
+            printf -- '- SPDX JSON SHA-256: `%s`\n' "${sbom_sha}"
+            printf -- '- Archive format and retained tag verified with a clean `docker load`.\n'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Retain SBOM and checksum as workflow evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.RELEASE_TAG }}-supply-chain-evidence
+          path: |
+            dist/SHA256SUMS
+            dist/*.spdx.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish the only release asset
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          files: ${{ steps.evidence.outputs.archive }}
+          fail_on_unmatched_files: true
+          overwrite_files: true
+          generate_release_notes: true
+          body: |
+            Offline image: `igame:${{ env.RELEASE_TAG }}`
+
+            `igame-${{ env.RELEASE_TAG }}.tar.gz` SHA-256: `${{ steps.evidence.outputs.archive_sha }}`
+
+            SPDX JSON SBOM SHA-256: `${{ steps.evidence.outputs.sbom_sha }}` (SBOM and `SHA256SUMS` are retained as workflow evidence, not Release assets.)
+
+      - name: Verify release contains only the Docker archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          expected="igame-${RELEASE_TAG}.tar.gz"
+          mapfile -t assets < <(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq '.assets[].name')
+          if [[ ${#assets[@]} -ne 1 || "${assets[0]}" != "${expected}" ]]; then
+            printf 'Release must contain exactly one asset named %s; found: %s\n' "${expected}" "${assets[*]:-none}" >&2
+            exit 1
+          fi

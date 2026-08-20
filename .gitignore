@@ -1,0 +1,33 @@
+# Build and release output
+/bin/
+/dist/
+/coverage/
+*.coverprofile
+
+# Frontend dependencies and output
+/web/node_modules/
+/web/dist/
+/sdk/gamehub-js/node_modules/
+/sdk/gamehub-js/dist/
+/internal/web/dist/*
+!/internal/web/dist/index.html
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Runtime data
+/data/
+*.log

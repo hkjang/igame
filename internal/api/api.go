@@ -1,0 +1,576 @@
+package api
+
+import (
+	"bytes"
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"net"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
+	"github.com/hkjang/igame/internal/secretbox"
+	"github.com/hkjang/igame/internal/version"
+	"github.com/hkjang/igame/internal/web"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+const (
+	serviceName   = "igame"
+	sessionCookie = "igame_session"
+	maxJSONBody   = 2 << 20
+)
+
+type Server struct {
+	DB      *pgxpool.Pool
+	Secrets *secretbox.Box
+	Log     *slog.Logger
+	HTTP    *http.Client
+	Now     func() time.Time
+}
+
+func New(db *pgxpool.Pool, secrets *secretbox.Box, log *slog.Logger) *Server {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil // offline installations do not inherit ambient proxy variables
+	return &Server{DB: db, Secrets: secrets, Log: log, HTTP: &http.Client{Transport: transport, Timeout: 30 * time.Second}, Now: func() time.Time { return time.Now().UTC() }}
+}
+
+type Principal struct {
+	UserID      uuid.UUID `json:"id"`
+	Username    string    `json:"username"`
+	DisplayName string    `json:"display_name"`
+	Email       string    `json:"email"`
+	Department  string    `json:"department"`
+	Team        string    `json:"team"`
+	Role        string    `json:"role"`
+	Permissions []string  `json:"-"`
+	AuthType    string    `json:"-"`
+}
+
+type contextKey int
+
+const principalKey contextKey = 1
+
+func principalFrom(r *http.Request) (Principal, bool) {
+	p, ok := r.Context().Value(principalKey).(Principal)
+	return p, ok
+}
+
+func (s *Server) Router() http.Handler {
+	r := chi.NewRouter()
+	r.Use(middleware.RequestID, middleware.Recoverer)
+	r.Use(s.securityHeaders)
+	r.Use(s.csrfProtection)
+	r.Get("/healthz", s.live)
+	r.Get("/readyz", s.ready)
+	r.Get("/api/v1/version", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, version.Current()) })
+	r.Get("/api/v1/public/config", s.publicConfig)
+	r.Post("/api/v1/auth/login", s.login)
+	r.Post("/api/v1/auth/bootstrap/login", s.login)
+	r.Post("/api/v1/auth/logout", s.logout)
+	r.Get("/api/v1/auth/oidc/login", s.oidcLogin)
+	r.Get("/api/v1/auth/oidc/start", s.oidcLogin)
+	r.Get("/api/v1/auth/oidc/callback", s.oidcCallback)
+
+	r.Group(func(a chi.Router) {
+		a.Use(s.requireAuth)
+		a.Use(s.enforceAPIKeyPermissions)
+		a.Get("/api/v1/me", s.me)
+		a.Patch("/api/v1/me", s.updateMe)
+		a.Put("/api/v1/me/password", s.changePassword)
+		a.Get("/api/v1/me/preferences", s.getPreferences)
+		a.Put("/api/v1/me/preferences", s.putPreferences)
+		a.Get("/api/v1/me/history", s.playHistory)
+		a.Get("/api/v1/me/achievements", s.myAchievements)
+		a.Get("/api/v1/me/api-keys", s.listAPIKeys)
+		a.Post("/api/v1/me/api-keys", s.createAPIKey)
+		a.Patch("/api/v1/me/api-keys/{id}", s.updateAPIKey)
+		a.Post("/api/v1/me/api-keys/{id}/rotate", s.rotateAPIKey)
+		a.Delete("/api/v1/me/api-keys/{id}", s.revokeAPIKey)
+
+		a.Get("/api/v1/games", s.listGames)
+		a.Get("/api/v1/games/{id}", s.getGame)
+		a.Post("/api/v1/games/{id}/favorite", s.addFavorite)
+		a.Delete("/api/v1/games/{id}/favorite", s.removeFavorite)
+		a.Post("/api/v1/games/{id}/sessions", s.startGameSession)
+		a.Post("/api/v1/sessions/{id}/finish", s.finishGameSession)
+		a.Post("/api/v1/scores", s.submitScore)
+		a.Post("/api/v1/telemetry", s.submitTelemetry)
+		a.Get("/api/v1/rankings", s.rankings)
+		a.Get("/api/v1/rankings/{gameID}", s.rankings)
+		a.Get("/api/v1/achievements", s.listAchievements)
+		a.Post("/api/v1/me/achievements", s.unlockAchievement)
+		a.Get("/api/v1/seasons", s.listSeasons)
+		a.Get("/api/v1/events", s.listEvents)
+		a.Get("/api/v1/events/{id}", s.getEvent)
+		a.Post("/api/v1/events/{id}/join", s.joinEvent)
+		a.Get("/api/v1/notices", s.listPublicNotices)
+		a.Get("/api/v1/banners", s.listPublicBanners)
+		a.Post("/api/v1/workflow/requests", s.createWorkflowRequest)
+		a.Get("/api/v1/workflow/requests", s.listMyWorkflowRequests)
+		a.Post("/api/v1/workflow/requests/{id}/review", s.reviewWorkflowRequest)
+		a.Get("/api/v1/workflow/reviews", s.listWorkflowReviews)
+		a.Post("/api/v1/workflow/reviews/{id}", s.reviewWorkflowRequest)
+		a.Post("/api/v1/ai/chat/completions", s.aiChatCompletions)
+
+		a.Route("/api/v1/admin", func(admin chi.Router) {
+			admin.Use(s.requireRole("admin", "operator"))
+			admin.Get("/dashboard", s.adminDashboard)
+			admin.Get("/analytics", s.adminAnalytics)
+			admin.With(s.requireRole("admin")).Get("/settings", s.listSettings)
+			admin.With(s.requireRole("admin")).Get("/settings/{key}", s.getSetting)
+			admin.With(s.requireRole("admin")).Put("/settings/{key}", s.putSetting)
+			admin.With(s.requireRole("admin")).Get("/oidc", s.getOIDCSetting)
+			admin.With(s.requireRole("admin")).Put("/oidc", s.putOIDCSetting)
+			admin.With(s.requireRole("admin")).Get("/ai", s.getAISetting)
+			admin.With(s.requireRole("admin")).Put("/ai", s.putAISetting)
+			admin.Get("/games", s.adminListGames)
+			admin.Post("/games", s.createGame)
+			admin.Put("/games/{id}", s.updateGame)
+			admin.Delete("/games/{id}", s.deleteGame)
+			admin.Get("/categories", s.listCategories)
+			admin.Post("/categories", s.createCategory)
+			admin.Put("/categories/{id}", s.updateCategory)
+			admin.Delete("/categories/{id}", s.deleteCategory)
+			admin.With(s.requireRole("admin")).Get("/users", s.listUsers)
+			admin.With(s.requireRole("admin")).Patch("/users/{id}", s.updateUser)
+			admin.Get("/seasons", s.adminListSeasons)
+			admin.Post("/seasons", s.createSeason)
+			admin.Put("/seasons/{id}", s.updateSeason)
+			admin.Delete("/seasons/{id}", s.deleteSeason)
+			admin.Get("/events", s.adminListEvents)
+			admin.Post("/events", s.createEvent)
+			admin.Put("/events/{id}", s.updateEvent)
+			admin.Delete("/events/{id}", s.deleteEvent)
+			admin.Get("/tournaments", s.listTournaments)
+			admin.Post("/tournaments", s.createTournament)
+			admin.Put("/tournaments/{id}", s.updateTournament)
+			admin.Delete("/tournaments/{id}", s.deleteTournament)
+			admin.Get("/achievements", s.adminListAchievements)
+			admin.Post("/achievements", s.createAchievement)
+			admin.Put("/achievements/{id}", s.updateAchievement)
+			admin.Delete("/achievements/{id}", s.deleteAchievement)
+			admin.Get("/rewards", s.listRewards)
+			admin.Post("/rewards", s.createReward)
+			admin.Put("/rewards/{id}", s.updateReward)
+			admin.Delete("/rewards/{id}", s.deleteReward)
+			admin.Get("/notices", s.listAdminNotices)
+			admin.Post("/notices", s.createNotice)
+			admin.Put("/notices/{id}", s.updateNotice)
+			admin.Delete("/notices/{id}", s.deleteNotice)
+			admin.Get("/banners", s.listAdminBanners)
+			admin.Post("/banners", s.createBanner)
+			admin.Put("/banners/{id}", s.updateBanner)
+			admin.Delete("/banners/{id}", s.deleteBanner)
+			admin.Get("/rankings", s.adminRankings)
+			admin.Put("/rankings/{id}", s.moderateRanking)
+			admin.Delete("/rankings/{id}", s.excludeRanking)
+			admin.Get("/workflow/requests", s.adminListWorkflowRequests)
+			admin.Post("/workflow/requests/{id}/review", s.reviewWorkflowRequest)
+			admin.With(s.requireRole("admin")).Get("/audit", s.listAuditLogs)
+		})
+	})
+
+	// Streamable HTTP MCP shares the same auth implementation, but produces
+	// JSON-RPC authentication errors rather than REST errors.
+	r.With(s.requireMCPAuth).Get("/mcp", s.mcpGet)
+	r.With(s.requireMCPAuth).Post("/mcp", s.mcpPost)
+	r.Mount("/", web.Handler())
+	return r
+}
+
+func (s *Server) securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "SAMEORIGIN")
+		w.Header().Set("Referrer-Policy", "same-origin")
+		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		var policy struct {
+			AllowedFrameOrigins   []string `json:"allowed_frame_origins"`
+			AllowedConnectOrigins []string `json:"allowed_connect_origins"`
+		}
+		if r.URL.Path != "/healthz" && r.URL.Path != "/readyz" {
+			_ = s.setting(r.Context(), "service", &policy)
+		}
+		frames := []string{"'self'"}
+		connect := []string{"'self'"}
+		for _, candidate := range policy.AllowedFrameOrigins {
+			if origin, ok := cspOrigin(candidate); ok {
+				frames = append(frames, origin)
+			}
+		}
+		for _, candidate := range policy.AllowedConnectOrigins {
+			if origin, ok := cspOrigin(candidate); ok {
+				connect = append(connect, origin)
+			}
+		}
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src "+strings.Join(connect, " ")+"; frame-src "+strings.Join(frames, " ")+"; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'")
+		next.ServeHTTP(w, r)
+	})
+}
+
+func cspOrigin(candidate string) (string, bool) {
+	u, err := url.Parse(strings.TrimSpace(candidate))
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+		return "", false
+	}
+	return u.Scheme + "://" + u.Host, true
+}
+
+func (s *Server) live(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, 200, map[string]any{"status": "ok", "service": serviceName, "version": version.Version})
+}
+
+func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+	if err := s.DB.Ping(ctx); err != nil {
+		writeError(w, 503, "database_unavailable", "database is unavailable")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"status": "ok", "service": serviceName, "version": version.Version})
+}
+
+func (s *Server) csrfProtection(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions || strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			next.ServeHTTP(w, r)
+			return
+		} // non-browser clients
+		expected := s.requestBaseURL(r)
+		if origin != expected {
+			writeError(w, 403, "csrf_rejected", "request origin is not allowed")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *Server) requireAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p, err := s.authenticate(r)
+		if err != nil {
+			writeError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+			return
+		}
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), principalKey, p)))
+	})
+}
+
+func (s *Server) authenticate(r *http.Request) (Principal, error) {
+	if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
+		key := strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
+		if strings.HasPrefix(key, "igk_") {
+			return s.authenticateAPIKey(r.Context(), key)
+		}
+	}
+	cookie, err := r.Cookie(sessionCookie)
+	if err != nil || cookie.Value == "" {
+		return Principal{}, errors.New("no credentials")
+	}
+	hash := sha256.Sum256([]byte(cookie.Value))
+	var p Principal
+	err = s.DB.QueryRow(r.Context(), `SELECT u.id,u.username,u.display_name,u.email,u.department,u.team,u.role
+		FROM auth_sessions s JOIN users u ON u.id=s.user_id
+		WHERE s.token_hash=$1 AND s.expires_at>now() AND u.status='active'`, hash[:]).Scan(
+		&p.UserID, &p.Username, &p.DisplayName, &p.Email, &p.Department, &p.Team, &p.Role)
+	if err != nil {
+		return Principal{}, err
+	}
+	p.AuthType = "session"
+	_, _ = s.DB.Exec(r.Context(), `UPDATE auth_sessions SET last_seen_at=now() WHERE token_hash=$1 AND last_seen_at<now()-interval '5 minutes'`, hash[:])
+	return p, nil
+}
+
+func (s *Server) authenticateAPIKey(ctx context.Context, raw string) (Principal, error) {
+	hash := sha256.Sum256([]byte(raw))
+	var p Principal
+	err := s.DB.QueryRow(ctx, `SELECT u.id,u.username,u.display_name,u.email,u.department,u.team,u.role,k.permissions
+		FROM api_keys k JOIN users u ON u.id=k.user_id
+		WHERE k.key_hash=$1 AND k.revoked_at IS NULL AND (k.expires_at IS NULL OR k.expires_at>now()) AND u.status='active'`, hash[:]).Scan(
+		&p.UserID, &p.Username, &p.DisplayName, &p.Email, &p.Department, &p.Team, &p.Role, &p.Permissions)
+	if err != nil {
+		return Principal{}, err
+	}
+	// Apply the current global and role policy on every request. This makes
+	// permission removal and role changes effective immediately for existing
+	// keys without exposing or rewriting their original secret.
+	p.Permissions = effectiveKeyPermissions(p, p.Permissions, s.loadAPIKeyPolicyContext(ctx))
+	p.AuthType = "api_key"
+	_, _ = s.DB.Exec(ctx, `UPDATE api_keys SET last_used_at=now() WHERE key_hash=$1 AND (last_used_at IS NULL OR last_used_at<now()-interval '5 minutes')`, hash[:])
+	return p, nil
+}
+
+func (s *Server) requireRole(roles ...string) func(http.Handler) http.Handler {
+	allowed := map[string]bool{}
+	for _, role := range roles {
+		allowed[role] = true
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			p, _ := principalFrom(r)
+			if !allowed[p.Role] || (p.AuthType == "api_key" && !p.Can("admin:*")) {
+				writeError(w, 403, "forbidden", "insufficient role or API key scope")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func (s *Server) enforceAPIKeyPermissions(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p, _ := principalFrom(r)
+		if p.AuthType != "api_key" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		path := r.URL.Path
+		var required string
+		switch {
+		case strings.HasPrefix(path, "/api/v1/admin/"):
+			required = "admin:*"
+		case strings.Contains(path, "/api-keys"):
+			writeError(w, 403, "forbidden", "API keys cannot manage API keys")
+			return
+		case path == "/api/v1/ai/chat/completions":
+			required = "ai:invoke"
+		case strings.Contains(path, "/scores"):
+			required = "scores:write"
+		case strings.Contains(path, "/telemetry"):
+			required = "sessions:write"
+		case strings.Contains(path, "/sessions") && r.Method != http.MethodGet:
+			required = "sessions:write"
+		case strings.Contains(path, "/workflow"):
+			required = "workflow:write"
+		case strings.Contains(path, "/rankings"):
+			required = "rankings:read"
+		case strings.Contains(path, "/me"):
+			required = "profile:read"
+		case strings.Contains(path, "/games") || strings.Contains(path, "/events") || strings.Contains(path, "/seasons") || strings.Contains(path, "/achievements") || strings.Contains(path, "/notices") || strings.Contains(path, "/banners"):
+			required = "games:read"
+		default:
+			required = "api:access"
+		}
+		if !p.Can(required) {
+			writeError(w, 403, "insufficient_scope", "API key requires "+required)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (p Principal) Can(permission string) bool {
+	if p.Role == "admin" && p.AuthType != "api_key" {
+		return true
+	}
+	for _, have := range p.Permissions {
+		if have == "*" || have == permission || (strings.HasSuffix(have, ":*") && strings.HasPrefix(permission, strings.TrimSuffix(have, "*"))) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Server) audit(r *http.Request, action, resourceType, resourceID string, detail any) {
+	p, _ := principalFrom(r)
+	body, _ := json.Marshal(detail)
+	if len(body) == 0 {
+		body = []byte("{}")
+	}
+	_, err := s.DB.Exec(context.WithoutCancel(r.Context()), `INSERT INTO audit_logs(actor_id,action,resource_type,resource_id,remote_addr,user_agent,detail)
+		VALUES(NULLIF($1,'00000000-0000-0000-0000-000000000000')::uuid,$2,$3,$4,$5,$6,$7)`, p.UserID.String(), action, resourceType, resourceID, s.clientIP(r), r.UserAgent(), body)
+	if err != nil {
+		s.Log.Warn("write audit log", "error", err)
+	}
+}
+
+func (s *Server) clientIP(r *http.Request) string {
+	var service struct {
+		TrustProxy bool `json:"trust_proxy"`
+	}
+	if s.setting(r.Context(), "service", &service) == nil && service.TrustProxy {
+		if forwarded := strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-For"), ",")[0]); forwarded != "" {
+			if ip := net.ParseIP(forwarded); ip != nil {
+				return ip.String()
+			}
+		}
+		if forwarded := strings.TrimSpace(r.Header.Get("X-Real-IP")); forwarded != "" {
+			if ip := net.ParseIP(forwarded); ip != nil {
+				return ip.String()
+			}
+		}
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err == nil {
+		return host
+	}
+	return r.RemoteAddr
+}
+
+func (s *Server) requestBaseURL(r *http.Request) string {
+	var service struct {
+		PublicURL  string `json:"public_url"`
+		TrustProxy bool   `json:"trust_proxy"`
+	}
+	if s.setting(r.Context(), "service", &service) == nil && service.PublicURL != "" {
+		return strings.TrimRight(service.PublicURL, "/")
+	}
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	if service.TrustProxy {
+		if forwarded := strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-Proto"), ",")[0]); forwarded == "http" || forwarded == "https" {
+			scheme = forwarded
+		}
+	}
+	host := r.Host
+	if service.TrustProxy {
+		if forwarded := strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-Host"), ",")[0]); forwarded != "" {
+			host = forwarded
+		}
+	}
+	return scheme + "://" + host
+}
+
+func randomToken(n int) (string, error) {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+func parseUUIDParam(w http.ResponseWriter, r *http.Request, name string) (uuid.UUID, bool) {
+	id, err := uuid.Parse(chi.URLParam(r, name))
+	if err != nil {
+		writeError(w, 400, "invalid_id", "invalid resource identifier")
+		return uuid.Nil, false
+	}
+	return id, true
+}
+
+func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBody)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(dst); err != nil {
+		writeError(w, 400, "invalid_json", "invalid request body: "+err.Error())
+		return false
+	}
+	if err := dec.Decode(&struct{}{}); err != io.EOF {
+		writeError(w, 400, "invalid_json", "request body must contain one JSON value")
+		return false
+	}
+	return true
+}
+
+func decodeOptionalJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBody)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, 400, "invalid_json", "invalid request body")
+		return false
+	}
+	if len(bytes.TrimSpace(body)) == 0 {
+		return true
+	}
+	dec := json.NewDecoder(bytes.NewReader(body))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(dst); err != nil {
+		writeError(w, 400, "invalid_json", "invalid request body: "+err.Error())
+		return false
+	}
+	if err := dec.Decode(&struct{}{}); err != io.EOF {
+		writeError(w, 400, "invalid_json", "request body must contain one JSON value")
+		return false
+	}
+	return true
+}
+
+func writeJSON(w http.ResponseWriter, status int, value any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(value)
+}
+
+func writeError(w http.ResponseWriter, status int, code, message string) {
+	writeJSON(w, status, map[string]any{"error": map[string]string{"code": code, "message": message}})
+}
+
+func dbError(w http.ResponseWriter, err error) {
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, 404, "not_found", "resource not found")
+		return
+	}
+	writeError(w, 500, "internal_error", "internal server error")
+}
+
+func pageParams(r *http.Request) (limit, offset int) {
+	limit, _ = strconv.Atoi(r.URL.Query().Get("limit"))
+	if limit < 1 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	offset, _ = strconv.Atoi(r.URL.Query().Get("offset"))
+	if offset < 0 {
+		offset = 0
+	}
+	return
+}
+
+func safeReturnTo(value string) string {
+	if value == "" {
+		return "/"
+	}
+	u, err := url.Parse(value)
+	if err != nil || u.IsAbs() || !strings.HasPrefix(u.Path, "/") || strings.HasPrefix(u.Path, "//") {
+		return "/"
+	}
+	return u.String()
+}
+
+func tokenPrefix(raw string) string {
+	if len(raw) > 12 {
+		return raw[:12]
+	}
+	return raw
+}
+
+func hexHash(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:])
+}
+
+func (s *Server) setting(ctx context.Context, key string, dst any) error {
+	var raw []byte
+	if err := s.DB.QueryRow(ctx, `SELECT value FROM system_settings WHERE key=$1`, key).Scan(&raw); err != nil {
+		return err
+	}
+	if err := json.Unmarshal(raw, dst); err != nil {
+		return fmt.Errorf("decode setting %s: %w", key, err)
+	}
+	return nil
+}
