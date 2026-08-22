@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  
+  <!-- Primary SEO Meta Tags -->
+  <title>iGame — Air-Gapped Offline Enterprise Game Platform</title>
+  <meta name="title" content="iGame — Air-Gapped Offline Enterprise Game Platform">
+  <meta name="description" content="igame is an offline enterprise game platform designed to host, manage, and play games independently inside air-gapped corporate networks without external Internet dependencies. Features original tower defense IP RealmGuard, 3-part Defense Series, real-time leaderboards, and AI Co-Pilot.">
+  <meta name="keywords" content="igame, air-gapped game platform, offline games, enterprise gaming, RealmGuard, tower defense, Defense Series, Office Guardians, Cyber Fortress, AI Nexus Defense, Go Monolith, Phaser 3, Keycloak OIDC, MCP">
+  <meta name="author" content="igame Contributors">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+  <meta name="theme-color" content="#070e1a">
+  <link rel="canonical" href="https://hkjang.github.io/igame/en/">
+  <link rel="alternate" hreflang="ko" href="https://hkjang.github.io/igame/">
+  <link rel="alternate" hreflang="en" href="https://hkjang.github.io/igame/en/">
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://hkjang.github.io/igame/en/">
+  <meta property="og:site_name" content="iGame">
+  <meta property="og:title" content="iGame — Air-Gapped Offline Enterprise Game Platform">
+  <meta property="og:description" content="Self-contained enterprise game platform powered by Go modular monolith, React 19, Phaser 3 runtime, RealmGuard tower defense, and AI Co-Pilot.">
+  <meta property="og:image" content="https://hkjang.github.io/igame/images/02_home_portal.png">
+  <meta property="og:image:width" content="1440">
+  <meta property="og:image:height" content="900">
+  <meta property="og:locale" content="en_US">
+
+  <!-- Twitter / X -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:url" content="https://hkjang.github.io/igame/en/">
+  <meta name="twitter:title" content="iGame — Air-Gapped Offline Enterprise Game Platform">
+  <meta name="twitter:description" content="Self-contained enterprise game platform powered by Go modular monolith, React 19, Phaser 3 runtime, RealmGuard tower defense, and AI Co-Pilot.">
+  <meta name="twitter:image" content="https://hkjang.github.io/igame/images/02_home_portal.png">
+
+  <!-- Favicons -->
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="apple-touch-icon" href="../logo.svg">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- AEO & GEO Schema.org JSON-LD Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://hkjang.github.io/igame/en/#software",
+        "name": "iGame",
+        "alternateName": "igame Enterprise Offline Game Platform",
+        "description": "Enterprise offline gaming platform for air-gapped corporate networks without external Internet connections",
+        "operatingSystem": "Cross-platform (Linux, Docker, Kubernetes, macOS, Windows)",
+        "applicationCategory": "GameApplication / EnterprisePortal",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "featureList": [
+          "Single Offline Scratch Docker Image (Zero External CDN/Packages)",
+          "Original IP Tower Defense Game: RealmGuard (Phaser 3 Powered)",
+          "3-Part Defense Series: Office Guardians, Cyber Fortress, AI Nexus Defense",
+          "Real-time Leaderboards, Seasons, Tournaments & Achievements",
+          "Per-User AES-256-GCM Envelope Encryption & Zero-Downtime Key Rotation",
+          "Keycloak OIDC SSO & Team Approvals Governance",
+          "Model Context Protocol (/mcp Streamable HTTP) & AI Co-Pilot Game Lab"
+        ],
+        "screenshot": "https://hkjang.github.io/igame/images/02_home_portal.png",
+        "softwareVersion": "v0.3.0",
+        "license": "https://www.apache.org/licenses/LICENSE-2.0"
+      },
+      {
+        "@type": "Organization",
+        "@id": "https://hkjang.github.io/igame/en/#organization",
+        "name": "iGame Project Contributors",
+        "url": "https://github.com/hkjang/igame",
+        "logo": "https://hkjang.github.io/igame/logo.svg"
+      },
+      {
+        "@type": "FAQPage",
+        "@id": "https://hkjang.github.io/igame/en/#faq",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What is igame?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "igame is an enterprise offline gaming platform specifically built for air-gapped corporate networks, allowing organizations to securely host, govern, and play curated games without external Internet dependencies."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What games are included out of the box?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "It includes 'RealmGuard' (an original 10-stage tower defense IP with endless rift mode), the 3-part 'Defense Series' (Office Guardians, Cyber Fortress, and AI Nexus Defense for experiential workplace training), and classic puzzle games."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does it truly run 100% offline?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. The entire React 19 web portal, Phaser 3 game runtime, and MCP server are statically embedded (go:embed) inside a single Go binary and packaged into a scratch-based Docker image without package managers or CDN calls."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How are telemetry and cheating prevented?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Client-reported telemetry is strictly validated on the server side using the server_received_telemetry_v1 specification to verify chronological ordering, timestamp bounds, and cumulative score consistency."
+            }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+
+  <style>
+    :root {
+      --bg-dark: #070e1a;
+      --bg-card: #0d1626;
+      --bg-card-hover: #13213a;
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-focus: rgba(56, 189, 248, 0.4);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      
+      --accent-cyan: #38bdf8;
+      --accent-indigo: #6366f1;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      
+      --gradient-brand: linear-gradient(135deg, #38bdf8 0%, #6366f1 50%, #a855f7 100%);
+      --shadow-glow: 0 0 50px -10px rgba(56, 189, 248, 0.25);
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      line-height: 1.6;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .ambient-glow {
+      position: fixed;
+      top: -20%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100vw;
+      max-width: 1100px;
+      height: 650px;
+      background: radial-gradient(circle, rgba(56, 189, 248, 0.16) 0%, rgba(99, 102, 241, 0.08) 45%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Streamlined Minimal Header */
+    header.site-header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      background: rgba(7, 14, 26, 0.92);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0 1.25rem;
+    }
+    .header-inner {
+      max-width: 1180px;
+      margin: 0 auto;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .brand-logo-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #38bdf8, #6366f1);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+    .brand-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+    }
+
+    /* Center Nav Links */
+    nav.nav-links {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      padding: 0;
+    }
+    nav.nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.86rem;
+      font-weight: 500;
+      white-space: nowrap;
+      transition: color 0.2s ease;
+    }
+    nav.nav-links a:hover { color: #fff; }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    /* Lang Switcher */
+    .lang-switcher {
+      display: inline-flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding: 2px 4px;
+      font-size: 0.76rem;
+      font-weight: 600;
+    }
+    .lang-switcher a {
+      color: var(--text-dim);
+      text-decoration: none;
+      padding: 3px 6px;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+    .lang-switcher a.active {
+      color: #fff;
+      background: rgba(56, 189, 248, 0.2);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      border: 1px solid transparent;
+      min-height: 34px;
+      white-space: nowrap;
+    }
+    .btn-primary {
+      background: var(--gradient-brand);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(56, 189, 248, 0.3);
+    }
+    .btn-primary:hover {
+      box-shadow: 0 6px 20px rgba(56, 189, 248, 0.5);
+      transform: translateY(-1px);
+    }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-main);
+      border-color: var(--border-color);
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Container */
+    .container {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 0 1.25rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Hero Section */
+    section.hero {
+      padding: 4rem 0 3rem;
+      text-align: center;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      border-radius: 9999px;
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      color: #7dd3fc;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      margin-bottom: 1.25rem;
+    }
+    .hero-headline {
+      font-size: clamp(2rem, 5vw, 3.8rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      margin-bottom: 1.2rem;
+      color: #fff;
+    }
+    .hero-headline em {
+      font-style: normal;
+      background: var(--gradient-brand);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero-subhead {
+      font-size: clamp(0.92rem, 2vw, 1.15rem);
+      color: var(--text-muted);
+      max-width: 720px;
+      margin: 0 auto 2rem;
+      line-height: 1.65;
+    }
+    .hero-ctas {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 3rem;
+    }
+
+    /* Hero Showcase & Video */
+    .hero-showcase {
+      max-width: 1080px;
+      margin: 0 auto;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-color);
+      background: var(--bg-card);
+      box-shadow: var(--shadow-glow);
+      overflow: hidden;
+    }
+    .showcase-bar {
+      height: 38px;
+      background: #080f1d;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      gap: 8px;
+    }
+    .dot { width: 9px; height: 9px; border-radius: 50%; }
+    .dot-red { background: #ff5f56; }
+    .dot-yellow { background: #ffbd2e; }
+    .dot-green { background: #27c93f; }
+    .showcase-url {
+      margin-left: auto;
+      margin-right: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 80%;
+    }
+    .hero-img-wrap {
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-img-wrap img, .hero-img-wrap video {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    /* Section Heads */
+    .section-head {
+      text-align: center;
+      max-width: 720px;
+      margin: 0 auto 2.5rem;
+    }
+    .eyebrow {
+      color: var(--accent-cyan);
+      font-weight: 700;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 6px;
+    }
+    .section-head h2 {
+      font-size: clamp(1.5rem, 3.5vw, 2.4rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #fff;
+      line-height: 1.25;
+    }
+    .section-desc {
+      color: var(--text-dim);
+      font-size: 0.92rem;
+      margin-top: 8px;
+    }
+
+    /* Pillars Grid */
+    section.pillars-section {
+      padding: 4.5rem 0;
+    }
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 18px;
+    }
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 22px;
+      transition: all 0.25s ease;
+    }
+    .feature-card:hover {
+      border-color: var(--border-focus);
+      background: var(--bg-card-hover);
+      transform: translateY(-3px);
+    }
+    .feature-icon {
+      font-size: 26px;
+      margin-bottom: 12px;
+    }
+    .feature-card h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+    .feature-card p {
+      color: var(--text-muted);
+      font-size: 0.86rem;
+      line-height: 1.6;
+    }
+
+    /* Live Gallery Grid */
+    section.gallery-section {
+      padding: 4.5rem 0;
+      background: rgba(13, 22, 38, 0.4);
+      border-top: 1px solid var(--border-color);
+      border-bottom: 1px solid var(--border-color);
+    }
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 18px;
+    }
+    .gallery-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      transition: all 0.25s ease;
+      cursor: pointer;
+    }
+    .gallery-card:hover {
+      border-color: var(--border-focus);
+      transform: translateY(-3px);
+      box-shadow: 0 16px 32px rgba(0, 0, 0, 0.4);
+    }
+    .gallery-thumb {
+      width: 100%;
+      height: 180px;
+      overflow: hidden;
+      background: #000;
+    }
+    .gallery-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.3s ease;
+    }
+    .gallery-card:hover .gallery-thumb img {
+      transform: scale(1.05);
+    }
+    .gallery-info {
+      padding: 14px 16px;
+    }
+    .gallery-info h4 {
+      font-size: 0.92rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: #fff;
+    }
+    .gallery-info p {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+    }
+
+    /* Enterprise Documentation Grid */
+    section.tech-section {
+      padding: 4.5rem 0;
+    }
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 18px;
+    }
+    .tech-box {
+      padding: 22px;
+      border-radius: var(--radius-md);
+      background: rgba(7, 14, 26, 0.7);
+      border: 1px solid var(--border-color);
+    }
+    .tech-box h3 {
+      font-size: 1.08rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: #fff;
+    }
+    .tech-box ul {
+      list-style: none;
+    }
+    .tech-box li {
+      position: relative;
+      padding-left: 18px;
+      font-size: 0.86rem;
+      color: var(--text-muted);
+      margin-bottom: 7px;
+      line-height: 1.5;
+    }
+    .tech-box li::before {
+      content: '•';
+      position: absolute;
+      left: 0;
+      color: var(--accent-cyan);
+      font-weight: bold;
+    }
+
+    /* FAQ Section */
+    section.faq-section {
+      padding: 4.5rem 0;
+      background: rgba(13, 22, 38, 0.4);
+      border-top: 1px solid var(--border-color);
+    }
+    .faq-list {
+      max-width: 860px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .faq-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      transition: border-color 0.2s ease;
+    }
+    .faq-item[open] {
+      border-color: rgba(56, 189, 248, 0.35);
+    }
+    .faq-question {
+      padding: 16px 20px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: #fff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      user-select: none;
+      list-style: none;
+    }
+    .faq-question::-webkit-details-marker { display: none; }
+    .faq-question::after {
+      content: '+';
+      font-size: 1.2rem;
+      color: var(--accent-cyan);
+      transition: transform 0.2s ease;
+    }
+    .faq-item[open] .faq-question::after {
+      content: '−';
+      transform: rotate(180deg);
+    }
+    .faq-answer {
+      padding: 0 20px 16px 20px;
+      color: var(--text-muted);
+      font-size: 0.88rem;
+      line-height: 1.65;
+      border-top: 1px solid rgba(255, 255, 255, 0.04);
+      margin-top: 4px;
+      padding-top: 12px;
+    }
+
+    /* Quick Start Terminal */
+    section.quickstart-section {
+      padding: 4.5rem 0 5.5rem;
+    }
+    .code-terminal {
+      max-width: 860px;
+      margin: 0 auto;
+      background: #040810;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+    }
+    .terminal-header {
+      background: #080f1d;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .terminal-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.74rem;
+      color: var(--text-dim);
+    }
+    .terminal-body {
+      padding: 18px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: clamp(0.74rem, 1.8vw, 0.85rem);
+      line-height: 1.7;
+      color: #38bdf8;
+      overflow-x: auto;
+    }
+    .terminal-body .comment { color: #64748b; }
+    .terminal-body .cmd { color: #f8fafc; }
+
+    /* Modal */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.92);
+      backdrop-filter: blur(10px);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-backdrop.active { display: flex; }
+    .modal-content {
+      position: relative;
+      max-width: 1200px;
+      width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9);
+    }
+    .modal-content img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .modal-close {
+      position: absolute;
+      top: 10px;
+      right: 14px;
+      background: rgba(0, 0, 0, 0.6);
+      border: none;
+      color: #fff;
+      font-size: 26px;
+      cursor: pointer;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Footer */
+    footer.site-footer {
+      border-top: 1px solid var(--border-color);
+      padding: 3.5rem 0 2.5rem;
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 0.82rem;
+    }
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 1.25rem;
+    }
+    .footer-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .footer-links a:hover { color: #fff; }
+
+    /* Mobile Responsive Rules */
+    @media (max-width: 768px) {
+      nav.nav-links {
+        display: flex;
+        gap: 12px;
+      }
+      nav.nav-links a {
+        font-size: 0.8rem;
+      }
+      .hero-ctas .btn { width: 100%; }
+      .cards-grid, .gallery-grid, .tech-grid { grid-template-columns: 1fr; }
+      section.hero { padding: 2.5rem 0 1.5rem; }
+    }
+    @media (max-width: 520px) {
+      nav.nav-links {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="ambient-glow"></div>
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="#" class="brand-logo" aria-label="iGame Home">
+        <div class="brand-logo-icon">🎮</div>
+        <span class="brand-title">iGame</span>
+      </a>
+
+      <!-- Simple Clean Navigation (4 Core Links) -->
+      <nav class="nav-links" aria-label="Main Navigation">
+        <a href="#demo">Demo</a>
+        <a href="#gallery">Games & Gallery</a>
+        <a href="#docs">Docs (PDF)</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+
+      <!-- Clean Actions: Language Switcher + GitHub -->
+      <div class="header-actions">
+        <div class="lang-switcher">
+          <a href="../">KO</a>
+          <a href="#" class="active">EN</a>
+        </div>
+        <a href="https://github.com/hkjang/igame" class="btn btn-primary" target="_blank" aria-label="GitHub Repository">
+          GitHub ★
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="container">
+        <div class="hero-badge">
+          Offline Enterprise Game Platform
+        </div>
+        <h1 class="hero-headline">
+          Enterprise Gaming Inside<br />
+          <em>Air-Gapped Networks.</em>
+        </h1>
+        <p class="hero-subhead">
+          A self-contained enterprise gaming platform running from a single Docker image without external Internet connections.<br />
+          Experience original tower defense IP RealmGuard, 3-part Defense Series, real-time leaderboards, and AI Co-Pilot.
+        </p>
+        <div class="hero-ctas">
+          <a href="#demo" class="btn btn-primary" style="padding: 11px 22px; font-size: 0.92rem;">Watch 3-Min Demo 🎬</a>
+          <a href="#docs" class="btn btn-secondary" style="padding: 11px 22px; font-size: 0.92rem;">Official Whitepapers (PDF) ↗</a>
+          <a href="#quickstart" class="btn btn-secondary" style="padding: 11px 22px; font-size: 0.92rem;">30-Second Quickstart →</a>
+        </div>
+
+        <!-- 3-Minute Live Interactive Demo Video -->
+        <div id="demo" class="hero-showcase" style="margin-bottom: 2rem;">
+          <div class="showcase-bar">
+            <div class="dot dot-red"></div>
+            <div class="dot dot-yellow"></div>
+            <div class="dot dot-green"></div>
+            <div class="showcase-url">igame-demo.mp4 · 3-Minute Live Walkthrough (60fps HD)</div>
+          </div>
+          <div class="hero-img-wrap" style="background:#000;">
+            <video controls autoplay muted loop playsinline style="width: 100%; height: auto; display: block;">
+              <source src="../media/igame-demo.mp4" type="video/mp4">
+              <source src="../igame-demo.mp4" type="video/mp4">
+              Your browser does not support the video tag.
+            </video>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pillars Section -->
+    <section id="pillars" class="pillars-section">
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow">Enterprise Core Highlights</p>
+          <h2>All-in-One Platform Built for Closed Networks</h2>
+          <p class="section-desc">From single scratch container deployment to telemetry validation and envelope encryption.</p>
+        </div>
+        <div class="cards-grid">
+          <article class="feature-card">
+            <div class="feature-icon">🔒</div>
+            <h3>Air-Gapped Offline Scratch Image</h3>
+            <p>Single Go modular monolith and React 19 static bundle packaged in a package-manager-free scratch base image.</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon">🏰</div>
+            <h3>RealmGuard (Original Tower Defense IP)</h3>
+            <p>10 campaign stages, endless rift, 10 enemy types / 2 bosses, and 4 core towers with 8 branching upgrade paths.</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon">🛡️</div>
+            <h3>Defense Series (Experiential Training)</h3>
+            <p>Office Guardians (teamwork), Cyber Fortress (security incident response), and AI Nexus Defense (AI governance).</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon">🔐</div>
+            <h3>AES-256-GCM Envelope Encryption</h3>
+            <p>Personal keys and sensitive configurations wrapped with a 32-byte master key and zero-downtime key rotation.</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon">⚖️</div>
+            <h3>Telemetry Ledger Validation (v1)</h3>
+            <p>Server-side chronological and cumulative integrity checking prevents client-side cheating and score spoofing.</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon">🤖</div>
+            <h3>Model Context Protocol & AI Co-Pilot</h3>
+            <p>Standard Model Context Protocol (/mcp) support allows AI assistants to provide tactical tower placement advice.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Visual Showcase Gallery (Captured Screens) -->
+    <section id="gallery" class="gallery-section">
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow">Full Feature Showcase</p>
+          <h2>Interactive Screenshot Gallery (27 Screens)</h2>
+          <p class="section-desc">Click any card to inspect full high-resolution screenshots.</p>
+        </div>
+
+        <div class="gallery-grid">
+          <div class="gallery-card" onclick="openModal('../images/01_login_page.png')">
+            <div class="gallery-thumb"><img src="../images/01_login_page.png" alt="01. Login & SSO" loading="lazy"></div>
+            <div class="gallery-info"><h4>01. Login & OIDC SSO</h4><p>Keycloak SSO & local bootstrap credentials</p></div>
+          </div>
+          <div class="gallery-card" onclick="openModal('../images/02_home_portal.png')">
+            <div class="gallery-thumb"><img src="../images/02_home_portal.png" alt="02. Home Portal Dashboard" loading="lazy"></div>
+            <div class="gallery-info"><h4>02. Home Portal Dashboard</h4><p>Featured games, player level & leaderboard</p></div>
+          </div>
+          <div class="gallery-card" onclick="openModal('../images/04_realmguard_gameplay.png')">
+            <div class="gallery-thumb"><img src="../images/04_realmguard_gameplay.png" alt="03. RealmGuard Tower Defense" loading="lazy"></div>
+            <div class="gallery-info"><h4>03. RealmGuard Tower Defense</h4><p>Campaign map, heroes & skill loadouts</p></div>
+          </div>
+          <div class="gallery-card" onclick="openModal('../images/05_office_guardians_gameplay.png')">
+            <div class="gallery-thumb"><img src="../images/05_office_guardians_gameplay.png" alt="04. Office Guardians" loading="lazy"></div>
+            <div class="gallery-info"><h4>04. Office Guardians</h4><p>Cross-functional department synergy defense</p></div>
+          </div>
+          <div class="gallery-card" onclick="openModal('../images/06_cyber_fortress_gameplay.png')">
+            <div class="gallery-thumb"><img src="../images/06_cyber_fortress_gameplay.png" alt="05. Cyber Fortress" loading="lazy"></div>
+            <div class="gallery-info"><h4>05. Cyber Fortress</h4><p>Threat mitigation & cyber incident defense</p></div>
+          </div>
+          <div class="gallery-card" onclick="openModal('../images/07_ai_nexus_defense_gameplay.png')">
+            <div class="gallery-thumb"><img src="../images/07_ai_nexus_defense_gameplay.png" alt="06. AI Nexus Defense" loading="lazy"></div>
+            <div class="gallery-info"><h4>06. AI Nexus Defense</h4><p>AI model security, cost & compliance defense</p></div>
+          </div>
+          <div class="gallery-card" onclick="openModal('../images/08_rankings_leaderboard.png')">
+            <div class="gallery-thumb"><img src="../images/08_rankings_leaderboard.png" alt="07. Real-Time Leaderboards" loading="lazy"></div>
+            <div class="gallery-info"><h4>07. Real-Time Leaderboards</h4><p>Daily/weekly/seasonal ranks & hall of fame</p></div>
+          </div>
+          <div class="gallery-card" onclick="openModal('../images/10_ai_game_lab.png')">
+            <div class="gallery-thumb"><img src="../images/10_ai_game_lab.png" alt="08. AI Game Lab" loading="lazy"></div>
+            <div class="gallery-info"><h4>08. AI Game Lab</h4><p>AI Co-Pilot tactical analysis & Q&A</p></div>
+          </div>
+          <div class="gallery-card" onclick="openModal('../images/11_reviews_approvals.png')">
+            <div class="gallery-thumb"><img src="../images/11_reviews_approvals.png" alt="09. Reviews & Approvals" loading="lazy"></div>
+            <div class="gallery-info"><h4>09. Reviews & Approvals</h4><p>Draft content preview & approval workflows</p></div>
+          </div>
+          <div class="gallery-card" onclick="openModal('../images/14_personal_keys_rotation.png')">
+            <div class="gallery-thumb"><img src="../images/14_personal_keys_rotation.png" alt="10. Personal Keys & Rotation" loading="lazy"></div>
+            <div class="gallery-info"><h4>10. Personal Keys & Rotation</h4><p>Zero-Downtime Key Rotation interface</p></div>
+          </div>
+          <div class="gallery-card" onclick="openModal('../images/17_admin_realmguard_designer.png')">
+            <div class="gallery-thumb"><img src="../images/17_admin_realmguard_designer.png" alt="11. RealmGuard Designer" loading="lazy"></div>
+            <div class="gallery-info"><h4>11. RealmGuard Designer</h4><p>Stage, wave & balance visual editor</p></div>
+          </div>
+          <div class="gallery-card" onclick="openModal('../images/18_admin_defense_studio.png')">
+            <div class="gallery-thumb"><img src="../images/18_admin_defense_studio.png" alt="12. Defense Content Studio" loading="lazy"></div>
+            <div class="gallery-info"><h4>12. Defense Content Studio</h4><p>Scenario training events & unit balance</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Enterprise Documents & Whitepapers (PDF Downloads) -->
+    <section id="docs" class="tech-section" style="background: var(--bg-dark); border-top: 1px solid var(--border-color);">
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow">Enterprise Documentation</p>
+          <h2>Official Manuals & Architecture Whitepapers (PDF)</h2>
+          <p class="section-desc">Download comprehensive technical whitepapers and user manuals prepared for enterprise architects.</p>
+        </div>
+
+        <div class="tech-grid">
+          <div class="tech-box" style="border: 1px solid rgba(56, 189, 248, 0.3); background: rgba(13, 22, 38, 0.85); display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+              <div style="font-size: 24px; margin-bottom: 10px;">📘</div>
+              <h3 style="color: #f8fafc; font-size: 1.1rem;">igame Official User Guide</h3>
+              <p style="color: var(--text-dim); font-size: 0.86rem; margin: 8px 0 16px; line-height: 1.6;">Platform philosophy, RealmGuard tower defense, 3-part Defense Series, leaderboards, and AI Co-Pilot.</p>
+            </div>
+            <a href="../igame_User_Guide.pdf" class="btn btn-primary" style="text-align: center; font-size: 0.82rem; padding: 9px 14px;" target="_blank">Download PDF ↗</a>
+          </div>
+
+          <div class="tech-box" style="border: 1px solid rgba(16, 185, 129, 0.3); background: rgba(13, 22, 38, 0.85); display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+              <div style="font-size: 24px; margin-bottom: 10px;">📗</div>
+              <h3 style="color: #f8fafc; font-size: 1.1rem;">CRU Operations Manual</h3>
+              <p style="color: var(--text-dim); font-size: 0.86rem; margin: 8px 0 16px; line-height: 1.6;">Game content creation (Create), telemetry validation (Read), balance updates (Update), and approvals.</p>
+            </div>
+            <a href="../igame_CRU_Operations_Manual.pdf" class="btn btn-primary" style="text-align: center; font-size: 0.82rem; padding: 9px 14px;" target="_blank">Download PDF ↗</a>
+          </div>
+
+          <div class="tech-box" style="border: 1px solid rgba(99, 102, 241, 0.3); background: rgba(13, 22, 38, 0.85); display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+              <div style="font-size: 24px; margin-bottom: 10px;">📙</div>
+              <h3 style="color: #f8fafc; font-size: 1.1rem;">Architecture & Security Whitepaper</h3>
+              <p style="color: var(--text-dim); font-size: 0.86rem; margin: 8px 0 16px; line-height: 1.6;">Single Go modular monolith, AES-256 envelope encryption, Keycloak OIDC, and Model Context Protocol.</p>
+            </div>
+            <a href="../igame_Architecture_and_Security_Whitepaper.pdf" class="btn btn-primary" style="text-align: center; font-size: 0.82rem; padding: 9px 14px;" target="_blank">Download PDF ↗</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Technical Specifications -->
+    <section id="specs" class="tech-section">
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow">Enterprise Specifications</p>
+          <h2>Proven Offline Architecture</h2>
+          <p class="section-desc">Zero external package or CDN dependencies.</p>
+        </div>
+
+        <div class="tech-grid">
+          <div class="tech-box">
+            <h3>📦 Single Scratch Image</h3>
+            <ul>
+              <li>Go 1.25+ compiled single executable</li>
+              <li>Embedded React 19 & Phaser 3 assets</li>
+              <li>PostgreSQL 16+ sole runtime dependency</li>
+            </ul>
+          </div>
+          <div class="tech-box">
+            <h3>🔐 Zero-Trust Security</h3>
+            <ul>
+              <li><strong>AES-256-GCM</strong> envelope encryption</li>
+              <li>Zero-downtime key rotation support</li>
+              <li>Keycloak OIDC PKCE SSO integration</li>
+            </ul>
+          </div>
+          <div class="tech-box">
+            <h3>🎮 Phaser & MCP Fabric</h3>
+            <ul>
+              <li>60fps hardware accelerated canvas</li>
+              <li>Built-in <strong>/mcp</strong> Streamable HTTP server</li>
+              <li>Server-received telemetry ledger (v1) validation</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ Section (AEO/GEO Optimized) -->
+    <section id="faq" class="faq-section">
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow">Frequently Asked Questions</p>
+          <h2>Frequently Asked Questions (FAQ)</h2>
+          <p class="section-desc">Key details about deployment, game customization, and security governance.</p>
+        </div>
+
+        <div class="faq-list">
+          <details class="faq-item" open>
+            <summary class="faq-question">Does igame truly run 100% offline without Internet access?</summary>
+            <div class="faq-answer">
+              Yes, absolutely. All React 19 web assets, Phaser 3 game engine files, and API endpoints are embedded directly into the Go binary (go:embed), requiring zero external CDN or npm calls at runtime.
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary class="faq-question">How do administrators modify RealmGuard game balance?</summary>
+            <div class="faq-answer">
+              Using the <strong>[RealmGuard Designer]</strong> console (<code>/admin/realmguard</code>), administrators can visually tune stage paths, wave compositions, tower stats, and enemy speeds with optimistic concurrency control (<code>If-Match</code>).
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary class="faq-question">How does enterprise SSO and key management work?</summary>
+            <div class="faq-answer">
+              Keycloak OIDC PKCE SSO is supported out of the box. For developer API calls, personal tokens are encrypted via AES-256-GCM with seamless <strong>Zero-Downtime Key Rotation</strong>.
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary class="faq-question">How are game scores validated against cheating?</summary>
+            <div class="faq-answer">
+              Client-reported telemetry streams are verified server-side using <code>server_received_telemetry_v1</code> rules to check chronological ordering, timestamp bounds, and cumulative score consistency.
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- Quick Start Section -->
+    <section id="quickstart" class="quickstart-section">
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow">Ready to deploy?</p>
+          <h2>Deploy Locally in 30 Seconds</h2>
+          <p class="section-desc">Launch your self-contained enterprise gaming platform with just 4 environment variables.</p>
+        </div>
+        
+        <div class="code-terminal">
+          <div class="terminal-header">
+            <div style="display:flex;gap:6px;"><div class="dot dot-red"></div><div class="dot dot-yellow"></div><div class="dot dot-green"></div></div>
+            <div class="terminal-title">bash · quickstart.sh</div>
+          </div>
+          <div class="terminal-body">
+            <span class="comment"># 1. Start PostgreSQL container</span><br>
+            <span class="cmd">docker compose up -d</span><br><br>
+            <span class="comment"># 2. Set 4 required environment variables</span><br>
+            <span class="cmd">export POSTGRES_DSN='postgres://igame:igame-password@127.0.0.1:5432/igame?sslmode=disable'</span><br>
+            <span class="cmd">export BOOTSTRAP_ADMIN='admin@example.internal'</span><br>
+            <span class="cmd">export BOOTSTRAP_ADMIN_PASSWORD='a-long-bootstrap-password'</span><br>
+            <span class="cmd">export ENCRYPTION_KEY='base64:dfiTZ2U2j5jzkRiopD8Shi9Wj3ydtLatbG5MUEYaTLw='</span><br><br>
+            <span class="comment"># 3. Start igame</span><br>
+            <span class="cmd">go run ./cmd/igame</span><br><br>
+            <span class="comment"># 4. Open http://localhost:8080 in your browser!</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal Viewer -->
+  <div id="imageModal" class="modal-backdrop" onclick="closeModal()">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <button class="modal-close" onclick="closeModal()" aria-label="Close">×</button>
+      <img id="modalImg" src="" alt="Enlarged screenshot">
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-links">
+        <a href="../igame_User_Guide.pdf" target="_blank">User Guide (PDF)</a>
+        <a href="../igame_CRU_Operations_Manual.pdf" target="_blank">CRU Manual (PDF)</a>
+        <a href="../igame_Architecture_and_Security_Whitepaper.pdf" target="_blank">Architecture Whitepaper (PDF)</a>
+        <a href="https://github.com/hkjang/igame" target="_blank">GitHub</a>
+      </div>
+      <p>Copyright © 2026 iGame Project Contributors. Offline Enterprise Game Platform.</p>
+    </div>
+  </footer>
+
+  <script>
+    function openModal(src) {
+      document.getElementById('modalImg').src = src;
+      document.getElementById('imageModal').classList.add('active');
+    }
+    function closeModal() {
+      document.getElementById('imageModal').classList.remove('active');
+    }
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeModal();
+    });
+  </script>
+</body>
+</html>

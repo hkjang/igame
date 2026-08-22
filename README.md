@@ -1,8 +1,30 @@
-# igame
+<div align="center">
 
-`igame`은 사내 폐쇄망에서 게임을 독립적으로 등록하고 운영하는 게임 플랫폼입니다. Go 모듈러 모놀리스, React 포털, PostgreSQL, Keycloak OIDC, Game Runtime/SDK, 랭킹·시즌·업적·이벤트, 선택형 검토/승인 흐름, 개인 키와 MCP/API를 한 개의 Docker 이미지로 제공합니다.
+# iGame
 
-## 기술 선택
+### Air-Gapped Offline Enterprise Game Platform
+
+**사내 폐쇄망에서 게임을 독립적으로 등록하고 운영하는 엔터프라이즈 게임 플랫폼**
+
+[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://golang.org)
+[![React Version](https://img.shields.io/badge/React-19-61DAFB?style=flat&logo=react)](https://reactjs.org)
+[![Phaser Version](https://img.shields.io/badge/Phaser-3.80+-E74C3C?style=flat)](https://phaser.io)
+[![MCP Ready](https://img.shields.io/badge/MCP-Streamable%20HTTP-FF6B6B?style=flat)](https://modelcontextprotocol.io)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
+[🌐 웹 쇼케이스 (한국어)](docs/index.html) · [🌐 English Showcase](docs/en/index.html) · [🎬 3분 시연 영상](docs/igame-demo.mp4)  
+[📘 공식 사용자 가이드 (PDF)](docs/igame_User_Guide.pdf) · [📗 CRU 매뉴얼 (PDF)](docs/igame_CRU_Operations_Manual.pdf) · [📙 아키텍처 백서 (PDF)](docs/igame_Architecture_and_Security_Whitepaper.pdf)
+
+</div>
+
+---
+
+## 🎬 3분 실전 데모 영상
+
+> 💡 **[3분 데모 비디오 파일 직접 다운로드 / 보기](docs/media/igame-demo.mp4)**  
+> 로그인 → 포털 홈 → RealmGuard 타워디펜스 → Defense Series 3종 → 실시간 랭킹 및 AI Co-Pilot 분석 → 관리자 Designer/Studio까지 전 과정을 60fps HD 영상으로 확인하실 수 있습니다.
+
+---
 
 - Backend: Go, PostgreSQL, REST/SSE, MCP Streamable HTTP
 - Frontend: React + TypeScript + Vite, Phaser(RealmGuard runtime)
