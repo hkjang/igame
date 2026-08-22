@@ -42,14 +42,20 @@ curl --no-buffer https://igame.company.local/mcp \
 | `leaderboard_get` | `rankings:read` | 게임/기간/개인·부서·팀 랭킹 조회 |
 | `profile_get` | `profile:read` | 인증 사용자 프로필 조회 |
 | `events_list` | `games:read` | 공개 가능한 이벤트 조회 |
-| `game_session_start` | `sessions:write` | server-validated 게임 세션과 token 생성; RealmGuard는 `realmguard_version_id` 추가 |
+| `defense_config_get` | `games:read` | Defense slug의 정답 제거 published config와 정확한 session pin UUID 조회 |
+| `defense_rankings_get` | `rankings:read` | Defense 전용 UUID 격리 랭킹 조회; daily/weekly/monthly/season/all_time 지원 |
+| `game_session_start` | `sessions:write` | server-validated 게임 세션과 token 생성; RealmGuard/Defense는 published UUID pin 추가 |
 | `score_submit` | `scores:write` | 세션 ID/token과 함께 검증 가능한 점수 제출 |
 
 관리자 설정, 키 관리와 게임 게시 tool은 실수나 prompt injection 영향을 줄이기 위해 노출하지 않습니다. `game_session_start`와 `score_submit`은 상태를 만들므로 MCP client가 호출 전에 사용자 확인을 표시하는 것이 권장됩니다.
 
 RealmGuard는 `games_list`와 `game_get`으로 찾은 뒤 `games:read` REST `/api/v1/realmguard/config`에서 현재 `version.id`를 읽습니다. `game_session_start`의 선택 필드 `realmguard_version_id`에 이 UUID를 넣으면 tool이 session metadata로 전달해 정확한 published snapshot을 pin합니다. RealmGuard인데 이 값을 생략하면 `realmguard_version_required`, stale/unpublished UUID면 `realmguard_config_stale`로 거부됩니다. 다른 게임은 이 필드 없이 기존처럼 시작합니다.
 
+Defense Series의 `office-guardians`, `cyber-fortress`, `ai-nexus-defense`는 `defense_config_get` 또는 REST `/api/v1/defense/{slug}/config`에서 정답 material이 제거된 published config와 `version.id`를 읽어 `game_session_start.defense_content_version_id`로 보냅니다. 세 slug에서 누락하면 `defense_version_required`, stale·unpublished·다른 Defense slug UUID면 `defense_config_stale`입니다. `realmguard_version_id`와 `defense_content_version_id`는 상호 배타적이며 대상 게임 종류와 맞지 않는 pin도 거부됩니다. config를 새로 읽지 않고 bundle fallback UUID를 공식 session에 사용하지 않습니다.
+
 공식 결과는 REST `/api/v1/realmguard/results`와 SDK `completeAuthoritatively`를 사용합니다. 일반 MCP `score_submit`은 RealmGuard 세션을 `authoritative_result_required`, `leaderboard_get`은 RealmGuard를 `realmguard_ranking_required`로 거부합니다. RealmGuard 랭킹은 전용 REST `/api/v1/realmguard/rankings`를 사용합니다. MCP에는 별도 RealmGuard telemetry/result/ranking 또는 Designer 관리 tool을 노출하지 않습니다.
+
+Defense 공식 결과와 랭킹은 MCP 일반 `score_submit`/`leaderboard_get`으로 우회할 수 없습니다. Ordered telemetry와 결과 제출은 REST `/api/v1/telemetry`, `/api/v1/defense/{slug}/results`만 사용합니다. 랭킹 조회는 전용 `defense_rankings_get` 또는 REST `/api/v1/defense/{slug}/rankings`를 사용하며 둘 다 현재 published UUID로 격리됩니다. MCP에는 교육 답안, Content Studio, 검토·게시 tool을 노출하지 않습니다.
 
 RealmGuard의 `server_received_telemetry_v1`은 서버가 인증된 세션의 브라우저 자가보고 event를 수신하고 연속 sequence·receipt time·누적 원장 일관성을 검증하는 방식입니다. 완전한 서버 게임 시뮬레이션/replay가 아니며 client `proof`/`events`를 공식 증거로 사용하지 않습니다. 개인 키 권한은 기존 발급 키도 매 요청 현재 전역·역할 정책과 교집합으로 축소되지만, session token과 RealmGuard 전용 원장 계약은 별도로 모두 충족해야 합니다.
 

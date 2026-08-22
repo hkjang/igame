@@ -7,7 +7,7 @@
 - Backend: Go, PostgreSQL, REST/SSE, MCP Streamable HTTP
 - Frontend: React + TypeScript + Vite, Phaser(RealmGuard runtime)
 - UI: 접근성과 장기 유지보수가 검증된 Material UI(MUI)를 사용하고 애플리케이션 자산은 번들에 포함합니다. 본문 기준 16px, 100~125% 개인 글자 확대, 키보드 포커스와 대비를 유지합니다.
-- Deployment: `igame:v<version>` 단일 이미지. 외부 CDN이나 실행 중 패키지 다운로드가 없습니다.
+- Deployment: `igame:v<version>` 단일 이미지. 최종 runtime은 package manager와 shell이 없는 `scratch` 기반이며 외부 CDN이나 실행 중 패키지 다운로드가 없습니다.
 
 초기에는 PostgreSQL만 사용하는 모듈러 모놀리스로 운영하고, 동시 접속 규모가 커질 때에만 실시간 런타임이나 랭킹을 분리하는 것이 권장됩니다.
 
@@ -18,6 +18,16 @@
 RealmGuard의 명칭·등장 개체·stage/balance 데이터와 코드 생성 그래픽은 이 프로젝트의 독자 구현이며, Kingdom Rush를 포함한 제3자 게임의 코드·서사·캐릭터·맵·시청각 자산을 포함하지 않습니다. Phaser는 MIT 라이선스의 실행 framework로만 사용하며 package metadata와 license를 이미지 `/licenses/phaser`에 함께 보관합니다.
 
 관리자는 `/admin/realmguard`의 Designer에서 checksum/`If-Match`로 콘텐츠 초안을 편집·Test·게시하고, 승인 정책을 켜면 `/reviews`에서 미리보기 후 승인·반려합니다. Manager 검토는 manager/작성자 모두 같은 비어 있지 않은 team일 때만 열립니다. 게임 세션은 화면이 읽은 published config UUID를 다시 확인해 pin하며, 공식 전투 결과는 UUID와 1-based sequence로 서버가 수신한 브라우저 자가보고 원장의 순서·시각·누적 일관성을 `server_received_telemetry_v1`으로 검증합니다. 이는 완전한 서버 게임 시뮬레이션은 아닙니다. 게시 version, 검증 경계, telemetry와 운영·백업 절차는 [RealmGuard 운영 가이드](docs/realmguard.md)를 참조하세요.
+
+## Defense Series
+
+`v0.3.0`은 RealmGuard의 데이터 기반 방어 메커니즘을 공통 Defense Engine으로 확장한 세 게임을 제공합니다.
+
+- `/games/office-guardians`: 조직과 직무의 협업을 다루는 **Office Guardians**
+- `/games/cyber-fortress`: 위협 인지와 보안 대응을 학습하는 **Cyber Fortress**
+- `/games/ai-nexus-defense`: AI 보안·품질·비용·거버넌스를 학습하는 **AI Nexus Defense**
+
+세 게임은 같은 실행 엔진과 포털 세션을 사용하지만 콘텐츠, 규칙, 진행도, 결과와 랭킹은 slug별로 분리됩니다. Cyber Fortress와 AI Nexus Defense의 교육 선택은 게임 점수와 별개의 학습 결과로 저장됩니다. 관리자는 `/admin/defense`의 Defense Content Studio에서 stage, wave, unit, 교육 이벤트와 balance를 편집하고 Test·연습 미리보기·승인/반려·게시할 수 있습니다. 브라우저가 읽은 published content UUID는 세션의 `defense_content_version_id`로 정확히 고정되며, 전용 결과·랭킹 경로만 공식 기록을 생성합니다. 자세한 운영 및 API 계약은 [Defense Series 운영 가이드](docs/defense-series.md)를 참조하세요.
 
 ## 빠른 시작
 
@@ -59,7 +69,7 @@ make smoke
 
 릴리스 이미지는 `VERSION`을 기준으로 만듭니다. 결과물 `dist/igame-v<version>.tar.gz`는 별도 tar 포장 없이 `docker save igame:v<version> | gzip`의 출력입니다.
 
-서비스, Docker image, web application, RealmGuard content bundle과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.2.0`으로 정렬됩니다. SDK의 server-authoritative completion API도 `gamehub-js` `0.2.0`에 포함됩니다.
+서비스, Docker image, web application, RealmGuard/Defense Series content bundle과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.3.0`으로 정렬됩니다. SDK의 server-authoritative completion API도 `gamehub-js` `0.3.0`에 포함됩니다.
 
 ```bash
 make release
@@ -77,6 +87,7 @@ gzip -dc dist/igame-v$(cat VERSION).tar.gz | docker load
 - [REST/SSE API](docs/api.md)
 - [MCP](docs/mcp.md)
 - [RealmGuard 운영 가이드](docs/realmguard.md)
+- [Defense Series 운영 가이드](docs/defense-series.md)
 - [릴리스 절차](docs/release.md)
 
 ## 라이선스

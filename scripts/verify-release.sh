@@ -27,10 +27,26 @@ if [[ "${manifest}" != *"\"${EXPECTED_IMAGE}\""* ]]; then
   exit 1
 fi
 
-if [[ -f "$(dirname -- "${ARCHIVE}")/SHA256SUMS" ]]; then
+readonly ARCHIVE_DIR="$(dirname -- "${ARCHIVE}")"
+readonly ARCHIVE_NAME="$(basename -- "${ARCHIVE}")"
+readonly CHECKSUM_FILE="${ARCHIVE_DIR}/SHA256SUMS"
+
+if [[ -f "${CHECKSUM_FILE}" ]]; then
+  checksum_entry="$(
+    awk -v target="${ARCHIVE_NAME}" '
+      length($1) == 64 && ($2 == target || $2 == "*" target) {
+        print
+        matches++
+      }
+      END { if (matches != 1) exit 1 }
+    ' "${CHECKSUM_FILE}"
+  )" || {
+    printf 'SHA256SUMS must contain exactly one entry for %s\n' "${ARCHIVE_NAME}" >&2
+    exit 1
+  }
   (
-    cd "$(dirname -- "${ARCHIVE}")"
-    sha256sum --check --ignore-missing SHA256SUMS
+    cd "${ARCHIVE_DIR}"
+    printf '%s\n' "${checksum_entry}" | sha256sum --check --strict -
   )
 fi
 

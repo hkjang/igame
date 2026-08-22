@@ -66,6 +66,8 @@ export interface AuthoritativeCompletionInput {
   payload: Record<string, unknown>;
 }
 
+export type AuthoritativeRequestInput = AuthoritativeCompletionInput;
+
 interface ApiEnvelope<T> {
   data?: T;
   user?: T;
@@ -253,8 +255,16 @@ export class GameHubClient {
    * generic score or finish endpoints afterwards.
    */
   async completeAuthoritatively<T = unknown>({ path, payload }: AuthoritativeCompletionInput): Promise<T> {
+    const response = await this.requestAuthoritatively<T>({ path, payload });
+    this.currentSession = undefined;
+    this.scoreSubmitted = false;
+    return response;
+  }
+
+  /** Sends an in-session authoritative action without closing the session. */
+  async requestAuthoritatively<T = unknown>({ path, payload }: AuthoritativeRequestInput): Promise<T> {
     const sessionId = this.requireSession();
-    const response = await this.request<T>(path, {
+    return this.request<T>(path, {
       method: 'POST',
       body: JSON.stringify({
         ...payload,
@@ -263,9 +273,6 @@ export class GameHubClient {
         session_token: this.currentSession?.session_token,
       }),
     });
-    this.currentSession = undefined;
-    this.scoreSubmitted = false;
-    return response;
   }
 
   private requireSession(): string {
@@ -342,6 +349,7 @@ export const GameHub = {
   getUser() { return this.client().getUser(); },
   finish(input?: Partial<FinishInput>) { return this.client().finish(input); },
   telemetry(input: TelemetryInput) { return this.client().telemetry(input); },
+  requestAuthoritatively<T = unknown>(input: AuthoritativeRequestInput) { return this.client().requestAuthoritatively<T>(input); },
   completeAuthoritatively<T = unknown>(input: AuthoritativeCompletionInput) { return this.client().completeAuthoritatively<T>(input); },
 };
 

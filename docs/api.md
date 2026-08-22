@@ -30,7 +30,7 @@
 | POST | `/api/v1/games/{gameId}/sessions` | `sessions:write`, server session/token 생성 |
 | POST | `/api/v1/sessions/{sessionId}/finish` | `sessions:write`, 결과 종료 |
 | POST | `/api/v1/scores` | `scores:write`, 검증 가능한 점수 제출 |
-| POST | `/api/v1/telemetry` | `sessions:write`, 세션 token으로 SDK event 제출; RealmGuard는 UUID/순서 원장 계약 적용 |
+| POST | `/api/v1/telemetry` | `sessions:write`, 세션 token으로 SDK event 제출; RealmGuard와 Defense Series는 UUID/순서 원장 계약 적용 |
 | GET | `/api/v1/rankings` | `rankings:read`, 기간/팀/부서 랭킹 |
 | GET | `/api/v1/rankings/{gameId}` | `rankings:read`, 게임별 랭킹 |
 | GET | `/api/v1/achievements` | 로그인, 업적 목록 |
@@ -57,6 +57,11 @@
 | PUT | `/api/v1/realmguard/progress` | `profile:write`, 본인 loadout·개인 설정 변경 |
 | POST | `/api/v1/realmguard/results` | `scores:write`, 세션에 고정된 설정으로 전투 결과 검증·완료 |
 | GET | `/api/v1/realmguard/rankings` | `rankings:read`, RealmGuard 전용 필터 랭킹 |
+| GET | `/api/v1/defense/{slug}/{config,version}` | `games:read`, 게시된 Defense 콘텐츠와 version |
+| GET | `/api/v1/defense/{slug}/{progress,learning}` | `profile:read`, 게임 진행도와 개인 학습 결과 |
+| POST | `/api/v1/defense/{slug}/results` | `scores:write`, session/version에 고정된 공식 결과 |
+| GET | `/api/v1/defense/{slug}/rankings` | `rankings:read`, Defense 게임별 공식 랭킹 |
+| POST | `/api/v1/defense/{slug}/education/events/{eventID}/answer` | `scores:write`, session에 속한 교육 선택 제출 |
 | GET | `/api/v1/admin/dashboard` | 관리자/운영자 session 또는 `admin:*`, 운영 요약 |
 | GET | `/api/v1/admin/analytics` | 관리자/운영자 session 또는 `admin:*`, DAU/WAU/MAU 등 |
 | GET | `/api/v1/admin/settings` | admin session 또는 admin 역할 + `admin:*` 키, 전체 설정 조회 |
@@ -73,6 +78,13 @@
 | GET | `/api/v1/realmguard/versions/pending` | manager/admin session; 개인 키는 동일 role + `admin:*`, 검토 대기 version |
 | GET | `/api/v1/realmguard/versions/{id}/preview` | manager/operator/admin session; 개인 키는 동일 role + `admin:*`, 비공개 연습 설정 |
 | POST | `/api/v1/realmguard/versions/{id}/review` | manager/admin session; 개인 키는 동일 role + `admin:*`, 승인/반려 (`approve` alias) |
+| GET/POST | `/api/v1/admin/defense/{slug}/versions` | admin/operator session; Defense version 목록/초안 생성 |
+| GET/PUT | `/api/v1/admin/defense/{slug}/drafts/{section}` | admin/operator session; checksum/`If-Match` 기반 section 편집 |
+| POST | `/api/v1/admin/defense/{slug}/versions/{id}/{test,publish}` | admin/operator session; Test 및 승인 정책에 따른 게시 요청 |
+| GET | `/api/v1/admin/defense/{slug}/{telemetry,learning-report}` | admin/operator session; 게임 운영·교육 집계 |
+| GET | `/api/v1/defense/versions/pending` | manager/admin session; 동일 team 검토 대기 version |
+| GET | `/api/v1/defense/{slug}/versions/{id}/preview` | manager/operator/admin session; 기록 없는 연습 설정 |
+| POST | `/api/v1/defense/versions/{id}/review` | manager/admin session; 승인/반려 |
 | GET | `/api/v1/admin/audit` | admin session 또는 admin 역할 + `admin:*` 키, 감사 조회 |
 
 OIDC client secret과 AI API key는 write-only입니다. 설정 조회 응답은 원문 대신 `client_secret_configured` 또는 `api_key_configured` 상태를 반환합니다.
@@ -110,6 +122,40 @@ Content-Type: application/json
 정상 저장은 201, 게임에 설정된 점수·플레이 시간 규칙 위반은 422, 같은 세션의 중복 제출은 409를 반환합니다.
 
 RealmGuard는 일반 점수·랭킹 endpoint를 사용하지 않습니다. `/api/v1/scores`에 RealmGuard 세션을 보내면 `409 authoritative_result_required`, `/api/v1/rankings/realmguard` 또는 `/api/v1/rankings?game_id=realmguard`는 `409 realmguard_ranking_required`를 반환합니다. 공식 랭킹은 `/api/v1/realmguard/rankings`를 사용합니다.
+
+Defense Series도 일반 점수·랭킹 endpoint를 사용하지 않습니다. 세 game session은 `defense_content_version_id`로 published snapshot을 pin하고 `/api/v1/defense/{slug}/results`와 `/api/v1/defense/{slug}/rankings`만 사용합니다. 다른 slug의 전용 경로, 일반 `/api/v1/scores`, `/api/v1/rankings/{gameId}`를 이용한 우회는 각각 `409 defense_authoritative_result_required` 또는 `409 defense_ranking_required`로 거부합니다.
+
+## Defense Series runtime
+
+지원 slug는 `office-guardians`, `cyber-fortress`, `ai-nexus-defense`입니다. 먼저 `GET /api/v1/defense/{slug}/config`를 읽고 응답 `version.id`를 session metadata에 넣습니다.
+
+```http
+POST /api/v1/games/cyber-fortress/sessions HTTP/1.1
+Authorization: Bearer igk_...
+Content-Type: application/json
+
+{"metadata":{"client":"gamehub-js","client_version":"0.3.0","defense_content_version_id":"9ea33ec1-39a7-4e65-ad57-ae11a6b2790f"}}
+```
+
+pin이 없으면 `428 defense_version_required`, UUID가 현재 slug의 published snapshot이 아니면 `409 defense_config_stale`입니다. 성공 응답의 `session.defense_content_version_id`는 요청 UUID와 정확히 같아야 합니다. 게시 race가 발생한 client는 config를 다시 읽고 새 session을 생성합니다. 이전 UUID를 새 session에 묵시적으로 대입하지 않습니다.
+
+공식 결과 전에는 UUID `client_event_id`와 session별 1부터 연속인 `sequence`로 Defense battle ready, wave start/complete와 battle complete를 전송합니다. 완료 milestone에는 적별 defeated/escaped/spawned histogram과 health/resource/earned/spent/sold 누적값이 포함되며 뒤로 감소할 수 없습니다. 서버는 session/slug/version, 수신 시각, stage 시작 health/resource, wave별 spawn/reward budget과 이 원장을 검증한 뒤 score와 star를 다시 계산합니다. body만 보낸 perfect 결과, 조작된 zero-wave 패배, 누락·역전·변조 원장, 불가능한 승리·spawn·경제·duration과 다른 slug/session 조합은 거부합니다.
+
+Defense 원장 `data`는 실제 직렬화된 JSON 기준 최대 4 KiB입니다. 초과하면 `400 invalid_telemetry`이며 Studio Test/Publish도 stage별 최악 누적 `battle.complete` 표본이 같은 한도를 넘는 content pack을 `422 content_validation_failed`로 거부합니다. Class 한도는 선택 event 전체 128, battle ready/complete 각 1, wave start 101, wave complete 100, server-validated answer를 반영하는 education apply 500, tower build/upgrade/sell 합계 10,000입니다. 선택 class가 차더라도 필수 class의 예약 용량은 유지됩니다. 동일 UUID/payload 재전송은 `202 duplicate:true`, 같은 UUID의 다른 payload와 sequence 누락은 `409`, class 포화는 `429`입니다.
+
+성공 결과의 `verification_method`와 `attestation.method`는 `server_received_telemetry_v1`이고 digest는 서버가 수신한 canonical 원장에서 계산됩니다. 이는 browser event의 서버 수신·순서·시각·누적 일관성 검증이며, browser frame과 충돌 또는 실제 사용자 입력을 서버가 독립적으로 재실행하는 암호학적 replay 증명은 아닙니다.
+
+Cyber Fortress와 AI Nexus Defense는 전투 중 published education event를 선택합니다. public config/preview에는 중립적인 `A`/`B`/`C` answer ID만 있고 `correct_answer_id`, `correct`, `explanation`은 없습니다. 정답 위치는 문제 전체에서 분산되며 browser bundle에도 mapping을 넣지 않습니다. 답 요청은 session ID/token과 answer ID를 포함하며 서버는 session owner, slug, pinned version과 event/answer 참조, 해당 wave 도달 원장을 확인합니다. 성공한 답 응답에서만 정답 여부와 해설을 반환합니다. 개인 `GET /learning`은 topic별 attempts/correct 집계를, 관리자 `learning-report`는 권한과 개인정보 설정을 적용한 참여·정답률 집계를 반환합니다. 게임 점수와 학습 점수는 별도 지표입니다.
+
+AI Nexus Defense config는 `small`, `medium`, `large`, `reasoning`, `vision` 다섯 `model_profiles`와 `resource_rules`를 제공합니다. profile은 실제 tower ID와 Compute/Token/Latency 비용, 정확도, 피해 배수를 연결합니다. 통과한 적은 자신의 `resource_effect`에 더해 `escaped_trust_cost`와 `escaped_latency_cost`를 누적합니다. 비용은 0에서 포화되므로 음수 잔액이나 이월 debt가 없고, AI 결과의 `resource_state`는 `compute`, `token`, `trust`, `latency` 각각의 `start`, `spent`, `remaining`과 `remaining = start - spent`를 만족해야 합니다. 네 지표 중 하나가 0이면 패배이며 승리 결과는 모두 양수여야 합니다. Office/Cyber 결과에는 이 필드를 보낼 수 없습니다.
+
+`GET /api/v1/defense/{slug}/versions/{id}/preview`는 `practice_only:true`인 complete config를 반환합니다. Preview session이나 미게시 UUID로 공식 result, progress, ranking 또는 학습 완료를 생성할 수 없습니다.
+
+## Defense Content Studio와 검토
+
+Studio section은 `stages`, `waves`, `towers`, `enemies`, `bosses`, `heroes`, `skills`, `events`, `education`, `balance`, `campaigns`, `resource_rules`, `model_profiles`입니다. AI 전용 두 section도 같은 version/checksum 경계에서 편집·검증됩니다. Office의 기본 seed에는 교육이 없지만 `events`와 `education`을 함께 유효하게 구성해 게시하면 교육 선택과 learning/report가 활성화됩니다. Draft 생성 요청의 `policy_version`은 새 정책 경계를 기록하며, 생략하면 source 값을 계승합니다. 과거 snapshot UUID를 `source_version_id`로 보내면 그 내용을 복제한 롤백 Draft를 만들고 Test·승인·Publish를 다시 거칩니다. Draft section GET의 `version.checksum`/`ETag`를 PUT의 `If-Match`로 보내야 합니다. 누락은 `428 precondition_required`, 오래된 checksum은 `409 stale_version`, 잘못된 형식은 `400 invalid_precondition`입니다.
+
+초안은 `/test`를 통과해야 합니다. 승인 정책이 꺼져 있으면 tested version을 바로 publish하고, 켜져 있으면 publish 요청이 `202`와 `pending_approval`을 반환합니다. `/api/v1/defense/versions/{id}/review`의 decision은 `approved` 또는 `rejected`이며 반려 comment는 필수입니다. Manager는 본인과 작성자의 team이 모두 비어 있지 않고 같을 때만 pending 목록, preview와 review를 사용할 수 있습니다. Preview는 연습 전용이고 검토 중 공식 데이터를 만들지 않습니다.
 
 ## RealmGuard runtime
 
@@ -227,7 +273,7 @@ Content-Type: application/json
 
 ## 선택형 승인 API
 
-관리자 승인 정책이 활성화된 경우 지원되는 게임 생성·변경을 `/api/v1/workflow/requests`로 제출하고 관리자는 `/api/v1/admin/workflow/requests/{id}/review`에서 승인 또는 반려합니다. 팀장은 `/api/v1/workflow/reviews`에서 검토 대상을 조회하고 `/api/v1/workflow/requests/{id}/review`에서 처리합니다. 정책이 비활성이면 별도 검토 상태를 만들지 않고 요청 payload를 바로 반영합니다. 정상 처리는 `pending → applied|rejected`이며 적용에 실패하면 다시 `pending`으로 남습니다. `separation_of_duties`는 기본적으로 자기 요청 검토를 막습니다. Manager 자신의 team이 비어 있으면 review 목록을 `403 team_required`로 거부하고, 목록에는 team이 비어 있지 않은 동일 team 요청만 포함합니다. 직접 review도 manager와 요청자 어느 한쪽의 team이 비면 `403 team_required`, 다르면 `403 different_team`입니다. 반려에는 비어 있지 않은 `comment`가 필요하며 처리 내역은 감사 로그에 기록됩니다. 내장 authoritative runtime의 식별자를 보호하기 위해 일반 게임을 `realmguard` slug로 바꾸거나 RealmGuard의 slug를 다른 값으로 바꾸는 변경은 직접 관리자 API와 workflow 승인 적용 단계에서 모두 거부됩니다.
+관리자 승인 정책이 활성화된 경우 지원되는 게임 생성·변경을 `/api/v1/workflow/requests`로 제출하고 관리자는 `/api/v1/admin/workflow/requests/{id}/review`에서 승인 또는 반려합니다. 팀장은 `/api/v1/workflow/reviews`에서 검토 대상을 조회하고 `/api/v1/workflow/requests/{id}/review`에서 처리합니다. 정책이 비활성이면 별도 검토 상태를 만들지 않고 요청 payload를 바로 반영합니다. 정상 처리는 `pending → applied|rejected`이며 적용에 실패하면 다시 `pending`으로 남습니다. `separation_of_duties`는 기본적으로 자기 요청 검토를 막습니다. Manager 자신의 team이 비어 있으면 review 목록을 `403 team_required`로 거부하고, 목록에는 team이 비어 있지 않은 동일 team 요청만 포함합니다. 직접 review도 manager와 요청자 어느 한쪽의 team이 비면 `403 team_required`, 다르면 `403 different_team`입니다. 반려에는 비어 있지 않은 `comment`가 필요하며 처리 내역은 감사 로그에 기록됩니다. `realmguard`, `office-guardians`, `cyber-fortress`, `ai-nexus-defense`는 내장 authoritative runtime의 예약 slug입니다. 일반 게임 생성·변경으로 이 식별자를 만들거나 기존 내장 게임을 rename·disable·replace하려는 요청은 직접 관리자 API와 generic workflow 제출 단계에서 모두 `409 protected_game_identity`로 거부됩니다.
 
 ## 배포 경계의 요청 제한
 

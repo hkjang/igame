@@ -3,6 +3,7 @@ export interface BuiltinGameProps {
   onFinish: (score: number, metadata?: Record<string, unknown>) => Promise<void>;
   onTelemetry?: (event: string, data?: Record<string, unknown>) => Promise<void>;
   onAuthoritativeComplete?: (payload: unknown) => Promise<unknown>;
+  onAuthoritativeRequest?: (path: `/api/v1/${string}`, payload: Record<string, unknown>) => Promise<unknown>;
   isRecording?: () => boolean;
   online?: boolean;
 }

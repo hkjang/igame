@@ -8,6 +8,7 @@ readonly BASE_URL="${1:-http://127.0.0.1:8080}"
 readonly USERNAME="${2:-}"
 readonly PASSWORD="${3:-}"
 readonly EXPECTED_VERSION="$(tr -d '[:space:]' < "${REPO_DIR}/VERSION")"
+readonly EXPECTED_REALMGUARD_CONTENT_VERSION="0.2.0"
 
 if [[ -z "${USERNAME}" || -z "${PASSWORD}" ]]; then
   printf 'Usage: %s [base-url] <bootstrap-user> <bootstrap-password>\n' "$0" >&2
@@ -113,11 +114,11 @@ request POST /api/v1/auth/login 200 "${login_body}" >/dev/null
 request GET /api/v1/me 200 | jq --exit-status --arg username "${USERNAME}" '.user.username == $username and .user.role == "admin"' >/dev/null
 
 game_json="$(request GET /api/v1/games/realmguard 200)"
-jq --exit-status --arg version "${EXPECTED_VERSION}" '.game.slug == "realmguard" and .game.game_url == "/games/realmguard" and .game.version == $version and .game.status == "active"' <<<"${game_json}" >/dev/null
+jq --exit-status --arg version "${EXPECTED_REALMGUARD_CONTENT_VERSION}" '.game.slug == "realmguard" and .game.game_url == "/games/realmguard" and .game.version == $version and .game.status == "active"' <<<"${game_json}" >/dev/null
 curl --fail --silent --show-error --max-time 10 "${BASE_URL}/games/realmguard" | grep -Eiq '<!doctype html|<html'
 
 config_json="$(request GET /api/v1/realmguard/config 200)"
-jq --exit-status --arg version "${EXPECTED_VERSION}" '
+jq --exit-status --arg version "${EXPECTED_REALMGUARD_CONTENT_VERSION}" '
   .version.content_version == $version
   and (.version.id | test("^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"))
   and (.version.checksum | test("^[0-9a-f]{64}$"))
@@ -173,7 +174,7 @@ request POST /api/v1/games/realmguard/sessions 409 "${stale_session_body}" \
   | jq --exit-status '.error.code == "realmguard_config_stale"' >/dev/null
 
 request GET /api/v1/realmguard/version 200 \
-  | jq --exit-status --arg version "${EXPECTED_VERSION}" '.version.content_version == $version and (.version.checksum | test("^[0-9a-f]{64}$"))' >/dev/null
+  | jq --exit-status --arg version "${EXPECTED_REALMGUARD_CONTENT_VERSION}" '.version.content_version == $version and (.version.checksum | test("^[0-9a-f]{64}$"))' >/dev/null
 request GET /api/v1/realmguard/progress 200 \
   | jq --exit-status '.total_stars == 0 and .unlocked_stage == 1 and ([.items[] | select(.stage_id == "stage-1" and .unlocked)] | length) == 3 and ([.heroes[] | select(.hero_id == "aerin" and .unlocked)] | length) == 1' >/dev/null
 
@@ -419,14 +420,8 @@ request PUT "/api/v1/admin/games/${protected_game_id}" 409 "${protected_game_pay
 protected_workflow_body="$(jq --null-input --compact-output \
   --arg resource_id "${protected_game_id}" --argjson payload "${protected_game_payload}" \
   '{action:"update",resource_type:"game",resource_id:$resource_id,payload:$payload}')"
-protected_workflow="$(request POST /api/v1/workflow/requests 202 "${protected_workflow_body}")"
-protected_workflow_id="$(jq --raw-output '.request.id' <<<"${protected_workflow}")"
-request POST "/api/v1/admin/workflow/requests/${protected_workflow_id}/review" 409 \
-  '{"decision":"approved","comment":"verify reserved RealmGuard slug"}' \
-  | jq --exit-status '.error.code == "apply_failed" and (.error.message | contains("RealmGuard slug is reserved"))' >/dev/null
-request POST "/api/v1/admin/workflow/requests/${protected_workflow_id}/review" 200 \
-  '{"decision":"rejected","comment":"reserved RealmGuard slug cannot be reassigned"}' \
-  | jq --exit-status '.status == "rejected"' >/dev/null
+request POST /api/v1/workflow/requests 409 "${protected_workflow_body}" \
+  | jq --exit-status '.error.code == "protected_game_identity" and (.error.message | contains("authoritative"))' >/dev/null
 request GET /api/v1/games/snake 200 \
   | jq --exit-status '.game.slug == "snake"' >/dev/null
 

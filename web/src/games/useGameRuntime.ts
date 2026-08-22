@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createGameHub, GameHubError, type GameHubClient } from '@igame/gamehub-js';
 import { useSnackbar } from '../state/SnackbarContext';
 
-export function useGameRuntime(gameId: string) {
+export function useGameRuntime(gameId: string, authoritativePath = '/api/v1/realmguard/results') {
   const { notify } = useSnackbar();
   const client = useRef<GameHubClient | null>(null);
   const startedAt = useRef(0);
@@ -20,9 +20,9 @@ export function useGameRuntime(gameId: string) {
       setOnline(true);
       return true;
     } catch (cause) {
-      if (cause instanceof GameHubError && cause.code === 'realmguard_config_stale') {
+      if (cause instanceof GameHubError && ['realmguard_config_stale', 'defense_config_stale'].includes(cause.code ?? '')) {
         setOnline(true);
-        notify('RealmGuard 콘텐츠가 갱신되었습니다. 최신 설정을 다시 불러왔습니다. 시작 버튼을 다시 눌러 주세요.', 'warning');
+        notify('게임 콘텐츠가 갱신되었습니다. 화면을 새로고침한 뒤 다시 시작해 주세요.', 'warning');
         return false;
       }
       setOnline(false);
@@ -59,10 +59,14 @@ export function useGameRuntime(gameId: string) {
   const completeAuthoritatively = useCallback(async (payload: unknown) => {
     if (!client.current?.session) return undefined;
     return client.current.completeAuthoritatively({
-      path: '/api/v1/realmguard/results',
+      path: authoritativePath as `/api/v1/${string}`,
       payload: payload && typeof payload === 'object' ? payload as Record<string, unknown> : {},
     });
+  }, [authoritativePath]);
+  const requestAuthoritatively = useCallback(async (path: `/api/v1/${string}`, payload: Record<string, unknown>) => {
+    if (!client.current?.session) return undefined;
+    return client.current.requestAuthoritatively({ path, payload });
   }, []);
   const isRecording = useCallback(() => Boolean(client.current?.session), []);
-  return { start, finish, telemetry, completeAuthoritatively, isRecording, online };
+  return { start, finish, telemetry, completeAuthoritatively, requestAuthoritatively, isRecording, online };
 }

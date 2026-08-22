@@ -2,7 +2,7 @@ name: igame
 
 services:
   igame:
-    image: igame:v0.2.0
+    image: igame:v0.3.0
     pull_policy: never
     container_name: igame
     restart: unless-stopped
@@ -31,7 +31,7 @@ services:
         max-size: 20m
         max-file: "5"
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/healthz"]
+      test: ["CMD", "/app/igame", "healthcheck"]
       interval: 30s
       timeout: 5s
       retries: 5

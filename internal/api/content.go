@@ -505,6 +505,13 @@ func (s *Server) createWorkflowRequest(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "invalid_payload", "payload must be valid JSON")
 		return
 	}
+	if protected, err := s.workflowTargetsProtectedGame(r.Context(), in); err != nil {
+		dbError(w, err)
+		return
+	} else if protected {
+		writeError(w, 409, "protected_game_identity", "built-in authoritative games cannot be created, renamed, disabled, or replaced through generic workflow")
+		return
+	}
 	var cfg approvalSetting
 	if err := s.setting(r.Context(), "approval", &cfg); err != nil {
 		writeError(w, http.StatusServiceUnavailable, "approval_setting_unavailable", "approval policy is unavailable")
@@ -532,6 +539,28 @@ func (s *Server) createWorkflowRequest(w http.ResponseWriter, r *http.Request) {
 func allowedWorkflowAction(action, typ string) bool {
 	return (typ == "game" && (action == "create" || action == "update"))
 }
+
+func (s *Server) workflowTargetsProtectedGame(ctx context.Context, in workflowInput) (bool, error) {
+	var game struct {
+		Slug   string `json:"slug"`
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(in.Payload, &game); err != nil {
+		return false, nil
+	}
+	game.Slug = strings.TrimSpace(game.Slug)
+	if in.Action == "create" {
+		return isProtectedAuthoritativeGameSlug(game.Slug), nil
+	}
+	if in.ResourceID == nil {
+		return false, nil
+	}
+	var currentSlug string
+	if err := s.DB.QueryRow(ctx, `SELECT slug FROM games WHERE id=$1`, *in.ResourceID).Scan(&currentSlug); err != nil {
+		return false, err
+	}
+	return (isProtectedAuthoritativeGameSlug(currentSlug) || isProtectedAuthoritativeGameSlug(game.Slug)) && (currentSlug != game.Slug || game.Status != "active"), nil
+}
 func (s *Server) canModifyGame(ctx context.Context, p Principal, id uuid.UUID) bool {
 	if p.Role == "operator" || p.Role == "admin" {
 		return true
@@ -551,6 +580,9 @@ func (s *Server) applyWorkflow(ctx context.Context, p Principal, in workflowInpu
 		return uuid.Nil, err
 	}
 	if in.Action == "create" {
+		if isProtectedAuthoritativeGameSlug(game.Slug) {
+			return uuid.Nil, fmt.Errorf("protected game identity: built-in authoritative slugs are reserved")
+		}
 		var id uuid.UUID
 		err := s.DB.QueryRow(ctx, `INSERT INTO games(slug,name,description,category_id,tags,thumbnail_url,banner_url,game_url,game_type,multiplayer,ranking_enabled,achievement_enabled,season_enabled,min_players,max_players,status,version,developer,score_order,score_rules,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) RETURNING id`, game.Slug, game.Name, game.Description, game.CategoryID, game.Tags, game.ThumbnailURL, game.BannerURL, game.GameURL, game.GameType, game.Multiplayer, game.RankingEnabled, game.AchievementEnabled, game.SeasonEnabled, game.MinPlayers, game.MaxPlayers, game.Status, game.Version, game.Developer, game.ScoreOrder, game.ScoreRules, p.UserID).Scan(&id)
 		return id, err
@@ -565,8 +597,8 @@ func (s *Server) applyWorkflow(ctx context.Context, p Principal, in workflowInpu
 	if err := s.DB.QueryRow(ctx, `SELECT slug FROM games WHERE id=$1`, *in.ResourceID).Scan(&currentSlug); err != nil {
 		return uuid.Nil, fmt.Errorf("load game identity: %w", err)
 	}
-	if (currentSlug == realmGuardSlug) != (game.Slug == realmGuardSlug) {
-		return uuid.Nil, fmt.Errorf("protected game identity: the RealmGuard slug is reserved for its built-in authoritative runtime")
+	if (isProtectedAuthoritativeGameSlug(currentSlug) || isProtectedAuthoritativeGameSlug(game.Slug)) && (currentSlug != game.Slug || game.Status != "active") {
+		return uuid.Nil, fmt.Errorf("protected game identity: built-in authoritative games cannot be renamed, disabled, or replaced")
 	}
 	tag, err := s.DB.Exec(ctx, `UPDATE games SET slug=$2,name=$3,description=$4,category_id=$5,tags=$6,thumbnail_url=$7,banner_url=$8,game_url=$9,game_type=$10,multiplayer=$11,ranking_enabled=$12,achievement_enabled=$13,season_enabled=$14,min_players=$15,max_players=$16,status=$17,version=$18,developer=$19,score_order=$20,score_rules=$21,updated_at=now() WHERE id=$1`, *in.ResourceID, game.Slug, game.Name, game.Description, game.CategoryID, game.Tags, game.ThumbnailURL, game.BannerURL, game.GameURL, game.GameType, game.Multiplayer, game.RankingEnabled, game.AchievementEnabled, game.SeasonEnabled, game.MinPlayers, game.MaxPlayers, game.Status, game.Version, game.Developer, game.ScoreOrder, game.ScoreRules)
 	if err != nil {

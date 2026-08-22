@@ -52,6 +52,8 @@ export interface Game {
   developer?: string;
   accent?: string;
   icon?: string;
+  thumbnail?: string;
+  banner?: string;
   plays?: number;
   favorite?: boolean;
 }

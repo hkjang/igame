@@ -18,7 +18,7 @@ COPY scripts/check-offline-bundle.sh ./scripts/check-offline-bundle.sh
 RUN npm --prefix web run build \
     && sh ./scripts/check-offline-bundle.sh /src
 
-FROM golang:1.24-alpine AS go-build
+FROM golang:1.26.6-alpine3.23 AS go-build
 WORKDIR /src
 RUN apk add --no-cache ca-certificates
 
@@ -33,6 +33,8 @@ ARG COMMIT=unknown
 ARG BUILD_DATE=unknown
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
+    mkdir -p /out/app/data \
+    && \
     CGO_ENABLED=0 GOOS=linux go build \
       -buildvcs=false \
       -trimpath \
@@ -40,14 +42,9 @@ RUN --mount=type=cache,target=/go/pkg/mod \
         -X github.com/hkjang/igame/internal/version.Version=${VERSION} \
         -X github.com/hkjang/igame/internal/version.Commit=${COMMIT} \
         -X github.com/hkjang/igame/internal/version.BuildDate=${BUILD_DATE}" \
-      -o /out/igame ./cmd/igame
+      -o /out/app/igame ./cmd/igame
 
-FROM alpine:3.22 AS runtime
-RUN apk add --no-cache ca-certificates tzdata \
-    && addgroup -S -g 10001 igame \
-    && adduser -S -D -H -u 10001 -G igame igame \
-    && mkdir -p /app/data /licenses \
-    && chown -R igame:igame /app/data
+FROM scratch AS runtime
 
 ARG VERSION=dev
 ARG COMMIT=unknown
@@ -58,9 +55,11 @@ LABEL org.opencontainers.image.title="igame" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${COMMIT}" \
-      org.opencontainers.image.created="${BUILD_DATE}"
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      io.igame.build.go-version="1.26.6"
 
-COPY --from=go-build --chown=igame:igame /out/igame /app/igame
+COPY --from=go-build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=go-build --chown=10001:10001 /out/app /app
 COPY LICENSE /licenses/LICENSE
 COPY --from=web-build /src/web/package.json /licenses/web/package.json
 COPY --from=web-build /src/web/package-lock.json /licenses/web/package-lock.json
@@ -74,6 +73,6 @@ WORKDIR /app
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=5 \
-  CMD wget --quiet --tries=1 --spider http://127.0.0.1:8080/healthz || exit 1
+  CMD ["/app/igame", "healthcheck"]
 
 ENTRYPOINT ["/app/igame"]

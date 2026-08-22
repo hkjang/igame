@@ -20,6 +20,7 @@ import SecurityRounded from '@mui/icons-material/SecurityRounded';
 import SettingsRounded from '@mui/icons-material/SettingsRounded';
 import TuneRounded from '@mui/icons-material/TuneRounded';
 import CastleRounded from '@mui/icons-material/CastleRounded';
+import ShieldRounded from '@mui/icons-material/ShieldRounded';
 import { AppBar, Box, Divider, Drawer, IconButton, List, ListItemButton, ListItemIcon, ListItemText, Stack, Toolbar, Typography } from '@mui/material';
 import { Link as RouterLink, NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../state/AuthContext';
@@ -40,6 +41,7 @@ const menu: Array<{ to: string; label: string; icon: React.ReactNode; end?: bool
   { to: '/admin/banners', label: '배너', icon: <ViewCarouselRounded /> },
   { to: '/admin/analytics', label: '통계', icon: <AnalyticsRounded /> },
   { to: '/admin/realmguard', label: 'RealmGuard Designer', icon: <CastleRounded /> },
+  { to: '/admin/defense', label: 'Defense Content Studio', icon: <ShieldRounded /> },
   { to: '/admin/audit', label: '감사 로그', icon: <ArticleRounded />, adminOnly: true },
   { to: '/admin/approvals', label: '검토·승인', icon: <TuneRounded /> },
   { to: '/admin/keys', label: '키 권한', icon: <KeyRounded />, adminOnly: true },

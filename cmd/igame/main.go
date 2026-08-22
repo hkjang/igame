@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -19,8 +21,19 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const healthcheckURL = "http://127.0.0.1:8080/healthz"
+
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	if len(os.Args) == 2 && os.Args[1] == "healthcheck" {
+		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+		defer cancel()
+		if err := checkHealth(ctx, healthcheckURL); err != nil {
+			log.Error("healthcheck failed", "error", err)
+			os.Exit(1)
+		}
+		return
+	}
 	cfg, err := config.Load()
 	if err != nil {
 		log.Error("configuration error", "error", err)
@@ -68,6 +81,26 @@ func main() {
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Error("graceful shutdown failed", "error", err)
 	}
+}
+
+// checkHealth is used by the package-free runtime image. It deliberately runs
+// before application configuration and database initialization so Docker can
+// probe an already-running container without a shell or utility binary.
+func checkHealth(ctx context.Context, endpoint string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return fmt.Errorf("create health request: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("request health endpoint: %w", err)
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("health endpoint returned %s", resp.Status)
+	}
+	return nil
 }
 
 // cleanupExpired keeps all background state in PostgreSQL and introduces no

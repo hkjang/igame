@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -533,6 +535,10 @@ func (s *Server) createGame(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "invalid_game", err.Error())
 		return
 	}
+	if isProtectedAuthoritativeGameSlug(in.Slug) {
+		writeError(w, 409, "protected_game_identity", "built-in authoritative game slugs can only be provisioned by migrations")
+		return
+	}
 	var id uuid.UUID
 	err := s.DB.QueryRow(r.Context(), `INSERT INTO games(slug,name,description,category_id,tags,thumbnail_url,banner_url,game_url,game_type,multiplayer,ranking_enabled,achievement_enabled,season_enabled,min_players,max_players,status,version,developer,score_order,score_rules,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) RETURNING id`, in.Slug, in.Name, in.Description, in.CategoryID, in.Tags, in.ThumbnailURL, in.BannerURL, in.GameURL, in.GameType, in.Multiplayer, in.RankingEnabled, in.AchievementEnabled, in.SeasonEnabled, in.MinPlayers, in.MaxPlayers, in.Status, in.Version, in.Developer, in.ScoreOrder, in.ScoreRules, p.UserID).Scan(&id)
 	if err != nil {
@@ -567,8 +573,8 @@ func (s *Server) updateGame(w http.ResponseWriter, r *http.Request) {
 		dbError(w, err)
 		return
 	}
-	if (currentSlug == realmGuardSlug) != (in.Slug == realmGuardSlug) {
-		writeError(w, 409, "protected_game_identity", "the RealmGuard slug is reserved for its built-in authoritative runtime")
+	if (isProtectedAuthoritativeGameSlug(currentSlug) || isProtectedAuthoritativeGameSlug(in.Slug)) && (currentSlug != in.Slug || in.Status != "active") {
+		writeError(w, 409, "protected_game_identity", "built-in authoritative games cannot be renamed, disabled, or replaced")
 		return
 	}
 	tag, err := s.DB.Exec(r.Context(), `UPDATE games SET slug=$2,name=$3,description=$4,category_id=$5,tags=$6,thumbnail_url=$7,banner_url=$8,game_url=$9,game_type=$10,multiplayer=$11,ranking_enabled=$12,achievement_enabled=$13,season_enabled=$14,min_players=$15,max_players=$16,status=$17,version=$18,developer=$19,score_order=$20,score_rules=$21,updated_at=now() WHERE id=$1`, id, in.Slug, in.Name, in.Description, in.CategoryID, in.Tags, in.ThumbnailURL, in.BannerURL, in.GameURL, in.GameType, in.Multiplayer, in.RankingEnabled, in.AchievementEnabled, in.SeasonEnabled, in.MinPlayers, in.MaxPlayers, in.Status, in.Version, in.Developer, in.ScoreOrder, in.ScoreRules)
@@ -592,6 +598,19 @@ func (s *Server) updateGame(w http.ResponseWriter, r *http.Request) {
 func (s *Server) deleteGame(w http.ResponseWriter, r *http.Request) {
 	id, ok := parseUUIDParam(w, r, "id")
 	if !ok {
+		return
+	}
+	var slug string
+	if err := s.DB.QueryRow(r.Context(), `SELECT slug FROM games WHERE id=$1`, id).Scan(&slug); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeError(w, 404, "not_found", "game not found")
+		} else {
+			dbError(w, err)
+		}
+		return
+	}
+	if isProtectedAuthoritativeGameSlug(slug) {
+		writeError(w, 409, "protected_game_identity", "built-in authoritative games cannot be disabled or deleted")
 		return
 	}
 	tag, err := s.DB.Exec(r.Context(), `UPDATE games SET status='disabled',updated_at=now() WHERE id=$1`, id)

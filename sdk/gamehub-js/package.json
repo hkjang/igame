@@ -1,6 +1,6 @@
 {
   "name": "@igame/gamehub-js",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Browser SDK for the igame game platform",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -28,5 +28,8 @@
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.41.0",
     "vitest": "^3.2.4"
+  },
+  "overrides": {
+    "esbuild": "0.27.2"
   }
 }

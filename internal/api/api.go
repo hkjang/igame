@@ -126,6 +126,16 @@ func (s *Server) Router() http.Handler {
 		a.Put("/api/v1/realmguard/progress", s.putRealmGuardProgress)
 		a.Post("/api/v1/realmguard/results", s.submitRealmGuardResult)
 		a.Get("/api/v1/realmguard/rankings", s.realmGuardRankings)
+		a.Get("/api/v1/defense/{slug}/config", s.defenseConfig)
+		a.Get("/api/v1/defense/{slug}/version", s.defenseVersion)
+		a.Get("/api/v1/defense/{slug}/progress", s.defenseProgress)
+		a.Post("/api/v1/defense/{slug}/results", s.submitDefenseResult)
+		a.Get("/api/v1/defense/{slug}/rankings", s.defenseRankings)
+		a.Get("/api/v1/defense/{slug}/learning", s.defenseLearning)
+		a.Post("/api/v1/defense/{slug}/education/events/{eventID}/answer", s.answerDefenseEducationEvent)
+		a.With(s.requireRole("manager", "operator", "admin")).Get("/api/v1/defense/{slug}/versions/{id}/preview", s.previewDefenseVersion)
+		a.With(s.requireRole("manager", "admin")).Get("/api/v1/defense/versions/pending", s.listPendingDefenseVersions)
+		a.With(s.requireRole("manager", "admin")).Post("/api/v1/defense/versions/{id}/review", s.reviewDefenseVersion)
 		a.With(s.requireRole("manager", "admin")).Get("/api/v1/realmguard/versions/pending", s.listPendingRealmGuardVersions)
 		a.With(s.requireRole("manager", "admin")).Post("/api/v1/realmguard/versions/{id}/approve", s.approveRealmGuardVersion)
 		a.With(s.requireRole("manager", "admin")).Post("/api/v1/realmguard/versions/{id}/review", s.approveRealmGuardVersion)
@@ -203,6 +213,14 @@ func (s *Server) Router() http.Handler {
 			admin.Post("/realmguard/versions/{id}/review", s.approveRealmGuardVersion)
 			admin.Post("/realmguard/versions/{id}/publish", s.publishRealmGuardVersion)
 			admin.Get("/realmguard/telemetry", s.realmGuardTelemetry)
+			admin.Get("/defense/{slug}/drafts/{section}", s.getDefenseDraftSection)
+			admin.Put("/defense/{slug}/drafts/{section}", s.putDefenseDraftSection)
+			admin.Get("/defense/{slug}/versions", s.listDefenseVersions)
+			admin.Post("/defense/{slug}/versions", s.createDefenseVersion)
+			admin.Post("/defense/{slug}/versions/{id}/test", s.testDefenseVersion)
+			admin.Post("/defense/{slug}/versions/{id}/publish", s.publishDefenseVersion)
+			admin.Get("/defense/{slug}/telemetry", s.defenseTelemetryReport)
+			admin.Get("/defense/{slug}/learning-report", s.defenseLearningReport)
 			admin.With(s.requireRole("admin")).Get("/audit", s.listAuditLogs)
 		})
 	})
@@ -377,6 +395,18 @@ func (s *Server) enforceAPIKeyPermissions(next http.Handler) http.Handler {
 			required = "admin:*"
 		case strings.HasPrefix(path, "/api/v1/realmguard/versions/"):
 			required = "admin:*"
+		case strings.HasPrefix(path, "/api/v1/defense/versions/") || strings.Contains(path, "/versions/") && strings.HasPrefix(path, "/api/v1/defense/"):
+			required = "admin:*"
+		case strings.HasPrefix(path, "/api/v1/defense/") && strings.HasSuffix(path, "/results"):
+			required = "scores:write"
+		case strings.HasPrefix(path, "/api/v1/defense/") && strings.Contains(path, "/education/events/"):
+			required = "scores:write"
+		case strings.HasPrefix(path, "/api/v1/defense/") && strings.HasSuffix(path, "/progress") || strings.HasPrefix(path, "/api/v1/defense/") && strings.HasSuffix(path, "/learning"):
+			required = "profile:read"
+		case strings.HasPrefix(path, "/api/v1/defense/") && strings.HasSuffix(path, "/rankings"):
+			required = "rankings:read"
+		case strings.HasPrefix(path, "/api/v1/defense/"):
+			required = "games:read"
 		case path == "/api/v1/realmguard/results":
 			required = "scores:write"
 		case path == "/api/v1/realmguard/progress":

@@ -1,9 +1,20 @@
-export type RealmDifficulty = 'casual' | 'normal' | 'veteran';
-export type RealmMode = 'campaign' | 'endless';
-export type TargetingMode = 'first' | 'last' | 'strong' | 'weak' | 'closest';
-export type RealmSection = 'stages' | 'waves' | 'enemies' | 'bosses' | 'towers' | 'heroes' | 'skills' | 'balance';
+export type RealmDifficulty = "casual" | "normal" | "veteran";
+export type RealmMode = "campaign" | "endless";
+export type TargetingMode = "first" | "last" | "strong" | "weak" | "closest";
+export type RealmSection =
+  | "stages"
+  | "waves"
+  | "enemies"
+  | "bosses"
+  | "towers"
+  | "heroes"
+  | "skills"
+  | "balance";
 
-export interface Point { x: number; y: number }
+export interface Point {
+  x: number;
+  y: number;
+}
 
 export interface WaveEntry {
   enemy: string;
@@ -22,7 +33,9 @@ export interface RealmWave {
   reward: number;
 }
 
-export interface TowerSpot extends Point { id: string }
+export interface TowerSpot extends Point {
+  id: string;
+}
 
 export interface RealmStage {
   id: string;
@@ -30,7 +43,7 @@ export interface RealmStage {
   name: string;
   subtitle: string;
   mode: RealmMode;
-  theme: 'verdant' | 'ember' | 'frost' | 'void';
+  theme: "verdant" | "ember" | "frost" | "void";
   path: Point[];
   paths?: Point[][];
   towerSpots: TowerSpot[];
@@ -38,7 +51,7 @@ export interface RealmStage {
   startingGold: number;
   lives: number;
   version: string;
-  gimmick?: 'ember_vents' | 'winter_blessing' | 'time_surge';
+  gimmick?: "ember_vents" | "winter_blessing" | "time_surge";
 }
 
 export interface EnemyArchetype {
@@ -51,7 +64,28 @@ export interface EnemyArchetype {
   reward: number;
   lifeDamage: number;
   radius: number;
-  traits: Array<'armored' | 'swift' | 'flying' | 'regenerating' | 'healer' | 'splitting' | 'phasing' | 'siege' | 'boss' | 'magic_resist' | 'stealth' | 'berserk' | 'immune_stun'>;
+  traits: Array<
+    | "armored"
+    | "swift"
+    | "flying"
+    | "regenerating"
+    | "healer"
+    | "splitting"
+    | "phasing"
+    | "siege"
+    | "boss"
+    | "magic_resist"
+    | "stealth"
+    | "berserk"
+    | "immune_stun"
+  >;
+  threatType?: string;
+  resourceEffect?: {
+    compute?: number;
+    token?: number;
+    trust?: number;
+    latency?: number;
+  };
 }
 
 export interface TowerBranch {
@@ -76,8 +110,11 @@ export interface TowerDefinition {
   range: number;
   fireRate: number;
   projectileSpeed: number;
-  damageType: 'physical' | 'arcane' | 'siege' | 'frost';
+  damageType: "physical" | "magic" | "true" | "arcane" | "siege" | "frost";
   branches: TowerBranch[];
+  effectiveAgainst?: string[];
+  effectiveMultiplier?: number;
+  profiles?: Array<{ id: string; name: string; damageMultiplier: number }>;
 }
 
 export interface HeroDefinition {
@@ -93,6 +130,8 @@ export interface HeroDefinition {
   skill1: string;
   skill2: string;
   ultimate: string;
+  /** Campaign stage number at which this hero becomes selectable. */
+  unlockStage?: number;
 }
 
 export interface SkillDefinition {
@@ -104,7 +143,10 @@ export interface SkillDefinition {
 }
 
 export interface RealmBalance {
-  difficulties: Record<RealmDifficulty, { enemyHp: number; enemySpeed: number; gold: number; score: number }>;
+  difficulties: Record<
+    RealmDifficulty,
+    { enemyHp: number; enemySpeed: number; gold: number; score: number }
+  >;
   towerUpgradeCost: number[];
   heroLevelXp: number[];
   endlessRamp: number;
@@ -141,7 +183,11 @@ export interface RealmProgress {
   hero_levels: Record<string, number>;
   heroes: Record<string, { unlocked: boolean; level: number; xp: number }>;
   skills: Record<string, { unlocked: boolean; level: number }>;
-  loadout: { hero_id: string; skill_ids: string[]; settings?: Record<string, unknown> };
+  loadout: {
+    hero_id: string;
+    skill_ids: string[];
+    settings?: Record<string, unknown>;
+  };
   campaign_completed: boolean;
   stages: StageProgress[];
 }
@@ -180,7 +226,7 @@ export interface RealmResult extends BattleStats {
 }
 
 export interface BattleHUD {
-  status: 'ready' | 'playing' | 'paused' | 'victory' | 'defeat';
+  status: "ready" | "playing" | "paused" | "victory" | "defeat";
   gold: number;
   lives: number;
   wave: number;
@@ -191,21 +237,29 @@ export interface BattleHUD {
   heroRespawn: number;
   nextWaveIn: number;
   selectedSpot?: string;
-  selectedTower?: { type: string; level: number; branch?: string; targeting: TargetingMode };
+  selectedTower?: {
+    type: string;
+    level: number;
+    branch?: string;
+    profile?: string;
+    targeting: TargetingMode;
+  };
   skillCooldowns: Record<string, number>;
   speed: 1 | 2;
 }
 
 export type RealmCommand =
-  | { type: 'start-wave' }
-  | { type: 'toggle-pause' }
-  | { type: 'speed'; value: 1 | 2 }
-  | { type: 'build'; tower: string }
-  | { type: 'upgrade'; branch?: string }
-  | { type: 'sell' }
-  | { type: 'targeting'; mode: TargetingMode }
-  | { type: 'skill'; skill: string }
-  | { type: 'move-hero' };
+  | { type: "start-wave" }
+  | { type: "toggle-pause" }
+  | { type: "speed"; value: 1 | 2 }
+  | { type: "build"; tower: string; profile?: string }
+  | { type: "upgrade"; branch?: string }
+  | { type: "sell" }
+  | { type: "targeting"; mode: TargetingMode }
+  | { type: "skill"; skill: string }
+  | { type: "move-hero" }
+  | { type: "adjust-economy"; resourceDelta: number; healthDelta?: number }
+  | { type: "force-defeat" };
 
 export interface RealmSceneController {
   command(command: RealmCommand): void;

@@ -109,4 +109,22 @@ describe('GameHubClient', () => {
     }));
     expect(client.session).toBeUndefined();
   });
+
+  it('submits an authoritative education action without closing the defense session', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(response({ session: { id: 'def-session', session_token: 'def-token' } }))
+      .mockResolvedValueOnce(response({ answer: { event_id: 'event-1', correct: true, score: 100 } }));
+    const client = new GameHubClient({ gameId: 'cyber-fortress', fetch: fetcher });
+
+    await client.start({ defense_content_version_id: 'version-1' });
+    await client.requestAuthoritatively({
+      path: '/api/v1/defense/cyber-fortress/education/events/event-1/answer',
+      payload: { answer_id: 'safe' },
+    });
+
+    expect(fetcher).toHaveBeenNthCalledWith(2, '/api/v1/defense/cyber-fortress/education/events/event-1/answer', expect.objectContaining({
+      body: JSON.stringify({ answer_id: 'safe', game_id: 'cyber-fortress', session_id: 'def-session', session_token: 'def-token' }),
+    }));
+    expect(client.session?.id).toBe('def-session');
+  });
 });

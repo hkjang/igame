@@ -15,16 +15,16 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Check out source
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
       - name: Set up Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '22'
           cache: npm
@@ -35,6 +35,13 @@ jobs:
       - name: Install locked dependencies
         run: make deps
 
+      - name: Audit locked Node dependencies
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm --prefix sdk/gamehub-js audit --audit-level=low
+          npm --prefix web audit --audit-level=low
+
       - name: Verify release contract
         run: make check-contract
 
@@ -44,17 +51,61 @@ jobs:
       - name: Test
         run: make test
 
+      - name: Scan reachable Go vulnerabilities
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
+          "$(go env GOPATH)/bin/govulncheck" ./...
+
       - name: Build application
         run: make build
 
       - name: Build container
         run: make docker-build
 
-      - name: Verify RealmGuard offline image contents
+      - name: Resolve image name
+        id: image
+        shell: bash
+        run: echo "name=igame:v$(tr -d '[:space:]' < VERSION)" >> "${GITHUB_OUTPUT}"
+
+      - name: Scan final runtime image
+        uses: anchore/scan-action@0d444ed77d83ee2ba7f5ced0d90d640a1281d762 # v7.3.0
+        with:
+          image: ${{ steps.image.outputs.name }}
+          fail-build: true
+          severity-cutoff: high
+          grype-version: v0.117.0
+          output-format: table
+
+      - name: Verify offline game-platform image contents
         shell: bash
         run: |
           set -Eeuo pipefail
           image="igame:v$(cat VERSION)"
           test "$(docker image inspect --format '{{.Architecture}}' "${image}")" = "amd64"
-          docker run --rm --env "EXPECTED_VERSION=$(cat VERSION)" --entrypoint /bin/sh "${image}" -c \
-            'test -x /app/igame && test -r /licenses/web/package.json && test -r /licenses/web/package-lock.json && test -r /licenses/sdk/gamehub-js/package.json && test -r /licenses/sdk/gamehub-js/package-lock.json && test -r /licenses/phaser/package.json && test -r /licenses/phaser/LICENSE.md && grep -Fq "\"version\": \"${EXPECTED_VERSION}\"" /licenses/web/package.json && grep -Fq "\"version\": \"${EXPECTED_VERSION}\"" /licenses/sdk/gamehub-js/package.json && grep -Fq "\"node_modules/phaser\"" /licenses/web/package-lock.json && grep -Fq "\"name\": \"phaser\"" /licenses/phaser/package.json && grep -iq MIT /licenses/phaser/LICENSE.md'
+          test "$(docker image inspect --format '{{.Config.User}}' "${image}")" = "10001:10001"
+          test "$(docker image inspect --format '{{ index .Config.Labels "io.igame.build.go-version" }}' "${image}")" = "1.26.6"
+          container_id="$(docker create "${image}")"
+          binary_dir="$(mktemp -d)"
+          cleanup() {
+            docker rm --force "${container_id}" >/dev/null 2>&1 || true
+            rm -rf -- "${binary_dir}"
+          }
+          trap cleanup EXIT
+          docker cp "${container_id}:/app/igame" "${binary_dir}/igame"
+          mkdir -p "${binary_dir}/licenses"
+          docker cp "${container_id}:/licenses/." "${binary_dir}/licenses"
+          go version -m "${binary_dir}/igame" | grep -Fq 'go1.26.6'
+          test -x "${binary_dir}/igame"
+          test -r "${binary_dir}/licenses/web/package.json"
+          test -r "${binary_dir}/licenses/web/package-lock.json"
+          test -r "${binary_dir}/licenses/sdk/gamehub-js/package.json"
+          test -r "${binary_dir}/licenses/sdk/gamehub-js/package-lock.json"
+          test -r "${binary_dir}/licenses/phaser/package.json"
+          test -r "${binary_dir}/licenses/phaser/LICENSE.md"
+          grep -Fq "\"version\": \"$(cat VERSION)\"" "${binary_dir}/licenses/web/package.json"
+          grep -Fq "\"version\": \"$(cat VERSION)\"" "${binary_dir}/licenses/sdk/gamehub-js/package.json"
+          grep -Fq '"node_modules/phaser"' "${binary_dir}/licenses/web/package-lock.json"
+          grep -Fq '"name": "phaser"' "${binary_dir}/licenses/phaser/package.json"
+          grep -iq MIT "${binary_dir}/licenses/phaser/LICENSE.md"

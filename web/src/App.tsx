@@ -23,6 +23,8 @@ import { AdminSettingsPage } from './pages/admin/AdminSettingsPage';
 import { AIGameLabPage } from './pages/AIGameLabPage';
 import { ReviewsPage } from './pages/ReviewsPage';
 import { RealmGuardPreviewPage } from './pages/RealmGuardPreviewPage';
+import { DefensePreviewPage } from './pages/DefensePreviewPage';
+import { DefenseContentStudioPage } from './pages/admin/defense/DefenseContentStudioPage';
 import { RealmGuardDesignerPage } from './pages/admin/realmguard/RealmGuardDesignerPage';
 import { useAuth } from './state/AuthContext';
 
@@ -55,6 +57,7 @@ export function App() {
       <Route path="ai" element={<AIGameLabPage />} />
       <Route path="reviews" element={<ReviewsPage />} />
       <Route path="realmguard/preview/:id" element={<RealmGuardPreviewPage />} />
+      <Route path="defense/:slug/preview/:id" element={<DefensePreviewPage />} />
       <Route path="developer" element={<DeveloperPage />} />
       <Route path="profile" element={<ProfileLayout />}>
         <Route index element={<ProfileOverviewPage />} />
@@ -69,6 +72,7 @@ export function App() {
       <Route path="audit" element={adminOnly(<AdminResourcePage resource="audit" />)} />
       <Route path="analytics" element={<AdminAnalyticsPage />} />
       <Route path="realmguard" element={<RealmGuardDesignerPage />} />
+      <Route path="defense" element={<DefenseContentStudioPage />} />
       <Route path="approvals" element={<AdminSettingsPage section="approval" />} />
       <Route path="keys" element={adminOnly(<AdminSettingsPage section="api_keys" />)} />
       <Route path="security" element={adminOnly(<AdminSettingsPage section="oidc" />)} />

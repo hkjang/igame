@@ -157,7 +157,9 @@ func mcpTools() []map[string]any {
 		{"name": "leaderboard_get", "description": "Get an individual, department, or team leaderboard.", "inputSchema": map[string]any{"type": "object", "properties": map[string]any{"game_id": map[string]any{"type": "string"}, "period": map[string]any{"type": "string", "enum": []string{"daily", "weekly", "monthly", "season", "all_time"}}, "group": map[string]any{"type": "string", "enum": []string{"individual", "department", "team"}}, "limit": map[string]any{"type": "integer", "minimum": 1, "maximum": 200}}, "required": []string{"game_id"}, "additionalProperties": false}},
 		{"name": "profile_get", "description": "Get the authenticated user's iGame profile.", "inputSchema": map[string]any{"type": "object", "properties": map[string]any{}, "additionalProperties": false}},
 		{"name": "events_list", "description": "List available company game events.", "inputSchema": map[string]any{"type": "object", "properties": map[string]any{}, "additionalProperties": false}},
-		{"name": "game_session_start", "description": "Start a signed game session. RealmGuard requires realmguard_version_id from its published config. Requires sessions:write for API keys.", "inputSchema": map[string]any{"type": "object", "properties": map[string]any{"game_id": map[string]any{"type": "string"}, "realmguard_version_id": map[string]any{"type": "string", "format": "uuid", "description": "Published RealmGuard config version UUID; required when game_id resolves to RealmGuard."}}, "required": []string{"game_id"}, "additionalProperties": false}},
+		{"name": "defense_config_get", "description": "Get the sanitized published content and exact session pin for a Defense Series game.", "inputSchema": map[string]any{"type": "object", "properties": map[string]any{"slug": map[string]any{"type": "string", "enum": defenseGameSlugs}}, "required": []string{"slug"}, "additionalProperties": false}},
+		{"name": "defense_rankings_get", "description": "Get the server-authoritative version-pinned Defense Series leaderboard. Ranked result submission remains REST/telemetry-only.", "inputSchema": map[string]any{"type": "object", "properties": map[string]any{"slug": map[string]any{"type": "string", "enum": defenseGameSlugs}, "period": map[string]any{"type": "string", "enum": []string{"daily", "weekly", "monthly", "season", "all_time"}}, "group": map[string]any{"type": "string", "enum": []string{"individual", "department", "team"}}, "limit": map[string]any{"type": "integer", "minimum": 1, "maximum": 200}}, "required": []string{"slug"}, "additionalProperties": false}},
+		{"name": "game_session_start", "description": "Start a signed game session. Authoritative built-in games require the exact published config version pin. Requires sessions:write for API keys.", "inputSchema": map[string]any{"type": "object", "properties": map[string]any{"game_id": map[string]any{"type": "string"}, "realmguard_version_id": map[string]any{"type": "string", "format": "uuid", "description": "Published RealmGuard config version UUID; required only for RealmGuard."}, "defense_content_version_id": map[string]any{"type": "string", "format": "uuid", "description": "Published Defense content version UUID; required only for Office Guardians, Cyber Fortress, or AI Nexus Defense."}}, "required": []string{"game_id"}, "additionalProperties": false}},
 		{"name": "score_submit", "description": "Submit a score for a signed game session. Requires scores:write for API keys.", "inputSchema": map[string]any{"type": "object", "properties": map[string]any{"session_id": map[string]any{"type": "string"}, "session_token": map[string]any{"type": "string"}, "game_id": map[string]any{"type": "string"}, "score": map[string]any{"type": "integer"}, "duration_ms": map[string]any{"type": "integer", "minimum": 0}, "metadata": map[string]any{"type": "object"}}, "required": []string{"session_id", "session_token", "score"}, "additionalProperties": false}},
 	}
 }
@@ -166,7 +168,7 @@ func (s *Server) callMCPTool(r *http.Request, name string, args map[string]any) 
 	p, _ := principalFrom(r)
 	permission := "games:read"
 	switch name {
-	case "leaderboard_get":
+	case "leaderboard_get", "defense_rankings_get":
 		permission = "rankings:read"
 	case "profile_get":
 		permission = "profile:read"
@@ -216,6 +218,27 @@ func (s *Server) callMCPTool(r *http.Request, name string, args map[string]any) 
 		return s.captureHandler(r, http.MethodGet, "/api/v1/rankings?"+query.Encode(), s.rankings, "", "")
 	case "events_list":
 		return s.captureHandler(r, http.MethodGet, "/api/v1/events", s.listEvents, "", "")
+	case "defense_config_get":
+		slug, _ := args["slug"].(string)
+		if !isDefenseGameSlug(slug) {
+			return nil, fmt.Errorf("slug must identify a Defense Series game")
+		}
+		return s.captureHandler(r, http.MethodGet, "/api/v1/defense/"+url.PathEscape(slug)+"/config", s.defenseConfig, "slug", slug)
+	case "defense_rankings_get":
+		slug, _ := args["slug"].(string)
+		if !isDefenseGameSlug(slug) {
+			return nil, fmt.Errorf("slug must identify a Defense Series game")
+		}
+		query := url.Values{}
+		for _, key := range []string{"period", "group"} {
+			if value, ok := args[key].(string); ok && value != "" {
+				query.Set(key, value)
+			}
+		}
+		if value, ok := numberArg(args["limit"]); ok {
+			query.Set("limit", fmt.Sprint(value))
+		}
+		return s.captureHandler(r, http.MethodGet, "/api/v1/defense/"+url.PathEscape(slug)+"/rankings?"+query.Encode(), s.defenseRankings, "slug", slug)
 	case "game_session_start":
 		game, _ := args["game_id"].(string)
 		if game == "" {
@@ -224,6 +247,9 @@ func (s *Server) callMCPTool(r *http.Request, name string, args map[string]any) 
 		metadata := map[string]any{}
 		if versionID, exists := args["realmguard_version_id"]; exists {
 			metadata["realmguard_version_id"] = versionID
+		}
+		if versionID, exists := args["defense_content_version_id"]; exists {
+			metadata["defense_content_version_id"] = versionID
 		}
 		body, err := json.Marshal(map[string]any{"metadata": metadata})
 		if err != nil {

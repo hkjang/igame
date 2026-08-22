@@ -21,7 +21,7 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 75
     services:
       postgres:
         image: postgres:17-alpine
@@ -40,7 +40,7 @@ jobs:
       RELEASE_TAG: ${{ inputs.version || github.ref_name }}
     steps:
       - name: Check out release tag
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ env.RELEASE_TAG }}
           fetch-depth: 0
@@ -61,13 +61,13 @@ jobs:
           bash ./scripts/check-release-contract.sh
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
       - name: Set up Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '22'
           cache: npm
@@ -81,9 +81,23 @@ jobs:
           make lint
           make test
 
+      - name: Audit locked Node dependencies
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm --prefix sdk/gamehub-js audit --audit-level=low
+          npm --prefix web audit --audit-level=low
+
+      - name: Scan reachable Go vulnerabilities
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
+          "$(go env GOPATH)/bin/govulncheck" ./...
+
       - name: Install Syft
         id: syft
-        uses: anchore/sbom-action/download-syft@v0
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0
 
       - name: Put Syft on PATH
         shell: bash
@@ -104,8 +118,40 @@ jobs:
           test "$(docker image inspect --format '{{index .RepoTags 0}}' "${image}")" = "${image}"
           test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "${image}")" = "${version}"
           test "$(docker image inspect --format '{{.Architecture}}' "${image}")" = "amd64"
-          docker run --rm --env "EXPECTED_VERSION=${version}" --entrypoint /bin/sh "${image}" -c \
-            'test -r /licenses/web/package.json && test -r /licenses/web/package-lock.json && test -r /licenses/sdk/gamehub-js/package.json && test -r /licenses/sdk/gamehub-js/package-lock.json && test -r /licenses/phaser/package.json && test -r /licenses/phaser/LICENSE.md && grep -Fq "\"version\": \"${EXPECTED_VERSION}\"" /licenses/web/package.json && grep -Fq "\"version\": \"${EXPECTED_VERSION}\"" /licenses/sdk/gamehub-js/package.json && grep -Fq "\"node_modules/phaser\"" /licenses/web/package-lock.json && grep -Fq "\"name\": \"phaser\"" /licenses/phaser/package.json && grep -iq MIT /licenses/phaser/LICENSE.md'
+          test "$(docker image inspect --format '{{.Config.User}}' "${image}")" = "10001:10001"
+          test "$(docker image inspect --format '{{ index .Config.Labels "io.igame.build.go-version" }}' "${image}")" = "1.26.6"
+          container_id="$(docker create "${image}")"
+          binary_dir="$(mktemp -d)"
+          cleanup_binary() {
+            docker rm --force "${container_id}" >/dev/null 2>&1 || true
+            rm -rf -- "${binary_dir}"
+          }
+          trap cleanup_binary EXIT
+          docker cp "${container_id}:/app/igame" "${binary_dir}/igame"
+          mkdir -p "${binary_dir}/licenses"
+          docker cp "${container_id}:/licenses/." "${binary_dir}/licenses"
+          go version -m "${binary_dir}/igame" | grep -Fq 'go1.26.6'
+          test -x "${binary_dir}/igame"
+          test -r "${binary_dir}/licenses/web/package.json"
+          test -r "${binary_dir}/licenses/web/package-lock.json"
+          test -r "${binary_dir}/licenses/sdk/gamehub-js/package.json"
+          test -r "${binary_dir}/licenses/sdk/gamehub-js/package-lock.json"
+          test -r "${binary_dir}/licenses/phaser/package.json"
+          test -r "${binary_dir}/licenses/phaser/LICENSE.md"
+          grep -Fq "\"version\": \"${version}\"" "${binary_dir}/licenses/web/package.json"
+          grep -Fq "\"version\": \"${version}\"" "${binary_dir}/licenses/sdk/gamehub-js/package.json"
+          grep -Fq '"node_modules/phaser"' "${binary_dir}/licenses/web/package-lock.json"
+          grep -Fq '"name": "phaser"' "${binary_dir}/licenses/phaser/package.json"
+          grep -iq MIT "${binary_dir}/licenses/phaser/LICENSE.md"
+
+      - name: Scan final runtime image
+        uses: anchore/scan-action@0d444ed77d83ee2ba7f5ced0d90d640a1281d762 # v7.3.0
+        with:
+          image: igame:${{ env.RELEASE_TAG }}
+          fail-build: true
+          severity-cutoff: high
+          grype-version: v0.117.0
+          output-format: table
 
       - name: Smoke-test loaded image
         shell: bash
@@ -140,6 +186,24 @@ jobs:
           done
           [[ "${ready}" == true ]]
 
+          DEFENSE_TEST_DSN='postgres://igame:ci-only-password@127.0.0.1:5432/igame?sslmode=disable' \
+            go test ./internal/api -run '^TestDefensePublishedSeedContract$' -count=1
+
+          docker run --rm --network host \
+            --env 'PGPASSWORD=ci-only-password' postgres:17-alpine \
+            psql --no-psqlrc --host 127.0.0.1 --username igame --dbname igame \
+            --set ON_ERROR_STOP=1 --command "
+              UPDATE users SET team='release-alpha' WHERE username='ci-admin';
+              INSERT INTO users(username,display_name,team,role,password_hash,status)
+                SELECT 'ci-manager-same','CI same-team manager','release-alpha','manager',password_hash,'active' FROM users WHERE username='ci-admin'
+                ON CONFLICT(username) DO UPDATE SET team=excluded.team,role=excluded.role,password_hash=excluded.password_hash,status='active';
+              INSERT INTO users(username,display_name,team,role,password_hash,status)
+                SELECT 'ci-manager-empty','CI unassigned manager','','manager',password_hash,'active' FROM users WHERE username='ci-admin'
+                ON CONFLICT(username) DO UPDATE SET team=excluded.team,role=excluded.role,password_hash=excluded.password_hash,status='active';
+              INSERT INTO users(username,display_name,team,role,password_hash,status)
+                SELECT 'ci-manager-other','CI other-team manager','release-beta','manager',password_hash,'active' FROM users WHERE username='ci-admin'
+                ON CONFLICT(username) DO UPDATE SET team=excluded.team,role=excluded.role,password_hash=excluded.password_hash,status='active';"
+
           curl --fail --silent --show-error --cookie-jar "${cookie_jar}" \
             --header 'Content-Type: application/json' \
             --data '{"username":"ci-admin","password":"ci-only-bootstrap-password"}' \
@@ -148,6 +212,15 @@ jobs:
             http://127.0.0.1:8080/api/v1/me >/dev/null
           bash ./scripts/smoke-realmguard.sh \
             http://127.0.0.1:8080 ci-admin ci-only-bootstrap-password
+          IGAME_MANAGER_SAME_USERNAME=ci-manager-same \
+          IGAME_MANAGER_SAME_PASSWORD=ci-only-bootstrap-password \
+          IGAME_MANAGER_EMPTY_USERNAME=ci-manager-empty \
+          IGAME_MANAGER_EMPTY_PASSWORD=ci-only-bootstrap-password \
+          IGAME_MANAGER_OTHER_USERNAME=ci-manager-other \
+          IGAME_MANAGER_OTHER_PASSWORD=ci-only-bootstrap-password \
+          IGAME_SMOKE_POSTGRES_DSN='postgres://igame:ci-only-password@127.0.0.1:5432/igame?sslmode=disable' \
+            bash ./scripts/smoke-defense-series.sh \
+              http://127.0.0.1:8080 ci-admin ci-only-bootstrap-password
           for endpoint in dashboard analytics settings games categories users seasons events tournaments achievements rewards notices banners rankings workflow/requests audit; do
             curl --fail --silent --show-error --cookie "${cookie_jar}" \
               "http://127.0.0.1:8080/api/v1/admin/${endpoint}" >/dev/null
@@ -157,6 +230,7 @@ jobs:
             --env 'IGAME_USERNAME=ci-admin' \
             --env 'IGAME_PASSWORD=ci-only-bootstrap-password' \
             --env 'IGAME_REQUIRE_DESIGNER_DRAFT=true' \
+            --env 'IGAME_REQUIRE_DEFENSE_DRAFT=true' \
             --env PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
             --volume "${GITHUB_WORKSPACE}:/work:ro" \
             --workdir /tmp \
@@ -202,7 +276,7 @@ jobs:
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Retain SBOM and checksum as workflow evidence
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ${{ env.RELEASE_TAG }}-supply-chain-evidence
           path: |
@@ -212,7 +286,7 @@ jobs:
           retention-days: 90
 
       - name: Publish the only release asset
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           files: ${{ steps.evidence.outputs.archive }}

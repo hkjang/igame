@@ -26,7 +26,7 @@ curl --fail --max-time 5 http://127.0.0.1:8080/readyz
 - 플레이 정책: 허용 시간, 일일 제한, 게임별 예외
 - 브라우저 연결 정책: iframe과 API 연결 허용 origin
 
-일반 카탈로그 승인 워크플로가 꺼져 있으면 지원되는 게임 생성·변경 요청을 바로 반영합니다. 켜져 있을 때만 pending 요청을 만들고, reviewer 역할 또는 `manager_required` 설정에 따라 팀장/관리자가 승인·반려합니다. 기본적으로 요청자는 자기 요청을 검토할 수 없습니다. 일반 workflow와 RealmGuard Designer 모두 manager 자신의 team이 없으면 review 목록을 거부하고 비어 있지 않은 동일 team 작성자의 항목만 보여 줍니다. 직접 preview/review가 있는 경로는 manager와 작성자 어느 한쪽의 team이 없으면 `team_required`, 서로 다르면 `different_team`으로 fail-closed합니다. 반려 사유는 필수이며 모든 전이는 감사 로그에 남깁니다. 일반 카탈로그의 직접 변경과 승인된 workflow 적용 모두 내장 RealmGuard의 예약 slug 전환을 거부합니다.
+일반 카탈로그 승인 워크플로가 꺼져 있으면 지원되는 게임 생성·변경 요청을 바로 반영합니다. 켜져 있을 때만 pending 요청을 만들고, reviewer 역할 또는 `manager_required` 설정에 따라 팀장/관리자가 승인·반려합니다. 기본적으로 요청자는 자기 요청을 검토할 수 없습니다. 일반 workflow, RealmGuard Designer와 Defense Content Studio는 manager 자신의 team이 없으면 review 목록을 거부하고 비어 있지 않은 동일 team 작성자의 항목만 보여 줍니다. 직접 preview/review가 있는 경로는 manager와 작성자 어느 한쪽의 team이 없으면 `team_required`, 서로 다르면 `different_team`으로 fail-closed합니다. 반려 사유는 필수이며 모든 전이는 감사 로그에 남깁니다. 일반 카탈로그의 직접 변경과 승인된 workflow 적용 모두 내장 RealmGuard와 세 Defense game의 예약 slug 전환을 거부합니다.
 
 ## AI 운영
 
@@ -45,6 +45,16 @@ Designer section 조회 응답의 `ETag`/checksum을 저장 요청의 `If-Match`
 새 게시물은 이후 시작한 세션에만 적용됩니다. 진행 중 세션은 시작 시 고정된 snapshot으로 계속 검증되므로 balance 변경 중 강제로 종료하지 않습니다. 이상이 있으면 이전 이미지만 되돌리지 말고 알려진 정상 콘텐츠를 새 draft로 복구해 같은 절차로 게시하거나, 해당 이미지·DB backup 쌍을 함께 복원합니다. 전용 telemetry는 run/unique user/평균 score·duration/최고 wave/승리·거부, 실패 wave와 stage·hero·난이도 breakdown을 제공하며 `realmguard.tower.build`/`realmguard.skill.cast` event를 tower·skill 사용량으로 집계합니다.
 
 공식 결과 전에는 UUID `client_event_id`와 1-based 연속 `sequence`로 ready, wave start/complete와 battle complete를 전송합니다. 완료 snapshot의 적별 defeated/escaped/spawned histogram과 전투 누적값은 뒤로 갈 수 없습니다. 같은 event 재전송은 전체 payload가 같을 때만 idempotent하며 sequence conflict는 누락 event부터 다시 보내야 합니다. Event `data` 4 KiB 한도를 지키고 고빈도 frame/position event는 보내지 않습니다. 선택 event 전체는 128개, ready/complete는 각 1개, wave start/complete는 각각 10,001/10,000개, tower build/upgrade/sell은 합계 10,000개까지 받습니다. 필수 class별 용량은 독립적으로 예약되며 해당 class가 차면 `telemetry_limit`을 반환합니다. `server_received_telemetry_v1`은 이 브라우저 자가보고 원장의 서버 수신·순서·시각·누적 일관성 검증이며 완전한 서버 시뮬레이션은 아닙니다. 운영 분석과 이상 탐지는 이 보장 경계를 기준으로 해석합니다.
+
+## Defense Series 운영
+
+Office Guardians, Cyber Fortress와 AI Nexus Defense는 `/games/{slug}`에서 실행하고 현재 `published` content pack만 공식 session에 사용합니다. 브라우저는 config의 `version.id`를 session metadata의 `defense_content_version_id`로 pin합니다. 누락 또는 stale UUID를 연습 mode나 일반 score API로 우회하지 않습니다.
+
+게시 전 `/admin/defense`에서 게임과 section을 선택해 schema/reference 검증, Test와 연습 preview를 완료합니다. Cyber/AI와 교육을 추가한 Office pack은 교육 event의 모든 답안, 정답, topic과 reward/penalty 연결도 함께 확인합니다. 새 Draft의 `policy_version`을 실제 적용 정책과 맞추고, 롤백은 과거 UUID를 `source_version_id`로 복제한 새 Draft에서 수행합니다. 과거 published row를 직접 재활성화하지 않습니다. Draft 저장은 GET 응답의 최신 checksum을 `If-Match`로 사용하고 충돌 시 최신 section을 다시 읽어 병합합니다. 승인 정책이 꺼져 있으면 Test 후 바로 게시하고, 켜져 있으면 같은 team 검토·승인 또는 반려 뒤 게시합니다.
+
+새 published UUID는 이후 생성하는 session에만 적용됩니다. 이미 진행 중인 session은 pin한 snapshot으로 완료합니다. 콘텐츠 회귀 시 이전 이미지만 되돌리지 말고 알려진 정상 콘텐츠를 새 Draft로 복구해 게시하거나, 호환되는 이미지와 DB backup을 함께 복원합니다.
+
+Cyber/AI 운영자는 게임 지표와 학습 지표를 구분합니다. `telemetry`는 현재 published UUID의 실행·완료·`average_game_score` 등 게임 운영에, `learning-report`는 같은 UUID/policy의 참여·정답률·topic 취약 영역에 사용합니다. 호환용 `average_score`는 telemetry의 `average_game_score`와 같은 값입니다. Learning report의 완료율은 모든 campaign 완료 사용자 비율이고 전투 승률은 `battle_clear_rate`로 별도 표시합니다. 개인 원시 답안과 부서 통계는 개인정보 설정과 승인된 교육 보존 정책을 적용합니다. 자세한 검증 순서는 [Defense Series 운영 가이드](defense-series.md)를 따릅니다.
 
 ## 무중단에 가까운 업그레이드
 
@@ -76,6 +86,12 @@ DB 마이그레이션은 전진 적용을 기본으로 합니다. 이전 이미�
 | RealmGuard `telemetry_attestation_failed` | ready/wave/battle milestone, receipt 시간, 누적 histogram과 tower/economy 원장이 최종 결과와 일치하는지 |
 | Designer `precondition_required`/`stale_version` | GET의 최신 ETag를 `If-Match`로 보냈는지, 충돌 편집을 다시 읽고 병합했는지 |
 | Manager `team_required`/`different_team` | manager와 작성자 양쪽 team claim이 비어 있지 않고 정확히 같은지 |
+| Defense `defense_version_required`/`defense_config_stale` | 해당 slug config의 `version.id`를 session metadata에 보냈는지, 게시 변경 후 config를 다시 읽었는지 |
+| Defense 결과 `409` | session의 game slug·owner·`defense_content_version_id`가 전용 결과 경로와 일치하는지, 일반 score 경로를 사용하지 않았는지 |
+| 교육 답안 거부 | session과 pinned version에 event/answer가 존재하는지, Cyber/AI slug를 혼용하지 않았는지 |
+| Studio `precondition_required`/`stale_version` | 최신 section checksum을 `If-Match`로 보냈는지, 동시 편집 충돌을 병합했는지 |
+
+이미지 자체 healthcheck는 shell command가 아니라 `/app/igame healthcheck`를 실행합니다. 이 command는 설정과 DB 연결을 새로 만들지 않고 실행 중인 `127.0.0.1:8080/healthz`만 확인하므로, 컨테이너 내부에서 `sh`, `curl`, `wget`를 사용한 진단은 지원하지 않습니다. 상세 진단은 호스트의 `docker inspect`, `docker logs`와 외부 `/readyz` 요청을 사용합니다.
 
 ## 프록시
 

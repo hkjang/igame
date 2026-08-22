@@ -22,7 +22,7 @@ gzip -t igame-vX.Y.Z.tar.gz
 
 GitHub 워크플로는 SPDX JSON SBOM을 생성해 검증 증적으로 보관하지만, “Docker 이미지만 릴리스” 원칙에 따라 SBOM과 checksum 파일을 별도 Release asset으로 게시하지 않습니다.
 
-`v0.2.0` RealmGuard의 Phaser runtime과 코드 생성 graphic도 같은 image layer에 포함됩니다. 반입 검사에서는 `/licenses/web`과 `/licenses/sdk/gamehub-js`의 locked package metadata, `/licenses/phaser`의 package metadata/MIT license, workflow SBOM의 Phaser·SDK version을 함께 확인합니다. 브라우저가 Phaser, map, sprite 또는 balance 데이터를 인터넷에서 내려받지 않습니다.
+`v0.3.0` RealmGuard와 Defense Series 세 게임의 Phaser runtime, 코드 생성 graphic, 콘텐츠도 같은 image layer에 포함됩니다. 최종 runtime은 package manager와 shell이 없는 `scratch` 기반이며 정적 Go binary, CA 신뢰 번들과 license evidence만 포함합니다. 반입 검사에서는 `/licenses/web`과 `/licenses/sdk/gamehub-js`의 locked package metadata, `/licenses/phaser`의 package metadata/MIT license, workflow SBOM의 Phaser·SDK version을 함께 확인합니다. Workflow evidence에는 reachable Go 취약점 검사, High/Critical 최종 이미지 검사와 binary의 Go 1.26.6 build info 검증도 포함됩니다. 브라우저가 Phaser, map, sprite, 교육 문제 또는 balance 데이터를 인터넷에서 내려받지 않습니다.
 
 ## PostgreSQL 준비
 
@@ -34,7 +34,7 @@ GitHub 워크플로는 SPDX JSON SBOM을 생성해 검증 증적으로 보관하
 postgres://igame:<password>@postgres.internal:5432/igame?sslmode=verify-full
 ```
 
-폐쇄망 PostgreSQL CA는 이미지의 시스템 신뢰 저장소에 포함되어야 합니다. 사설 CA가 기본 이미지에 없다면 연결 구간에서 조직 승인 CA를 추가한 파생 이미지를 빌드하고 동일한 검증 절차를 수행하십시오. `sslmode=disable`은 개발 환경에만 허용합니다.
+폐쇄망 PostgreSQL CA는 이미지의 `/etc/ssl/certs/ca-certificates.crt` 신뢰 번들에 포함되어야 합니다. 사설 CA가 기본 번들에 없다면 연결 구간에서 공개 CA와 조직 승인 CA를 합친 단일 PEM bundle을 준비하고 `FROM igame:vX.Y.Z` 파생 이미지에서 같은 경로로 `COPY`하십시오. 파생 최종 stage도 원본의 `scratch` runtime을 계승하므로 package manager를 추가하지 않으며, 새 이미지에 대해 checksum·SBOM·취약점·TLS 연결 검증을 다시 수행합니다. `sslmode=disable`은 개발 환경에만 허용합니다.
 
 ## 이미지 로드와 설정
 
@@ -78,6 +78,7 @@ curl --fail http://127.0.0.1:8080/healthz
 curl --fail http://127.0.0.1:8080/readyz
 ```
 
+- 컨테이너 내부 healthcheck: `/app/igame healthcheck`. 환경변수나 DB 초기화를 다시 수행하지 않고 실행 중인 localhost endpoint만 확인합니다.
 - `/healthz`: 프로세스 생존 여부. 외부 의존성 장애와 분리합니다.
 - `/readyz`: PostgreSQL과 필수 초기화가 요청을 받을 수 있는 상태인지 확인합니다.
 

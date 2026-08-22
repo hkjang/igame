@@ -210,6 +210,15 @@ func (s *Server) startGameSession(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "invalid_metadata", err.Error())
 		return
 	}
+	requestedDefenseVersion, err := requestedDefenseVersionID(metadata)
+	if err != nil {
+		writeError(w, 400, "invalid_metadata", err.Error())
+		return
+	}
+	if requestedRealmGuardVersion != nil && requestedDefenseVersion != nil {
+		writeError(w, 400, "invalid_metadata", "RealmGuard and Defense Series version pins are mutually exclusive")
+		return
+	}
 	gameID, err := s.parseGameIdentifier(r)
 	if err != nil {
 		dbError(w, err)
@@ -222,6 +231,14 @@ func (s *Server) startGameSession(w http.ResponseWriter, r *http.Request) {
 	}
 	if gameSlug == realmGuardSlug && requestedRealmGuardVersion == nil {
 		writeError(w, http.StatusPreconditionRequired, "realmguard_version_required", "realmguard_version_id from the published configuration is required")
+		return
+	}
+	if isDefenseGameSlug(gameSlug) && requestedDefenseVersion == nil {
+		writeError(w, http.StatusPreconditionRequired, "defense_version_required", "defense_content_version_id from the published configuration is required")
+		return
+	}
+	if !isDefenseGameSlug(gameSlug) && requestedDefenseVersion != nil {
+		writeError(w, 400, "invalid_metadata", "defense_content_version_id is only valid for Defense Series games")
 		return
 	}
 	if ok, msg := s.playAllowed(r, gameID); !ok {
@@ -246,6 +263,7 @@ func (s *Server) startGameSession(w http.ResponseWriter, r *http.Request) {
 	hash := sha256.Sum256([]byte(raw))
 	var id uuid.UUID
 	var pinnedRealmGuardVersion *uuid.UUID
+	var pinnedDefenseVersion *uuid.UUID
 	var started time.Time
 	tx, err := s.DB.Begin(r.Context())
 	if err != nil {
@@ -259,15 +277,22 @@ func (s *Server) startGameSession(w http.ResponseWriter, r *http.Request) {
 		_, err = tx.Exec(r.Context(), `UPDATE game_sessions SET status='abandoned',ended_at=now(),duration_ms=GREATEST(0,extract(epoch FROM(now()-started_at))*1000)::bigint WHERE user_id=$1 AND game_id=$2 AND status='active'`, p.UserID, gameID)
 	}
 	if err == nil {
-		err = tx.QueryRow(r.Context(), `INSERT INTO game_sessions(user_id,game_id,season_id,session_token_hash,client_info,realmguard_content_version_id)
+		err = tx.QueryRow(r.Context(), `INSERT INTO game_sessions(user_id,game_id,season_id,session_token_hash,client_info,realmguard_content_version_id,defense_content_version_id)
 			SELECT $1,g.id,(SELECT id FROM seasons WHERE status='active' AND now() BETWEEN starts_at AND ends_at ORDER BY starts_at DESC LIMIT 1),$2,$4,
-			CASE WHEN g.slug='realmguard' THEN (SELECT id FROM realmguard_content_versions WHERE status='published' AND ($5::uuid IS NULL OR id=$5)) END
-			FROM games g WHERE g.id=$3 AND g.status='active' AND (g.slug<>'realmguard' OR EXISTS(SELECT 1 FROM realmguard_content_versions WHERE status='published' AND ($5::uuid IS NULL OR id=$5)))
-			RETURNING id,started_at,realmguard_content_version_id`, p.UserID, hash[:], gameID, in.Metadata, requestedRealmGuardVersion).Scan(&id, &started, &pinnedRealmGuardVersion)
+			CASE WHEN g.slug='realmguard' THEN (SELECT id FROM realmguard_content_versions WHERE status='published' AND ($5::uuid IS NULL OR id=$5)) END,
+			CASE WHEN g.slug=ANY($7::text[]) THEN (SELECT id FROM defense_content_versions WHERE game_id=g.id AND status='published' AND ($6::uuid IS NULL OR id=$6)) END
+			FROM games g WHERE g.id=$3 AND g.status='active'
+			AND (g.slug<>'realmguard' OR EXISTS(SELECT 1 FROM realmguard_content_versions WHERE status='published' AND ($5::uuid IS NULL OR id=$5)))
+			AND (NOT (g.slug=ANY($7::text[])) OR EXISTS(SELECT 1 FROM defense_content_versions WHERE game_id=g.id AND status='published' AND ($6::uuid IS NULL OR id=$6)))
+			RETURNING id,started_at,realmguard_content_version_id,defense_content_version_id`, p.UserID, hash[:], gameID, in.Metadata, requestedRealmGuardVersion, requestedDefenseVersion, defenseGameSlugs).Scan(&id, &started, &pinnedRealmGuardVersion, &pinnedDefenseVersion)
 	}
 	if err != nil {
 		if err == pgx.ErrNoRows && requestedRealmGuardVersion != nil {
 			writeError(w, 409, "realmguard_config_stale", "RealmGuard content changed; reload the published configuration before starting")
+			return
+		}
+		if err == pgx.ErrNoRows && requestedDefenseVersion != nil {
+			writeError(w, 409, "defense_config_stale", "Defense Series content changed; reload the published configuration before starting")
 			return
 		}
 		dbError(w, err)
@@ -283,7 +308,26 @@ func (s *Server) startGameSession(w http.ResponseWriter, r *http.Request) {
 	if pinnedRealmGuardVersion != nil {
 		session["realmguard_version_id"] = *pinnedRealmGuardVersion
 	}
+	if pinnedDefenseVersion != nil {
+		session["defense_content_version_id"] = *pinnedDefenseVersion
+	}
 	writeJSON(w, 201, map[string]any{"session": session, "user": p})
+}
+
+func requestedDefenseVersionID(metadata map[string]any) (*uuid.UUID, error) {
+	raw, exists := metadata["defense_content_version_id"]
+	if !exists {
+		return nil, nil
+	}
+	value, ok := raw.(string)
+	if !ok || strings.TrimSpace(value) == "" {
+		return nil, fmt.Errorf("defense_content_version_id must be a UUID string")
+	}
+	id, err := uuid.Parse(value)
+	if err != nil || id == uuid.Nil {
+		return nil, fmt.Errorf("defense_content_version_id must be a non-zero UUID")
+	}
+	return &id, nil
 }
 
 func requestedRealmGuardVersionID(metadata map[string]any) (*uuid.UUID, error) {
@@ -388,6 +432,15 @@ func (s *Server) finishGameSession(w http.ResponseWriter, r *http.Request) {
 		in.Result = []byte("{}")
 	}
 	hash := sha256.Sum256([]byte(in.SessionToken))
+	var gameSlug string
+	if err := s.DB.QueryRow(r.Context(), `SELECT g.slug FROM game_sessions gs JOIN games g ON g.id=gs.game_id WHERE gs.id=$1 AND gs.user_id=$2 AND gs.session_token_hash=$3`, id, p.UserID, hash[:]).Scan(&gameSlug); err != nil {
+		writeError(w, 409, "invalid_session", "session or token not found")
+		return
+	}
+	if gameSlug == realmGuardSlug || isDefenseGameSlug(gameSlug) {
+		writeError(w, 409, "authoritative_result_required", "this game session must be completed through its authoritative result endpoint")
+		return
+	}
 	var status string
 	err := s.DB.QueryRow(r.Context(), `UPDATE game_sessions SET status='finished',ended_at=COALESCE(ended_at,now()),duration_ms=COALESCE(duration_ms,GREATEST(0,extract(epoch FROM(now()-started_at))*1000)::bigint),result=result||$4 WHERE id=$1 AND user_id=$2 AND status IN ('active','finished') AND session_token_hash=$3 RETURNING status`, id, p.UserID, hash[:], in.Result).Scan(&status)
 	if err != nil {
@@ -442,6 +495,10 @@ func (s *Server) submitScore(w http.ResponseWriter, r *http.Request) {
 	}
 	if gameSlug == "realmguard" {
 		writeError(w, 409, "authoritative_result_required", "RealmGuard scores must be submitted through /api/v1/realmguard/results")
+		return
+	}
+	if isDefenseGameSlug(gameSlug) {
+		writeError(w, 409, "defense_authoritative_result_required", "Defense Series scores must be submitted through /api/v1/defense/{slug}/results")
 		return
 	}
 	if in.GameID != "" {
@@ -568,6 +625,24 @@ func (s *Server) submitTelemetry(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if isDefenseGameSlug(gameSlug) {
+		if sessionStatus != "active" {
+			writeError(w, 409, "session_finished", "Defense Series telemetry is only accepted while the battle session is active")
+			return
+		}
+		if !validDefenseTelemetryEvent(in.Event) {
+			writeError(w, 400, "invalid_telemetry", "unsupported Defense Series telemetry event")
+			return
+		}
+		if len(in.Data) > 4<<10 {
+			writeError(w, 400, "invalid_telemetry", "Defense Series telemetry data must be at most 4 KiB")
+			return
+		}
+		if in.ClientEventID == nil || *in.ClientEventID == uuid.Nil || in.Sequence == nil || *in.Sequence < 1 || *in.Sequence > 100000 {
+			writeError(w, 400, "invalid_telemetry_sequence", "Defense Series telemetry requires client_event_id and a positive session-local sequence")
+			return
+		}
+	}
 	if in.GameID != "" {
 		var claimed uuid.UUID
 		if err := s.DB.QueryRow(r.Context(), `SELECT id FROM games WHERE id::text=$1 OR slug=$1`, in.GameID).Scan(&claimed); err != nil || claimed != gameID {
@@ -577,6 +652,10 @@ func (s *Server) submitTelemetry(w http.ResponseWriter, r *http.Request) {
 	}
 	if gameSlug == realmGuardSlug {
 		s.insertRealmGuardTelemetry(w, r, p, in, gameID, occurred, hash[:])
+		return
+	}
+	if isDefenseGameSlug(gameSlug) {
+		s.insertDefenseTelemetry(w, r, p, in, gameID, occurred, hash[:])
 		return
 	}
 	var count int
@@ -693,6 +772,10 @@ func (s *Server) rankings(w http.ResponseWriter, r *http.Request) {
 	}
 	if gameSlug == realmGuardSlug {
 		writeError(w, 409, "realmguard_ranking_required", "RealmGuard rankings must use /api/v1/realmguard/rankings")
+		return
+	}
+	if isDefenseGameSlug(gameSlug) {
+		writeError(w, 409, "defense_ranking_required", "Defense Series rankings must use /api/v1/defense/{slug}/rankings")
 		return
 	}
 	period := r.URL.Query().Get("period")
