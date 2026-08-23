@@ -16,6 +16,16 @@ Production build는 RealmGuard와 Defense Series source가 locked Phaser depende
 
 서비스 릴리스와 게임 콘텐츠는 서로 다른 수명 주기를 가집니다. `igame:v0.4.0`에는 회귀 호환용 RealmGuard 콘텐츠 `0.2.0`과 Defense Series 콘텐츠 `0.3.0`이 함께 들어갑니다. Web·SDK·이미지 버전은 root `VERSION`을 따르지만, 기존 게임 콘텐츠 버전을 서비스 버전으로 덮어쓰지 않습니다. 공식 세션은 각 게임 public config에서 읽은 immutable snapshot UUID를 사용합니다.
 
+## 매뉴얼 PDF 재생성
+
+`docs/`의 세 PDF는 `docs/guide.md`, `docs/cru-manual.md`, `docs/architecture.md`에서 생성합니다. 이전에는 생성 파이프라인이 저장소에 없어 제품이 바뀌어도 다시 만들 수 없었습니다.
+
+```bash
+make docs-pdf
+```
+
+Release browser gate와 같은 `mcr.microsoft.com/playwright:v1.55.0-noble` 컨테이너에서 Chromium 인쇄로 만듭니다. Playwright는 여기서도 repository dependency가 아니라 컨테이너 안에서만 설치합니다. 컨테이너에는 한글 글꼴이 없어 빌드 시 `fonts-noto-cjk`를 설치하며, 렌더링된 page가 외부 자원을 참조하면 인쇄를 중단합니다. 표지의 서비스 버전은 root `VERSION`을 따릅니다. 발행일은 기본적으로 빌드 당일이며 `DOCS_PDF_DATE=YYYY-MM-DD`로 고정할 수 있습니다.
+
 ## 로컬 후보 생성
 
 Docker daemon을 준비한 다음 실행합니다. Syft가 있으면 SPDX JSON도 만들고, 없으면 단일 archive와 그 checksum을 만들며 경고합니다. GitHub CI에서는 Syft가 필수로 설치됩니다.
