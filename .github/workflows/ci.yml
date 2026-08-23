@@ -51,6 +51,9 @@ jobs:
       - name: Test
         run: make test
 
+      - name: Test Go concurrency under the race detector
+        run: make test-race
+
       - name: Scan reachable Go vulnerabilities
         shell: bash
         run: |

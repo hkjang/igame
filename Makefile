@@ -6,7 +6,7 @@ IMAGE := igame:v$(VERSION)
 COMMIT := $(shell git rev-parse --short=12 HEAD 2>/dev/null || printf unknown)
 BUILD_DATE := $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 
-.PHONY: help deps fmt lint test sdk-build web-build check-offline-bundle build docker-build smoke realmguard-smoke defense-smoke release verify-release check-contract clean
+.PHONY: help deps fmt lint test test-race sdk-build web-build check-offline-bundle build docker-build smoke realmguard-smoke defense-smoke release verify-release check-contract clean
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*## "; printf "igame build targets:\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -30,6 +30,9 @@ test: ## Run Go, SDK, and frontend tests
 	go test ./cmd/... ./internal/... ./migrations/...
 	npm --prefix sdk/gamehub-js test
 	npm --prefix web test
+
+test-race: ## Run the Go tests under the race detector
+	go test -race ./cmd/... ./internal/... ./migrations/...
 
 sdk-build: ## Build the JavaScript Game SDK
 	npm --prefix sdk/gamehub-js run build
