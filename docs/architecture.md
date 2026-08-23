@@ -6,7 +6,7 @@
 
 ## 🏛️ 1. 시스템 토폴로지 및 런타임 구조
 
-igame은 Go 1.25+ 기반의 단일 실행 바이너리 안에 React 19 정적 자산과 Phaser 엔진 번들을 내장(go:embed)하여, 외부 인터넷 통신이 일체 없는 폐쇄망(Air-Gapped) 환경에서 동작합니다.
+igame은 Go 1.26+ 기반의 단일 실행 바이너리 안에 React 19 정적 자산과 Phaser 엔진 번들을 내장(go:embed)하여, 외부 인터넷 통신이 일체 없는 폐쇄망(Air-Gapped) 환경에서 동작합니다.
 
 ```
 Client Browser (React 19 + Phaser)
@@ -43,7 +43,11 @@ Client Browser (React 19 + Phaser)
 
 - **규격:** Model Context Protocol (Streamable HTTP)
 - **엔드포인트:** `/mcp`
-- **도구 제공:**
-  - `get_game_catalog`: 등록된 게임 목록 및 메타데이터 조회
-  - `get_leaderboard`: 실시간 및 시즌 랭킹 조회
-  - `analyze_game_strategy`: AI Co-Pilot 전술 분석 지원
+- **세션 유지:** `GET /mcp`은 서버가 먼저 보내는 message가 없는 열린 SSE stream이며 25초마다 keep-alive만 전송합니다. reverse proxy의 stream idle timeout은 이보다 길게 설정해야 합니다
+- **제공 도구:**
+  - `games_list` / `game_get`: 등록된 게임 목록과 개별 메타데이터 조회
+  - `leaderboard_get`: 게임별 개인·부서·팀 랭킹 조회
+  - `defense_config_get` / `defense_rankings_get`: Defense Series의 게시된 콘텐츠와 버전 고정 랭킹 조회
+  - `profile_get` / `events_list`: 인증된 사용자 프로필과 사내 이벤트 조회
+  - `game_session_start` / `score_submit`: 서명된 게임 세션 시작과 점수 제출
+- **권한:** API 키로 접근할 때는 도구별로 `games:read`, `rankings:read`, `profile:read`, `sessions:write`, `scores:write` scope를 각각 요구하며 `mcp:access`가 함께 있어야 합니다
