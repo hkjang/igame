@@ -28,7 +28,7 @@
 
 - Backend: Go, PostgreSQL, REST/SSE, MCP Streamable HTTP
 - Frontend: React + TypeScript + Vite, Phaser(RealmGuard runtime)
-- UI: 접근성과 장기 유지보수가 검증된 Material UI(MUI)를 사용하고 애플리케이션 자산은 번들에 포함합니다. 본문 기준 16px, 100~125% 개인 글자 확대, 키보드 포커스와 대비를 유지합니다.
+- UI: 접근성과 장기 유지보수가 검증된 Material UI(MUI)를 사용하고 애플리케이션 자산은 번들에 포함합니다. 본문 기준 16px, 100~125% 개인 글자 확대, 키보드 포커스와 대비를 유지합니다. 어두운 화면과 밝은 화면을 모두 제공하며 기본값은 운영체제 설정을 따릅니다. 두 팔레트 모두 본문·버튼 대비가 WCAG AA를 만족하는지 테스트로 확인합니다.
 - Deployment: `igame:v<version>` 단일 이미지. 최종 runtime은 package manager와 shell이 없는 `scratch` 기반이며 외부 CDN이나 실행 중 패키지 다운로드가 없습니다.
 
 초기에는 PostgreSQL만 사용하는 모듈러 모놀리스로 운영하고, 동시 접속 규모가 커질 때에만 실시간 런타임이나 랭킹을 분리하는 것이 권장됩니다.

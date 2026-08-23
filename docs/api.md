@@ -85,7 +85,8 @@
 | GET | `/api/v1/defense/versions/pending` | manager/admin session; 동일 team 검토 대기 version |
 | GET | `/api/v1/defense/{slug}/versions/{id}/preview` | manager/operator/admin session; 기록 없는 연습 설정 |
 | POST | `/api/v1/defense/versions/{id}/review` | manager/admin session; 승인/반려 |
-| GET | `/api/v1/admin/audit` | admin session 또는 admin 역할 + `admin:*` 키, 감사 조회 |
+| GET | `/api/v1/admin/status` | admin/operator, 설치 상태 조회: 서비스 버전·timezone·공개 URL, DB 도달 여부·지연·pool 사용량, 정책 5종 on/off, 게임별 게시 콘텐츠 버전, 증가형 table의 통계 기반 행 수 추정 |
+| GET | `/api/v1/admin/audit` | admin session 또는 admin 역할 + `admin:*` 키, 감사 조회. `limit`(기본 50, 최대 200)·`offset`·`q`를 받으며 응답에 필터 적용 후 전체 건수 `total`을 함께 반환합니다. `q`는 수행자 아이디·작업·대상 유형·대상 ID·IP를 부분 일치로 검색합니다. `format=csv`를 붙이면 같은 `q` 조건의 **전체 기록**을 UTF-8 BOM CSV로 스트리밍하며(`limit`/`offset` 무시), 내보내기 자체도 `audit.export`로 감사에 남습니다 |
 
 OIDC client secret과 AI API key는 write-only입니다. 설정 조회 응답은 원문 대신 `client_secret_configured` 또는 `api_key_configured` 상태를 반환합니다.
 

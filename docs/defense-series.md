@@ -69,6 +69,8 @@ MCP `game_session_start`로 세 게임을 시작할 때도 먼저 `defense_confi
 - 개인 원시 답안은 감사·교육 목적에 필요한 기간만 보존합니다.
 - 인사평가나 징계에 연결하려면 별도 사내 정책과 고지를 먼저 적용합니다.
 
+거부된 공식 결과는 `defense.result.reject` 감사 항목으로 slug·오류 code·사유와 함께 남고, telemetry report의 `rejected_results`가 조회 기간의 건수를 보여 줍니다. attestation은 완전한 서버 시뮬레이션이 아니므로 이 수치의 급증을 이상 탐지 신호로 감시합니다.
+
 관리 report는 현재 published UUID와 그 `policy_version`만 집계합니다. Telemetry의 `average_game_score`는 해당 snapshot의 검증된 게임 점수 평균이며 호환 필드 `average_score`와 같은 값입니다. Learning report의 `participants`는 해당 snapshot에서 검증 결과를 가진 고유 사용자, `plays`는 검증된 시도, `battle_clear_rate`는 승리 시도 비율입니다. Learning report의 `completion_rate`는 개별 전투 승률이 아니라 해당 pack의 모든 campaign 완료 사용자 비율이며, `topics`/`questions`는 서버가 판정한 답안만 집계합니다. 과거 snapshot 결과는 보존되지만 새 policy report에 섞이지 않습니다.
 
 ## Defense Content Studio

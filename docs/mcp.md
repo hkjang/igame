@@ -31,7 +31,7 @@ curl --no-buffer https://igame.company.local/mcp \
   }'
 ```
 
-이후 요청에는 `MCP-Protocol-Version: 2025-11-25`를 포함합니다. 현재 서버는 stateless 방식이라 `Mcp-Session-Id`와 재개 가능한 event ID를 발급하지 않습니다. 응답을 SSE로 받을 때는 proxy buffering을 끕니다. JSON-RPC batch는 지원하지 않습니다.
+이후 요청에는 `MCP-Protocol-Version: 2025-11-25`를 포함합니다. 현재 서버는 stateless 방식이라 `Mcp-Session-Id`와 재개 가능한 event ID를 발급하지 않습니다. 응답을 SSE로 받을 때는 proxy buffering을 끕니다. JSON-RPC batch는 지원하지 않습니다. `GET /mcp`은 서버가 먼저 보내는 message가 없는 열린 SSE stream이며 25초마다 keep-alive comment만 보냅니다. client가 끊거나 서비스가 종료를 시작하면 stream을 닫으므로, 즉시 끊고 3초마다 재접속하며 매번 인증을 반복하는 동작은 발생하지 않습니다. reverse proxy의 stream idle timeout은 25초보다 길게 둡니다.
 
 ## 제공 tool
 
