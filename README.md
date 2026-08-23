@@ -91,7 +91,7 @@ make smoke
 
 릴리스 이미지는 `VERSION`을 기준으로 만듭니다. 결과물 `dist/igame-v<version>.tar.gz`는 별도 tar 포장 없이 `docker save igame:v<version> | gzip`의 출력입니다.
 
-서비스, Docker image, web application, RealmGuard/Defense Series content bundle과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.3.0`으로 정렬됩니다. SDK의 server-authoritative completion API도 `gamehub-js` `0.3.0`에 포함됩니다.
+서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.4.0`으로 정렬됩니다. RealmGuard 콘텐츠 `0.2.0`과 Defense Series 콘텐츠 `0.3.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
 
 ```bash
 make release

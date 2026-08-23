@@ -8,7 +8,12 @@ WEB_DIR=${REPO_DIR}/web
 SDK_DIR=${REPO_DIR}/sdk/gamehub-js
 DIST_DIR=${WEB_DIR}/dist
 VERSION=$(tr -d '[:space:]' < "${REPO_DIR}/VERSION")
+# Game content and the service have separate lifecycles, as docs/release.md
+# states: the image carries whatever content pack was last published and the
+# service version must not overwrite it. Both packs are therefore pinned here,
+# and a content release moves its own pin alongside a new seed migration.
 REALMGUARD_CONTENT_VERSION=0.2.0
+DEFENSE_CONTENT_VERSION=0.3.0
 
 fail() {
   printf 'Offline bundle contract failed: %s\n' "$1" >&2
@@ -35,8 +40,8 @@ grep -R -E -q "from[[:space:]]+['\"]phaser['\"]|import\([[:space:]]*['\"]phaser[
   || fail 'RealmGuard source does not import the bundled Phaser runtime'
 grep -R -F -q "REALMGUARD_VERSION = '${REALMGUARD_CONTENT_VERSION}'" "${WEB_DIR}/src/games/realmguard" \
   || fail "RealmGuard preserved content version is not ${REALMGUARD_CONTENT_VERSION}"
-grep -R -E -q "DEFENSE_SERIES_VERSION[[:space:]]*=[[:space:]]*['\"]${VERSION}['\"]" "${WEB_DIR}/src/games/defense" \
-  || fail 'Defense Series content version does not match VERSION'
+grep -R -E -q "DEFENSE_SERIES_VERSION[[:space:]]*=[[:space:]]*['\"]${DEFENSE_CONTENT_VERSION}['\"]" "${WEB_DIR}/src/games/defense" \
+  || fail "Defense Series preserved content version is not ${DEFENSE_CONTENT_VERSION}"
 
 for slug in office-guardians cyber-fortress ai-nexus-defense; do
   grep -R -F -q "${slug}" "${WEB_DIR}/src/games/defense" \
@@ -77,4 +82,4 @@ for answer_id in A B C safe unsafe correct wrong; do
 done
 
 printf 'Offline RealmGuard %s and Defense Series %s bundles verified (igame %s, Phaser %s).\n' \
-  "${REALMGUARD_CONTENT_VERSION}" "${VERSION}" "${VERSION}" "${PHASER_RANGE}"
+  "${REALMGUARD_CONTENT_VERSION}" "${DEFENSE_CONTENT_VERSION}" "${VERSION}" "${PHASER_RANGE}"

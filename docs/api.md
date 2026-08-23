@@ -135,7 +135,7 @@ POST /api/v1/games/cyber-fortress/sessions HTTP/1.1
 Authorization: Bearer igk_...
 Content-Type: application/json
 
-{"metadata":{"client":"gamehub-js","client_version":"0.3.0","defense_content_version_id":"9ea33ec1-39a7-4e65-ad57-ae11a6b2790f"}}
+{"metadata":{"client":"gamehub-js","client_version":"0.4.0","defense_content_version_id":"9ea33ec1-39a7-4e65-ad57-ae11a6b2790f"}}
 ```
 
 pin이 없으면 `428 defense_version_required`, UUID가 현재 slug의 published snapshot이 아니면 `409 defense_config_stale`입니다. 성공 응답의 `session.defense_content_version_id`는 요청 UUID와 정확히 같아야 합니다. 게시 race가 발생한 client는 config를 다시 읽고 새 session을 생성합니다. 이전 UUID를 새 session에 묵시적으로 대입하지 않습니다.
