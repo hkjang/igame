@@ -1,3 +1,4 @@
+import { localizedMessage } from './errorMessages';
 import type { ApiList, Game, PersonalKey, PublicConfig, RankingEntry, User, VersionInfo } from '../types';
 
 export class ApiError extends Error {
@@ -13,6 +14,22 @@ export class ApiError extends Error {
 }
 
 type Envelope<T> = T | { data: T } | { item: T } | { items: T[]; total?: number } | { user: T } | { game: T };
+
+let sessionExpiredHandler: (() => void) | undefined;
+
+/**
+ * Registers the callback that runs when the API rejects a request because the
+ * session is gone. Sessions last 12 hours, so this is a normal end to a working
+ * day rather than an error the user should have to decode.
+ */
+export function onSessionExpired(handler: () => void) {
+  sessionExpiredHandler = handler;
+}
+
+/** Sign-in and the boot probe answer 401 in normal operation, not on expiry. */
+function isAuthEndpoint(path: string): boolean {
+  return path.startsWith('/api/v1/auth/') || path === '/api/v1/public/config';
+}
 
 function csrfToken(): string | undefined {
   const part = document.cookie.split('; ').find((value) => value.startsWith('igame_csrf='));
@@ -78,8 +95,10 @@ async function request<T>(path: string, init: RequestInit = {}, preserveEnvelope
     const apiError = body && typeof body === 'object' && 'error' in body
       ? (body as { error?: { message?: string; code?: string } }).error
       : undefined;
-    const message = apiError?.message || (typeof body === 'string' && body) || `요청을 처리하지 못했습니다. (${response.status})`;
-    throw new ApiError(message, response.status, apiError?.code, body);
+    const serverMessage = apiError?.message || (typeof body === 'string' && body) || `요청을 처리하지 못했습니다. (${response.status})`;
+    const retryAfter = Number(response.headers.get('retry-after'));
+    if (response.status === 401 && !isAuthEndpoint(path)) sessionExpiredHandler?.();
+    throw new ApiError(localizedMessage(apiError?.code, serverMessage, retryAfter), response.status, apiError?.code, body);
   }
   return preserveEnvelope ? body as T : unwrap<T>(body as Envelope<T>);
 }
@@ -192,7 +211,14 @@ export const api = {
   revokePersonalKey: (id: string) => request<void>(`/api/v1/me/api-keys/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   updatePersonalKey: (id: string, input: { name: string; permissions: string[]; expires_at?: string }) => request<void>(`/api/v1/me/api-keys/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(input) }),
   changePassword: (current_password: string, new_password: string) => request<void>('/api/v1/me/password', { method: 'PUT', body: JSON.stringify({ current_password, new_password }) }),
-  adminList: <T>(resource: string) => list<T>(`/api/v1/admin/${resource}`),
+  adminList: <T>(resource: string, page: { limit?: number; offset?: number; q?: string } = {}) => {
+    const query = new URLSearchParams();
+    if (page.limit !== undefined) query.set('limit', String(page.limit));
+    if (page.offset) query.set('offset', String(page.offset));
+    if (page.q) query.set('q', page.q);
+    const suffix = query.size > 0 ? `?${query}` : '';
+    return list<T>(`/api/v1/admin/${resource}${suffix}`);
+  },
   adminCreate: <T>(resource: string, input: unknown) => request<T>(`/api/v1/admin/${resource}`, { method: 'POST', body: JSON.stringify(input) }),
   adminUpdate: <T>(resource: string, id: string, input: unknown) => request<T>(`/api/v1/admin/${resource}/${encodeURIComponent(id)}`, { method: resource === 'users' ? 'PATCH' : 'PUT', body: JSON.stringify(input) }),
   adminDelete: (resource: string, id: string) => request<void>(`/api/v1/admin/${resource}/${encodeURIComponent(id)}`, { method: 'DELETE' }),

@@ -7,13 +7,18 @@ import {
   Typography,
 } from "@mui/material";
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
+import { lazy, Suspense } from "react";
 import { Link as RouterLink, useParams } from "react-router-dom";
 import { ErrorPanel } from "../components/ErrorPanel";
+import { LoadingScreen } from "../components/LoadingScreen";
 import { defenseStudioAPI } from "../games/defense/api";
-import { DefenseSeriesGame } from "../games/defense/DefenseSeriesGame";
 import { isDefenseSlug } from "../games/defense/content";
 import { useAsync } from "../hooks/useAsync";
 import { useAuth } from "../state/AuthContext";
+
+// Loaded on demand like the play route does: this module pulls in the Defense
+// engine and, through it, Phaser.
+const DefenseSeriesGame = lazy(() => import("../games/defense/DefenseSeriesGame"));
 
 export function DefensePreviewPage() {
   const { user } = useAuth();
@@ -73,15 +78,17 @@ export function DefensePreviewPage() {
       <Alert severity="warning" sx={{ mb: 2 }}>
         미리보기에서는 세션·교육 답안·결과·진행도·랭킹을 저장하지 않습니다.
       </Alert>
-      <DefenseSeriesGame
-        preview={{
-          slug: validSlug,
-          pack: preview.data.pack,
-          label: preview.data.envelope.version.label,
-        }}
-        onStart={async () => true}
-        onFinish={async () => undefined}
-      />
+      <Suspense fallback={<LoadingScreen label="게임 엔진을 불러오는 중…" />}>
+        <DefenseSeriesGame
+          preview={{
+            slug: validSlug,
+            pack: preview.data.pack,
+            label: preview.data.envelope.version.label,
+          }}
+          onStart={async () => true}
+          onFinish={async () => undefined}
+        />
+      </Suspense>
     </Container>
   );
 }

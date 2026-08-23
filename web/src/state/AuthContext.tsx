@@ -1,5 +1,5 @@
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { api, ApiError } from '../api/client';
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { api, ApiError, onSessionExpired } from '../api/client';
 import type { PublicConfig, User, VersionInfo } from '../types';
 
 interface AuthState {
@@ -23,6 +23,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState(fallbackConfig);
   const [version, setVersion] = useState<VersionInfo>({ version: 'dev' });
   const [loading, setLoading] = useState(true);
+  const signedIn = useRef(false);
+  signedIn.current = user !== null;
+
+  // An expired session must drop the user back to the login screen instead of
+  // leaving every page showing an authentication error it cannot recover from.
+  useEffect(() => {
+    onSessionExpired(() => { if (signedIn.current) setUser(null); });
+  }, []);
 
   useEffect(() => {
     let mounted = true;

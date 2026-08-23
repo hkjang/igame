@@ -29,6 +29,7 @@ import type { DefenseSlug, DefenseVersion } from "../games/defense/types";
 import { useAsync } from "../hooks/useAsync";
 import { useAuth } from "../state/AuthContext";
 import { useSnackbar } from "../state/SnackbarContext";
+import { ErrorPanel } from './ErrorPanel';
 
 type PendingDefenseVersion = DefenseVersion & {
   game_slug: DefenseSlug;
@@ -100,7 +101,7 @@ export function DefenseReviewQueue({ enabled }: { enabled: boolean }) {
         </Box>
       </Stack>
       {result.loading && <LinearProgress />}
-      {result.error && <Alert severity="error">{result.error.message}</Alert>}
+      {result.error && <ErrorPanel error={result.error} retry={() => void result.reload()} />}
       <Stack spacing={1.5}>
         {result.data?.items.map((raw) => {
           const version = raw as PendingDefenseVersion;

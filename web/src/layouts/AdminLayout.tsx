@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import AnalyticsRounded from '@mui/icons-material/AnalyticsRounded';
 import ApprovalRounded from '@mui/icons-material/ApprovalRounded';
 import ArticleRounded from '@mui/icons-material/ArticleRounded';
@@ -21,8 +21,10 @@ import SettingsRounded from '@mui/icons-material/SettingsRounded';
 import TuneRounded from '@mui/icons-material/TuneRounded';
 import CastleRounded from '@mui/icons-material/CastleRounded';
 import ShieldRounded from '@mui/icons-material/ShieldRounded';
+import { alpha } from '@mui/material/styles';
 import { AppBar, Box, Divider, Drawer, IconButton, List, ListItemButton, ListItemIcon, ListItemText, Stack, Toolbar, Typography } from '@mui/material';
 import { Link as RouterLink, NavLink, Outlet } from 'react-router-dom';
+import { MAIN_CONTENT_ID, RouteChrome } from '../components/RouteChrome';
 import { useAuth } from '../state/AuthContext';
 
 const width = 276;
@@ -53,25 +55,27 @@ const menu: Array<{ to: string; label: string; icon: React.ReactNode; end?: bool
 export function AdminLayout() {
   const { user } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const mainRef = useRef<HTMLElement>(null);
   const isAdmin = [user?.role, ...(user?.roles ?? [])].includes('admin');
   const navigation = (
-    <Stack sx={{ height: '100%', bgcolor: '#091523' }}>
+    <Stack sx={{ height: '100%', bgcolor: 'surface.nav' }}>
       <Toolbar sx={{ gap: 1.4, minHeight: 72 }}><Box sx={{ width: 36, height: 36, bgcolor: 'primary.main', color: 'primary.contrastText', display: 'grid', placeItems: 'center', borderRadius: 2 }}><GamesRounded /></Box><Box><Typography fontWeight={900}>igame</Typography><Typography variant="body2" color="text.secondary">서비스 관리</Typography></Box></Toolbar>
       <Divider />
       <List className="admin-scrollbar" component="nav" aria-label="관리자 메뉴" sx={{ p: 1.2, overflowY: 'auto', flex: 1 }}>
-        {menu.filter((item) => !item.adminOnly || isAdmin).map((item) => <ListItemButton key={item.to} component={NavLink} to={item.to} end={item.end} onClick={() => setMobileOpen(false)} sx={{ mb: .35, borderRadius: 2, color: 'text.secondary', '&.active': { color: 'primary.main', bgcolor: 'rgba(103,215,255,.11)', boxShadow: 'inset 3px 0 #67d7ff' } }}><ListItemIcon sx={{ color: 'inherit', minWidth: 42 }}>{item.icon}</ListItemIcon><ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: 650 }} /></ListItemButton>)}
+        {menu.filter((item) => !item.adminOnly || isAdmin).map((item) => <ListItemButton key={item.to} component={NavLink} to={item.to} end={item.end} onClick={() => setMobileOpen(false)} sx={(theme) => ({ mb: .35, borderRadius: 2, color: 'text.secondary', '&.active': { color: 'primary.main', bgcolor: alpha(theme.palette.primary.main, .11), boxShadow: `inset 3px 0 ${theme.palette.primary.main}` } })}><ListItemIcon sx={{ color: 'inherit', minWidth: 42 }}>{item.icon}</ListItemIcon><ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: 650 }} /></ListItemButton>)}
       </List>
       <Divider /><List sx={{ p: 1.2 }}><ListItemButton component={RouterLink} to="/" sx={{ borderRadius: 2 }}><ListItemIcon><ChevronLeftRounded /></ListItemIcon><ListItemText primary="사용자 포털로" /></ListItemButton></List>
     </Stack>
   );
   return (
-    <Box sx={{ minHeight: '100vh', display: 'flex', bgcolor: '#07101d' }}>
-      <AppBar position="fixed" elevation={0} sx={{ display: { lg: 'none' }, bgcolor: 'rgba(7,16,29,.95)', borderBottom: 1, borderColor: 'divider' }}><Toolbar><IconButton aria-label="관리자 메뉴 열기" onClick={() => setMobileOpen(true)}><MenuRounded /></IconButton><Typography fontWeight={800} ml={1}>igame 서비스 관리</Typography></Toolbar></AppBar>
+    <Box sx={{ minHeight: '100dvh', display: 'flex', bgcolor: 'surface.ground' }}>
+      <RouteChrome mainRef={mainRef} />
+      <AppBar position="fixed" elevation={0} sx={(theme) => ({ display: { lg: 'none' }, bgcolor: alpha(theme.palette.surface.ground, .95), borderBottom: 1, borderColor: 'divider' })}><Toolbar><IconButton aria-label="관리자 메뉴 열기" onClick={() => setMobileOpen(true)}><MenuRounded /></IconButton><Typography fontWeight={800} ml={1}>igame 서비스 관리</Typography></Toolbar></AppBar>
       <Box component="aside" sx={{ width: { lg: width }, flexShrink: 0 }}>
         <Drawer variant="permanent" open sx={{ display: { xs: 'none', lg: 'block' }, '& .MuiDrawer-paper': { width, borderRightColor: 'divider' } }}>{navigation}</Drawer>
         <Drawer variant="temporary" open={mobileOpen} onClose={() => setMobileOpen(false)} ModalProps={{ keepMounted: true }} sx={{ display: { lg: 'none' }, '& .MuiDrawer-paper': { width } }}>{navigation}</Drawer>
       </Box>
-      <Box component="main" sx={{ flex: 1, minWidth: 0, pt: { xs: 9, lg: 0 } }}><Outlet /></Box>
+      <Box component="main" id={MAIN_CONTENT_ID} ref={mainRef} tabIndex={-1} sx={{ flex: 1, minWidth: 0, pt: { xs: 9, lg: 0 }, outline: 'none' }}><Outlet /></Box>
     </Box>
   );
 }

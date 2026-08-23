@@ -22,6 +22,7 @@ import {
 } from "@mui/material";
 import { Link as RouterLink } from "react-router-dom";
 import { useAsync } from "../hooks/useAsync";
+import { ErrorPanel } from "./ErrorPanel";
 import { useAuth } from "../state/AuthContext";
 import { useSnackbar } from "../state/SnackbarContext";
 import {
@@ -93,9 +94,7 @@ export function RealmGuardReviewQueue({ enabled }: { enabled: boolean }) {
         </Box>
       </Stack>
       {resource.loading && <LinearProgress />}
-      {resource.error && (
-        <Alert severity="error">{resource.error.message}</Alert>
-      )}
+      {resource.error && <ErrorPanel error={resource.error} retry={() => void resource.reload()} />}
       <Stack spacing={1.5}>
         {resource.data?.items.map((version) => (
           <Card key={version.id}>
