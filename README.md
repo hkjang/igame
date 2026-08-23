@@ -6,7 +6,7 @@
 
 **사내 폐쇄망에서 게임을 독립적으로 등록하고 운영하는 엔터프라이즈 게임 플랫폼**
 
-[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://golang.org)
+[![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat&logo=go)](https://golang.org)
 [![React Version](https://img.shields.io/badge/React-19-61DAFB?style=flat&logo=react)](https://reactjs.org)
 [![Phaser Version](https://img.shields.io/badge/Phaser-3.80+-E74C3C?style=flat)](https://phaser.io)
 [![MCP Ready](https://img.shields.io/badge/MCP-Streamable%20HTTP-FF6B6B?style=flat)](https://modelcontextprotocol.io)
@@ -51,6 +51,16 @@ RealmGuard의 명칭·등장 개체·stage/balance 데이터와 코드 생성 �
 
 세 게임은 같은 실행 엔진과 포털 세션을 사용하지만 콘텐츠, 규칙, 진행도, 결과와 랭킹은 slug별로 분리됩니다. Cyber Fortress와 AI Nexus Defense의 교육 선택은 게임 점수와 별개의 학습 결과로 저장됩니다. 관리자는 `/admin/defense`의 Defense Content Studio에서 stage, wave, unit, 교육 이벤트와 balance를 편집하고 Test·연습 미리보기·승인/반려·게시할 수 있습니다. 브라우저가 읽은 published content UUID는 세션의 `defense_content_version_id`로 정확히 고정되며, 전용 결과·랭킹 경로만 공식 기록을 생성합니다. 자세한 운영 및 API 계약은 [Defense Series 운영 가이드](docs/defense-series.md)를 참조하세요.
 
+## 접근성과 운영
+
+`v0.4.0`은 게임을 추가하는 대신 포털 전반의 접근성, 운영 도구와 실행 성능을 보강합니다. schema와 환경변수는 `v0.3.0`과 같고 게임 콘텐츠 version도 그대로이므로, 기존 결과·랭킹·진행도를 보존한 채 image 교체만으로 올릴 수 있습니다.
+
+포털은 본문 건너뛰기 link, 화면 전환 시 focus 이동과 음성 안내, route별 브라우저 제목을 제공합니다. 어두운 화면과 밝은 화면을 모두 지원하고 기본값은 운영체제 설정을 따르며, 두 palette 모두 본문·버튼 대비가 WCAG AA를 만족하는지 테스트로 확인합니다. 게시된 공지는 `/notices`에서 전체를 검색해 볼 수 있습니다. 사용자에게 보이는 API 오류는 한국어로 표시하고, session이 만료되면 로그인 화면으로 돌려보낸 뒤 보던 위치로 복귀합니다.
+
+관리자 콘솔은 감사 로그·사용자·게임 목록을 page 단위로 조회하며 필터를 적용한 뒤의 전체 건수를 함께 표시합니다. 감사 로그는 같은 검색 조건으로 CSV 내보내기가 가능하며, 화면의 page가 아니라 조건에 맞는 전체 기록을 streaming합니다. `/admin` 대시보드의 서비스 상태 card는 DB 도달 여부와 커넥션 pool, 정책 5종 on-off, 게임별 게시 콘텐츠 version, 증가형 table의 누적 행 수를 한곳에 모읍니다. 최종 runtime image에는 shell이 없어 컨테이너 내부를 직접 볼 수 없으므로 이 화면이 1차 진단 지점입니다.
+
+로컬 암호 로그인에는 rate limiter가 내장되고, 알 수 없는 계정도 실제 계정과 같은 비용의 bcrypt 비교를 수행해 응답 시간으로 계정 존재 여부를 알아낼 수 없습니다. 거부된 Defense Series 결과는 RealmGuard와 같은 방식으로 감사에 남고 운영 report에 건수가 집계됩니다. 진입 bundle은 route 단위 분할로 2,127 kB에서 638 kB(gzip 618 → 200 kB)로 줄어, 게임을 실행하지 않는 사용자는 Phaser를 내려받지 않습니다. 자세한 동작과 업그레이드 시 확인할 항목은 [운영 및 장애 대응](docs/operations.md)과 [보안 및 키 관리](docs/security.md)를 참조하세요.
+
 ## 빠른 시작
 
 PostgreSQL 데이터베이스를 먼저 준비한 뒤 `.env.example`을 `.env`로 복사하고 네 값을 채웁니다. 애플리케이션이 받는 환경변수는 다음 네 개뿐입니다.
@@ -84,6 +94,7 @@ printf 'ENCRYPTION_KEY=base64:%s\n' "$(openssl rand -base64 32 | tr -d '\n')"
 
 ```bash
 make test
+make test-race
 make build
 make docker-build
 make smoke
