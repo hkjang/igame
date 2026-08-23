@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"net/http"
 	"path"
+	"regexp"
 	"strings"
 )
 
@@ -35,6 +36,7 @@ func Handler() http.Handler {
 		}
 		if f, err := root.Open(clean); err == nil {
 			_ = f.Close()
+			w.Header().Set("Cache-Control", cacheControlFor(clean))
 			files.ServeHTTP(w, r)
 			return
 		}
@@ -56,3 +58,16 @@ func serveIndex(w http.ResponseWriter, r *http.Request, index []byte) {
 		_, _ = w.Write(index)
 	}
 }
+
+// cacheControlFor lets browsers keep content-hashed bundle assets indefinitely.
+// Everything else is revalidated so an upgraded image never serves stale files
+// from a workstation that cannot reach an external cache buster.
+func cacheControlFor(name string) string {
+	if strings.HasPrefix(name, "assets/") && hashedAsset.MatchString(path.Base(name)) {
+		return "public, max-age=31536000, immutable"
+	}
+	return "no-cache"
+}
+
+// Vite emits <name>-<hash>.<ext>; the hash changes whenever the content does.
+var hashedAsset = regexp.MustCompile(`-[A-Za-z0-9_]{8,}\.[A-Za-z0-9]+$`)

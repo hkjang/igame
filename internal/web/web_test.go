@@ -33,3 +33,20 @@ func TestSPAFallbackDoesNotMaskMissingAPIsOrAssets(t *testing.T) {
 		}
 	}
 }
+
+func TestCacheControlOnlyPinsHashedBundleAssets(t *testing.T) {
+	immutable := "public, max-age=31536000, immutable"
+	tests := map[string]string{
+		"assets/index-DbG3xk91.js":  immutable,
+		"assets/theme-a1b2c3d4.css": immutable,
+		"assets/logo.svg":           "no-cache",
+		"assets/index.js":           "no-cache",
+		"favicon.ico":               "no-cache",
+		"licenses/phaser":           "no-cache",
+	}
+	for name, want := range tests {
+		if got := cacheControlFor(name); got != want {
+			t.Fatalf("cacheControlFor(%q)=%q, want %q", name, got, want)
+		}
+	}
+}
