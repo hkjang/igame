@@ -29,10 +29,13 @@ describe('preferences', () => {
   });
 
   it('survives a browser that refuses site data', () => {
-    vi.spyOn(globalThis.localStorage, 'getItem').mockImplementation(() => { throw new Error('blocked'); });
-    vi.spyOn(globalThis.localStorage, 'setItem').mockImplementation(() => { throw new Error('blocked'); });
+    // Replacing the global rather than spying on a method keeps this
+    // independent of how the environment happens to implement Storage.
+    const blocked = () => { throw new Error('blocked'); };
+    vi.stubGlobal('localStorage', { getItem: blocked, setItem: blocked, removeItem: blocked, clear: blocked, key: blocked, length: 0 });
     expect(loadPreferences()).toEqual({ fontScale: 100, motion: true, theme: 'system' });
     expect(savePreferences({ fontScale: 110, motion: false, theme: 'dark' })).toBe(false);
+    vi.unstubAllGlobals();
   });
 
   it('applies the scale and motion flag to the document', () => {
