@@ -8,6 +8,9 @@ readonly BASE_URL="${1:-http://127.0.0.1:8080}"
 readonly USERNAME="${2:-}"
 readonly PASSWORD="${3:-}"
 readonly EXPECTED_VERSION="$(tr -d '[:space:]' < "${REPO_DIR}/VERSION")"
+# Game content and the service have separate lifecycles, so the published
+# Defense pack keeps its own version the way RealmGuard content keeps 0.2.0.
+readonly EXPECTED_DEFENSE_CONTENT_VERSION="0.3.0"
 readonly MANAGER_SAME_USERNAME="${IGAME_MANAGER_SAME_USERNAME:-}"
 readonly MANAGER_SAME_PASSWORD="${IGAME_MANAGER_SAME_PASSWORD:-}"
 readonly MANAGER_EMPTY_USERNAME="${IGAME_MANAGER_EMPTY_USERNAME:-}"
@@ -146,7 +149,7 @@ start_session_with_cookie() {
   local version_id="$3"
   local purpose="$4"
   local body
-  body="$(jq --null-input --compact-output --arg version_id "${version_id}" --arg purpose "${purpose}" --arg version "${EXPECTED_VERSION}" \
+  body="$(jq --null-input --compact-output --arg version_id "${version_id}" --arg purpose "${purpose}" --arg version "${EXPECTED_DEFENSE_CONTENT_VERSION}" \
     '{metadata:{client:"release-smoke",client_version:$version,purpose:$purpose,defense_content_version_id:$version_id}}')"
   request_with_cookie "${cookie_jar}" POST "/api/v1/games/${slug}/sessions" 201 "${body}"
 }
@@ -243,7 +246,7 @@ LAST_VERIFIED_RESULT_SCORE=''
 
 for slug in "${DEFENSE_SLUGS[@]}"; do
   game_json="$(request GET "/api/v1/games/${slug}" 200)"
-  jq --exit-status --arg slug "${slug}" --arg name "${DEFENSE_NAMES[${slug}]}" --arg version "${EXPECTED_VERSION}" \
+  jq --exit-status --arg slug "${slug}" --arg name "${DEFENSE_NAMES[${slug}]}" --arg version "${EXPECTED_DEFENSE_CONTENT_VERSION}" \
     '.game.slug == $slug and .game.name == $name and .game.game_url == ("/games/"+$slug) and .game.version == $version and .game.status == "active"' \
     <<<"${game_json}" >/dev/null
   curl --fail --silent --show-error --max-time 15 "${BASE_URL}/games/${slug}" | grep -Eiq '<!doctype html|<html'
@@ -253,7 +256,7 @@ for slug in "${DEFENSE_SLUGS[@]}"; do
   config_file="${TEMP_DIR}/${slug}.json"
   request GET "/api/v1/defense/${slug}/config" 200 >"${config_file}"
   jq --exit-status \
-    --arg slug "${slug}" --arg version "${EXPECTED_VERSION}" \
+    --arg slug "${slug}" --arg version "${EXPECTED_DEFENSE_CONTENT_VERSION}" \
     --argjson stages "${EXPECTED_STAGES[${slug}]}" --argjson towers "${EXPECTED_TOWERS[${slug}]}" \
     --argjson enemies "${EXPECTED_ENEMIES[${slug}]}" --argjson bosses "${EXPECTED_BOSSES[${slug}]}" \
     --argjson heroes "${EXPECTED_HEROES[${slug}]}" --argjson events "${EXPECTED_EVENTS[${slug}]}" \
@@ -290,7 +293,7 @@ for slug in "${DEFENSE_SLUGS[@]}"; do
   assert_public_redaction "${mcp_config_file}"
 
   request GET "/api/v1/defense/${slug}/version" 200 \
-    | jq --exit-status --arg id "${VERSION_IDS[${slug}]}" --arg version "${EXPECTED_VERSION}" \
+    | jq --exit-status --arg id "${VERSION_IDS[${slug}]}" --arg version "${EXPECTED_DEFENSE_CONTENT_VERSION}" \
       '.version.id == $id and .version.content_version == $version and (.version.checksum | test("^[0-9a-f]{64}$"))' >/dev/null
 done
 
