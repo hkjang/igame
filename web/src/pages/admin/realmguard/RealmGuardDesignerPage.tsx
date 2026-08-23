@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import AddRounded from '@mui/icons-material/AddRounded';
 import BugReportRounded from '@mui/icons-material/BugReportRounded';
 import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
@@ -9,6 +9,8 @@ import ScienceRounded from '@mui/icons-material/ScienceRounded';
 import { Alert, Box, Button, Card, CardContent, Chip, CircularProgress, Container, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControl, Grid, InputLabel, MenuItem, Paper, Select, Stack, Tab, Tabs, TextField, Typography } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import { ErrorPanel } from '../../../components/ErrorPanel';
+import { UnsavedChangesDialog } from '../../../components/UnsavedChangesDialog';
+import { useUnsavedGuard } from '../../../hooks/useUnsavedGuard';
 import { useAsync } from '../../../hooks/useAsync';
 import { useAuth } from '../../../state/AuthContext';
 import { useSnackbar } from '../../../state/SnackbarContext';
@@ -34,18 +36,68 @@ const numericKeys = new Set(['number', 'starting_gold', 'lives', 'cost', 'damage
 const quickKeys = ['id', 'name', 'label', 'title', 'subtitle', 'description', 'number', 'mode', 'theme', 'gimmick', 'starting_gold', 'lives', 'cost', 'damage', 'range', 'fire_rate', 'projectile_speed', 'hp', 'speed', 'armor', 'reward', 'life_damage', 'radius', 'respawn_seconds', 'cooldown', 'unlock_stage'];
 const structuredKeys = ['path', 'paths', 'tower_spots', 'entries', 'branches', 'traits'];
 
-function QuickEditor({ data, onChange }: { data: unknown; onChange: (data: unknown) => void }) {
+/**
+ * A JSON sub-field that keeps its own text while it is being typed.
+ *
+ * Binding the textarea straight to `JSON.stringify(model)` made these fields
+ * unusable: every keystroke that left the text momentarily invalid was dropped
+ * and the field snapped back to the previous value, so the only way to change
+ * one was to paste complete valid JSON.
+ */
+function JsonSubField({ resetKey, initial, label, helperText, onChange, onValidity }: {
+  resetKey: string;
+  initial: unknown;
+  label: string;
+  helperText: string;
+  onChange: (value: unknown) => void;
+  onValidity: (key: string, message: string) => void;
+}) {
+  const [text, setText] = useState(() => JSON.stringify(initial, null, 2));
+  const [error, setError] = useState('');
+  // Resync only when the edited item changes, never while typing.
+  useEffect(() => {
+    setText(JSON.stringify(initial, null, 2));
+    setError('');
+    onValidity(resetKey, '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetKey]);
+  useEffect(() => () => onValidity(resetKey, ''), [onValidity, resetKey]);
+  return <TextField
+    label={label}
+    multiline
+    minRows={3}
+    value={text}
+    error={Boolean(error)}
+    helperText={error || helperText}
+    inputProps={{ spellCheck: false }}
+    onChange={(event) => {
+      const next = event.target.value;
+      setText(next);
+      try {
+        onChange(JSON.parse(next));
+        setError('');
+        onValidity(resetKey, '');
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : 'JSON 오류';
+        setError(message);
+        onValidity(resetKey, message);
+      }
+    }}
+  />;
+}
+
+function QuickEditor({ data, onChange, onValidity }: { data: unknown; onChange: (data: unknown) => void; onValidity: (key: string, message: string) => void }) {
   const [selected, setSelected] = useState(0);
   if (Array.isArray(data)) {
     const index = Math.min(selected, Math.max(0, data.length - 1));
     const item = data[index] && typeof data[index] === 'object' ? data[index] as Record<string, unknown> : {};
     const update = (key: string, value: unknown) => onChange(data.map((entry, itemIndex) => itemIndex === index ? { ...(entry as Record<string, unknown>), [key]: value } : entry));
-    return <Stack spacing={2}><TextField select label="편집 항목" value={index} onChange={(event) => setSelected(Number(event.target.value))}>{data.map((entry, itemIndex) => { const row = entry && typeof entry === 'object' ? entry as Record<string, unknown> : {}; return <MenuItem key={String(row.id ?? itemIndex)} value={itemIndex}>{String(row.name ?? row.label ?? row.id ?? `항목 ${itemIndex + 1}`)}</MenuItem>; })}</TextField><Grid container spacing={1.5}>{quickKeys.filter((key) => key in item).map((key) => <Grid key={key} size={{ xs: 12, sm: 6 }}><TextField label={key} value={String(item[key] ?? '')} type={numericKeys.has(key) ? 'number' : 'text'} onChange={(event) => update(key, numericKeys.has(key) ? Number(event.target.value) : event.target.value)} /></Grid>)}</Grid>{structuredKeys.filter((key) => key in item).map((key) => <TextField key={key} label={`${key} JSON`} multiline minRows={3} value={JSON.stringify(item[key], null, 2)} onChange={(event) => { try { update(key, JSON.parse(event.target.value)); } catch { /* 전체 JSON 편집기에서 오류를 확인합니다. */ } }} helperText={`${Array.isArray(item[key]) ? item[key].length : 0}개 · 좌표/그룹을 JSON 배열로 편집`} />)}</Stack>;
+    return <Stack spacing={2}><TextField select label="편집 항목" value={index} onChange={(event) => setSelected(Number(event.target.value))}>{data.map((entry, itemIndex) => { const row = entry && typeof entry === 'object' ? entry as Record<string, unknown> : {}; return <MenuItem key={String(row.id ?? itemIndex)} value={itemIndex}>{String(row.name ?? row.label ?? row.id ?? `항목 ${itemIndex + 1}`)}</MenuItem>; })}</TextField><Grid container spacing={1.5}>{quickKeys.filter((key) => key in item).map((key) => <Grid key={key} size={{ xs: 12, sm: 6 }}><TextField label={key} value={String(item[key] ?? '')} type={numericKeys.has(key) ? 'number' : 'text'} onChange={(event) => update(key, numericKeys.has(key) ? Number(event.target.value) : event.target.value)} /></Grid>)}</Grid>{structuredKeys.filter((key) => key in item).map((key) => <JsonSubField key={key} resetKey={`${index}:${key}`} initial={item[key]} label={`${key} JSON`} helperText={`${Array.isArray(item[key]) ? item[key].length : 0}개 · 좌표/그룹을 JSON 배열로 편집`} onChange={(value) => update(key, value)} onValidity={onValidity} />)}</Stack>;
   }
   if (data && typeof data === 'object') {
     const value = data as Record<string, unknown>;
     const difficulties = value.difficulties && typeof value.difficulties === 'object' ? value.difficulties as Record<string, Record<string, unknown>> : undefined;
-    if (difficulties) return <Stack spacing={2}><Typography fontWeight={800}>난이도 밸런스</Typography>{(['casual', 'normal', 'veteran'] as const).map((difficulty) => <Paper key={difficulty} variant="outlined" sx={{ p: 1.5 }}><Typography fontWeight={800} mb={1}>{difficulty}</Typography><Grid container spacing={1}>{['enemy_hp', 'enemy_speed', 'gold', 'difficulty_bonus'].map((key) => <Grid key={key} size={{ xs: 6, md: 3 }}><TextField label={key} type="number" value={Number(difficulties[difficulty]?.[key] ?? 0)} onChange={(event) => onChange({ ...value, difficulties: { ...difficulties, [difficulty]: { ...difficulties[difficulty], [key]: Number(event.target.value) } } })} /></Grid>)}</Grid></Paper>)}<Grid container spacing={1.5}>{['endless_ramp', 'endless_wave_bonus', 'sell_refund_rate', 'clear_time_target_ms', 'clear_time_bonus_divisor', 'duration_tolerance_ms', 'min_wave_duration_ms'].filter((key) => key in value).map((key) => <Grid key={key} size={{ xs: 12, sm: 6 }}><TextField label={key} type="number" value={Number(value[key])} onChange={(event) => onChange({ ...value, [key]: Number(event.target.value) })} /></Grid>)}</Grid>{['tower_upgrade_cost', 'hero_level_xp'].filter((key) => key in value).map((key) => <TextField key={key} label={`${key} JSON`} multiline minRows={2} value={JSON.stringify(value[key])} onChange={(event) => { try { onChange({ ...value, [key]: JSON.parse(event.target.value) }); } catch { /* 전체 JSON 편집기에서 오류를 표시합니다. */ } }} />)}</Stack>;
+    if (difficulties) return <Stack spacing={2}><Typography fontWeight={800}>난이도 밸런스</Typography>{(['casual', 'normal', 'veteran'] as const).map((difficulty) => <Paper key={difficulty} variant="outlined" sx={{ p: 1.5 }}><Typography fontWeight={800} mb={1}>{difficulty}</Typography><Grid container spacing={1}>{['enemy_hp', 'enemy_speed', 'gold', 'difficulty_bonus'].map((key) => <Grid key={key} size={{ xs: 6, md: 3 }}><TextField label={key} type="number" value={Number(difficulties[difficulty]?.[key] ?? 0)} onChange={(event) => onChange({ ...value, difficulties: { ...difficulties, [difficulty]: { ...difficulties[difficulty], [key]: Number(event.target.value) } } })} /></Grid>)}</Grid></Paper>)}<Grid container spacing={1.5}>{['endless_ramp', 'endless_wave_bonus', 'sell_refund_rate', 'clear_time_target_ms', 'clear_time_bonus_divisor', 'duration_tolerance_ms', 'min_wave_duration_ms'].filter((key) => key in value).map((key) => <Grid key={key} size={{ xs: 12, sm: 6 }}><TextField label={key} type="number" value={Number(value[key])} onChange={(event) => onChange({ ...value, [key]: Number(event.target.value) })} /></Grid>)}</Grid>{['tower_upgrade_cost', 'hero_level_xp'].filter((key) => key in value).map((key) => <JsonSubField key={key} resetKey={`balance:${key}`} initial={value[key]} label={`${key} JSON`} helperText="JSON 배열로 편집" onChange={(parsed) => onChange({ ...value, [key]: parsed })} onValidity={onValidity} />)}</Stack>;
   }
   return <Alert severity="info">구조화 편집기가 지원하지 않는 값은 전체 JSON 편집기를 사용하세요.</Alert>;
 }
@@ -82,10 +134,29 @@ export function RealmGuardDesignerPage() {
   const section = useAsync(() => sections.some((item) => item.id === tab) && versionId ? realmGuardDesignerAPI.section(tab as RealmSection, versionId) : Promise.resolve(undefined), [tab, versionId]);
   const telemetry = useAsync(() => tab === 'telemetry' ? realmGuardDesignerAPI.telemetry(30) : Promise.resolve(undefined), [tab]);
   const [editor, setEditor] = useState('');
+  const [loaded, setLoaded] = useState('');
+  const [structuredErrors, setStructuredErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [draft, setDraft] = useState({ label: '', notes: '', asset_version: '' });
-  useEffect(() => { if (section.data) setEditor(JSON.stringify(section.data.data, null, 2)); }, [section.data]);
+  useEffect(() => {
+    if (!section.data) return;
+    const text = JSON.stringify(section.data.data, null, 2);
+    setEditor(text);
+    setLoaded(text);
+    setStructuredErrors({});
+  }, [section.data]);
+  const dirty = Boolean(loaded) && editor !== loaded;
+  const { guard, askingToDiscard, discard, keepEditing } = useUnsavedGuard(dirty);
+  const noteValidity = useCallback((key: string, message: string) => {
+    setStructuredErrors((current) => {
+      if ((current[key] ?? '') === message) return current;
+      const next = { ...current };
+      if (message) next[key] = message; else delete next[key];
+      return next;
+    });
+  }, []);
+  const structuredError = Object.values(structuredErrors).find(Boolean);
   const parsed = useMemo(() => { try { return { value: JSON.parse(editor) as unknown }; } catch (error) { return { error: error instanceof Error ? error.message : 'JSON 오류' }; } }, [editor]);
   const updateParsed = (value: unknown) => setEditor(JSON.stringify(value, null, 2));
   const save = async () => {
@@ -95,6 +166,7 @@ export function RealmGuardDesignerPage() {
       const checksum = section.data?.version.checksum;
       if (!checksum) throw new Error('편집 버전 checksum이 없습니다. Draft를 새로고침해 주세요.');
       await realmGuardDesignerAPI.saveSection(tab as RealmSection, parsed.value, versionId, checksum);
+      setLoaded(editor);
       notify(`${tab} Draft를 저장했습니다.`, 'success'); await Promise.all([section.reload(), versions.reload()]);
     }
     catch (cause) { notify(cause instanceof Error ? cause.message : 'Draft를 저장하지 못했습니다.', 'error'); }
@@ -106,7 +178,7 @@ export function RealmGuardDesignerPage() {
     catch (cause) { notify(cause instanceof Error ? cause.message : 'Draft를 만들지 못했습니다.', 'error'); }
     finally { setSaving(false); }
   };
-  return <Container maxWidth="xl" sx={{ py: 4 }}><Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" gap={2}><Box><Typography variant="h1" sx={{ fontSize: { xs: '2.1rem', md: '3rem' } }}>RealmGuard Designer</Typography><Typography color="text.secondary" mt={1}>콘텐츠 Draft를 편집하고 검증·승인·게시합니다. 게시본과 실제 플레이는 같은 스냅샷을 사용합니다.</Typography></Box><Stack direction="row" spacing={1}><FormControl size="small" sx={{ minWidth: 220 }}><InputLabel>편집 버전</InputLabel><Select label="편집 버전" value={versionId} onChange={(event) => setVersionId(event.target.value)}>{versions.data?.items.filter((item) => editableStatuses.has(item.status)).map((item) => <MenuItem key={item.id} value={item.id}>{item.label} · {item.status}</MenuItem>)}</Select></FormControl><Button variant="contained" startIcon={<AddRounded />} onClick={() => setCreateOpen(true)}>새 Draft</Button></Stack></Stack><Alert severity="info" sx={{ mt: 2 }}>미리보기는 연습 전용입니다. 세션·점수·진행도·랭킹을 저장하지 않습니다.</Alert><Tabs value={tab} onChange={(_, value: DesignerTab) => setTab(value)} variant="scrollable" scrollButtons="auto" sx={{ mt: 3, borderBottom: 1, borderColor: 'divider' }}>{sections.map((item) => <Tab key={item.id} value={item.id} label={item.label} />)}<Tab value="versions" label="Versions" /><Tab value="telemetry" label="Telemetry" /></Tabs><Box mt={3}>{tab === 'versions' ? versions.error ? <ErrorPanel error={versions.error} retry={() => void versions.reload()} /> : <VersionsPanel items={versions.data?.items ?? []} reload={versions.reload} isAdmin={isAdmin} /> : tab === 'telemetry' ? telemetry.error ? <ErrorPanel error={telemetry.error} retry={() => void telemetry.reload()} /> : telemetry.loading ? <CircularProgress /> : <Card><CardContent><Stack direction="row" spacing={1} alignItems="center"><BugReportRounded color="primary" /><Typography variant="h3">최근 30일 운영 지표</Typography></Stack><Box component="pre" className="admin-scrollbar" tabIndex={0} sx={{ mt: 2, p: 2, maxHeight: 620, overflow: 'auto', bgcolor: '#050b12', borderRadius: 2, fontSize: '1rem', whiteSpace: 'pre-wrap' }}>{JSON.stringify(telemetry.data ?? {}, null, 2)}</Box></CardContent></Card> : !versionId ? <Alert severity="warning">편집 가능한 Draft가 없습니다. 새 Draft를 먼저 만드세요.</Alert> : section.error ? <ErrorPanel error={section.error} retry={() => void section.reload()} /> : section.loading ? <CircularProgress /> : <Grid container spacing={2}><Grid size={{ xs: 12, lg: 5 }}><Card><CardContent><Typography variant="h3">구조화 빠른 편집</Typography><Typography color="text.secondary" mb={2}>항목을 선택해 이름·수치·경로·그룹을 편집합니다.</Typography>{parsed.error ? <Alert severity="error">{parsed.error}</Alert> : <QuickEditor data={parsed.value} onChange={updateParsed} />}<Divider sx={{ my: 2 }} /><ContentSummary data={parsed.value} /></CardContent></Card></Grid><Grid size={{ xs: 12, lg: 7 }}><Card><CardContent><Stack direction="row" justifyContent="space-between" alignItems="center"><Box><Typography variant="h3">{tab} 전체 JSON</Typography><Typography color="text.secondary">고급 필드 편집 후 Versions에서 서버 전체 검증을 실행하세요.</Typography></Box><Button variant="contained" startIcon={saving ? <CircularProgress size={18} /> : <SaveRounded />} disabled={saving || Boolean(parsed.error)} onClick={() => void save()}>Draft 저장</Button></Stack><Divider sx={{ my: 2 }} /><TextField value={editor} onChange={(event) => setEditor(event.target.value)} multiline fullWidth minRows={20} maxRows={32} aria-label={`${tab} JSON 편집기`} inputProps={{ spellCheck: false }} sx={{ '& textarea': { fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace', fontSize: '1rem', lineHeight: 1.55 } }} /></CardContent></Card></Grid></Grid>}</Box><Dialog open={createOpen} onClose={() => !saving && setCreateOpen(false)} fullWidth maxWidth="sm"><DialogTitle>새 RealmGuard Draft</DialogTitle><DialogContent><Stack spacing={2} mt={1}><TextField label="버전 라벨" value={draft.label} onChange={(event) => setDraft({ ...draft, label: event.target.value })} placeholder="비우면 서버가 자동 생성" /><TextField label="릴리스 노트" multiline minRows={4} value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} /><TextField label="Asset Version" value={draft.asset_version} onChange={(event) => setDraft({ ...draft, asset_version: event.target.value })} placeholder="비우면 현재 게시본 유지" /></Stack></DialogContent><DialogActions><Button onClick={() => setCreateOpen(false)}>취소</Button><Button variant="contained" disabled={saving} onClick={() => void create()}>Draft 만들기</Button></DialogActions></Dialog></Container>;
+  return <Container maxWidth="xl" sx={{ py: 4 }}><Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" gap={2}><Box><Typography variant="h1" sx={{ fontSize: { xs: '2.1rem', md: '3rem' } }}>RealmGuard Designer</Typography><Typography color="text.secondary" mt={1}>콘텐츠 Draft를 편집하고 검증·승인·게시합니다. 게시본과 실제 플레이는 같은 스냅샷을 사용합니다.</Typography></Box><Stack direction="row" spacing={1}><FormControl size="small" sx={{ minWidth: 220 }}><InputLabel>편집 버전</InputLabel><Select label="편집 버전" value={versionId} onChange={(event) => guard(() => setVersionId(event.target.value))}>{versions.data?.items.filter((item) => editableStatuses.has(item.status)).map((item) => <MenuItem key={item.id} value={item.id}>{item.label} · {item.status}</MenuItem>)}</Select></FormControl><Button variant="contained" startIcon={<AddRounded />} onClick={() => setCreateOpen(true)}>새 Draft</Button></Stack></Stack><Alert severity="info" sx={{ mt: 2 }}>미리보기는 연습 전용입니다. 세션·점수·진행도·랭킹을 저장하지 않습니다.</Alert><Tabs value={tab} onChange={(_, value: DesignerTab) => guard(() => setTab(value))} variant="scrollable" scrollButtons="auto" sx={{ mt: 3, borderBottom: 1, borderColor: 'divider' }}>{sections.map((item) => <Tab key={item.id} value={item.id} label={item.label} />)}<Tab value="versions" label="Versions" /><Tab value="telemetry" label="Telemetry" /></Tabs><Box mt={3}>{tab === 'versions' ? versions.error ? <ErrorPanel error={versions.error} retry={() => void versions.reload()} /> : <VersionsPanel items={versions.data?.items ?? []} reload={versions.reload} isAdmin={isAdmin} /> : tab === 'telemetry' ? telemetry.error ? <ErrorPanel error={telemetry.error} retry={() => void telemetry.reload()} /> : telemetry.loading ? <CircularProgress /> : <Card><CardContent><Stack direction="row" spacing={1} alignItems="center"><BugReportRounded color="primary" /><Typography variant="h3">최근 30일 운영 지표</Typography></Stack><Box component="pre" className="admin-scrollbar" tabIndex={0} sx={{ mt: 2, p: 2, maxHeight: 620, overflow: 'auto', bgcolor: 'surface.code', borderRadius: 2, fontSize: '1rem', whiteSpace: 'pre-wrap' }}>{JSON.stringify(telemetry.data ?? {}, null, 2)}</Box></CardContent></Card> : !versionId ? <Alert severity="warning">편집 가능한 Draft가 없습니다. 새 Draft를 먼저 만드세요.</Alert> : section.error ? <ErrorPanel error={section.error} retry={() => void section.reload()} /> : section.loading ? <CircularProgress /> : <Grid container spacing={2}><Grid size={{ xs: 12, lg: 5 }}><Card><CardContent><Typography variant="h3">구조화 빠른 편집</Typography><Typography color="text.secondary" mb={2}>항목을 선택해 이름·수치·경로·그룹을 편집합니다.</Typography>{parsed.error ? <Alert severity="error">{parsed.error}</Alert> : <QuickEditor data={parsed.value} onChange={updateParsed} onValidity={noteValidity} />}<Divider sx={{ my: 2 }} /><ContentSummary data={parsed.value} /></CardContent></Card></Grid><Grid size={{ xs: 12, lg: 7 }}><Card><CardContent><Stack direction="row" justifyContent="space-between" alignItems="center"><Box><Stack direction="row" spacing={1} alignItems="center"><Typography variant="h3">{tab} 전체 JSON</Typography>{dirty && <Chip size="small" color="warning" label="저장되지 않음" />}</Stack><Typography color="text.secondary">고급 필드 편집 후 Versions에서 서버 전체 검증을 실행하세요.</Typography></Box><Button variant="contained" startIcon={saving ? <CircularProgress size={18} /> : <SaveRounded />} disabled={saving || Boolean(parsed.error) || Boolean(structuredError)} onClick={() => void save()}>Draft 저장</Button></Stack><Divider sx={{ my: 2 }} /><TextField value={editor} onChange={(event) => setEditor(event.target.value)} multiline fullWidth minRows={20} maxRows={32} aria-label={`${tab} JSON 편집기`} inputProps={{ spellCheck: false }} sx={{ '& textarea': { fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace', fontSize: '1rem', lineHeight: 1.55 } }} /></CardContent></Card></Grid></Grid>}</Box><UnsavedChangesDialog open={askingToDiscard} onKeepEditing={keepEditing} onDiscard={discard} /><Dialog open={createOpen} onClose={() => !saving && setCreateOpen(false)} fullWidth maxWidth="sm"><DialogTitle>새 RealmGuard Draft</DialogTitle><DialogContent><Stack spacing={2} mt={1}><TextField label="버전 라벨" value={draft.label} onChange={(event) => setDraft({ ...draft, label: event.target.value })} placeholder="비우면 서버가 자동 생성" /><TextField label="릴리스 노트" multiline minRows={4} value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} /><TextField label="Asset Version" value={draft.asset_version} onChange={(event) => setDraft({ ...draft, asset_version: event.target.value })} placeholder="비우면 현재 게시본 유지" /></Stack></DialogContent><DialogActions><Button onClick={() => setCreateOpen(false)}>취소</Button><Button variant="contained" disabled={saving} onClick={() => void create()}>Draft 만들기</Button></DialogActions></Dialog></Container>;
 }
 
 export default RealmGuardDesignerPage;

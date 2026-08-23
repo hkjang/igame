@@ -1,12 +1,15 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import AddRounded from '@mui/icons-material/AddRounded';
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
 import EditRounded from '@mui/icons-material/EditRounded';
 import RefreshRounded from '@mui/icons-material/RefreshRounded';
+import SearchRounded from '@mui/icons-material/SearchRounded';
+import FileDownloadRounded from '@mui/icons-material/FileDownloadRounded';
 import {
-  Box, Button, Card, Chip, Container, Dialog, DialogActions, DialogContent, DialogTitle,
-  FormControlLabel, IconButton, LinearProgress, MenuItem, Stack, Switch, Table, TableBody,
-  TableCell, TableContainer, TableHead, TableRow, TextField, Tooltip, Typography,
+  Alert, Box, Button, Card, Chip, CircularProgress, Container, Dialog, DialogActions,
+  DialogContent, DialogContentText, DialogTitle, FormControlLabel, IconButton, InputAdornment,
+  LinearProgress, MenuItem, Stack, Switch, Table, TableBody, TableCell, TableContainer,
+  TableHead, TablePagination, TableRow, TextField, Tooltip, Typography,
 } from '@mui/material';
 import { api } from '../../api/client';
 import { ErrorPanel } from '../../components/ErrorPanel';
@@ -35,6 +38,14 @@ interface ResourceConfig {
   updateOnly?: boolean;
   defaults?: Row;
 }
+
+/** Resources whose API pages results and reports an unpaged total. */
+const pagedResources = new Set(['users', 'audit', 'games']);
+/** Of those, the ones that also accept a server-side text filter. */
+const searchableResources = new Set(['users', 'audit']);
+const pageSizes = [25, 50, 100, 200];
+/** Resources the server can hand back as a spreadsheet. */
+const exportableResources = new Set(['audit']);
 
 const configs: Record<string, ResourceConfig> = {
   games: {
@@ -101,6 +112,27 @@ const configs: Record<string, ResourceConfig> = {
   },
 };
 
+/** Human name for a row, used in row actions and the delete confirmation. */
+function rowLabel(row: Row): string {
+  for (const key of ['name', 'title', 'display_name', 'username', 'code', 'slug']) {
+    const value = row[key];
+    if (typeof value === 'string' && value.trim()) return value;
+  }
+  return String(row.id ?? '항목');
+}
+
+/** Reports which JSON fields currently hold something the server would reject. */
+function jsonFieldErrors(fields: Field[], form: Row): Record<string, string> {
+  const errors: Record<string, string> = {};
+  for (const field of fields) {
+    if (field.type !== 'json') continue;
+    const raw = form[field.key];
+    if (typeof raw !== 'string' || !raw.trim()) continue;
+    try { JSON.parse(raw); } catch { errors[field.key] = '유효한 JSON 형식이 아닙니다.'; }
+  }
+  return errors;
+}
+
 function display(value: unknown): React.ReactNode {
   if (typeof value === 'boolean') return <Chip size="small" color={value ? 'success' : 'default'} label={value ? '사용' : '미사용'} />;
   if (value === null || value === undefined || value === '') return '—';
@@ -144,7 +176,30 @@ function buildPayload(config: ResourceConfig, form: Row): Row {
 export function AdminResourcePage({ resource }: { resource: string }) {
   const config = configs[resource] ?? { title: resource, description: '서비스 데이터를 관리합니다.', singular: '항목', fields: [{ key: 'name', label: '이름' }] };
   const { notify } = useSnackbar();
-  const result = useAsync(() => api.adminList<Row>(resource), [resource]);
+  const paged = pagedResources.has(resource);
+  const searchable = searchableResources.has(resource);
+  const exportable = exportableResources.has(resource);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(50);
+  const [search, setSearch] = useState('');
+  const [query, setQuery] = useState('');
+  // Reset paging whenever the page switches to a different resource.
+  useEffect(() => { setPage(0); setSearch(''); setQuery(''); }, [resource]);
+  // Debounce so typing does not fire a request per keystroke.
+  useEffect(() => {
+    const timer = window.setTimeout(() => { setQuery(search); setPage(0); }, 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+  const result = useAsync(
+    () => api.adminList<Row>(resource, paged ? { limit: pageSize, offset: page * pageSize, q: searchable ? query : undefined } : {}),
+    [resource, paged, searchable, pageSize, page, query],
+  );
+  const total = result.data?.total ?? result.data?.items.length ?? 0;
+  // Deleting the last row of the last page would otherwise strand the console
+  // on an empty page with no way back.
+  useEffect(() => {
+    if (paged && !result.loading && page > 0 && result.data?.items.length === 0) setPage((current) => current - 1);
+  }, [paged, page, result.data?.items.length, result.loading]);
   const lookupResult = useAsync(async () => {
     const values: Record<'categories' | 'games', Array<{ value: string; label: string }>> = { categories: [], games: [] };
     if (config.fields.some((field) => field.lookup === 'categories')) {
@@ -161,14 +216,22 @@ export function AdminResourcePage({ resource }: { resource: string }) {
   const [editing, setEditing] = useState<Row>();
   const [form, setForm] = useState<Row>({});
   const [busy, setBusy] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<Row>();
+  const [deleting, setDeleting] = useState(false);
   const columns = useMemo(() => config.fields.slice(0, 6), [config.fields]);
+  const jsonErrors = useMemo(() => jsonFieldErrors(config.fields, form), [config.fields, form]);
+  const actionColumns = config.readonly ? 0 : 1;
   const showForm = (row?: Row) => {
     const source = row ? { ...row } : { ...(config.defaults ?? {}) };
     const normalized: Row = {};
     for (const field of config.fields) normalized[field.key] = toInputValue(source[field.key], field.type);
     setEditing(row); setForm(normalized); setOpen(true);
   };
-  const save = async () => {
+  // Submitting through a real form lets the browser enforce the required
+  // fields and focus the first offending one before anything reaches the API.
+  const save = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (busy || Object.keys(jsonErrors).length > 0) return;
     setBusy(true);
     try {
       const payload = buildPayload(config, form);
@@ -176,33 +239,76 @@ export function AdminResourcePage({ resource }: { resource: string }) {
       if (editing) await api.adminUpdate(resource, id, payload); else await api.adminCreate(resource, payload);
       setOpen(false); await result.reload(); notify(`${config.singular}을 저장했습니다.`, 'success');
     } catch (cause) {
+      // The inline check already blocks malformed JSON; this keeps a parser
+      // message from ever reaching the user if something slips past it.
       notify(cause instanceof SyntaxError ? 'JSON 입력 형식을 확인해 주세요.' : cause instanceof Error ? cause.message : '저장하지 못했습니다.', 'error');
     } finally { setBusy(false); }
   };
-  const remove = async (row: Row) => {
-    if (!window.confirm(`${config.singular}을 삭제할까요?`)) return;
-    const id = String(row.id ?? row.code ?? row.slug ?? '');
-    try { await api.adminDelete(resource, id); await result.reload(); notify('삭제했습니다.', 'success'); }
+  const remove = async () => {
+    if (!pendingDelete) return;
+    const id = String(pendingDelete.id ?? pendingDelete.code ?? pendingDelete.slug ?? '');
+    setDeleting(true);
+    try { await api.adminDelete(resource, id); setPendingDelete(undefined); await result.reload(); notify('삭제했습니다.', 'success'); }
     catch (cause) { notify(cause instanceof Error ? cause.message : '삭제하지 못했습니다.', 'error'); }
+    finally { setDeleting(false); }
   };
   return <Container maxWidth="xl" sx={{ py: { xs: 3, lg: 5 } }}>
     <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'end' }} gap={2}>
-      <Box><Typography variant="h1" sx={{ fontSize: { xs: '2.1rem', lg: '3rem' } }}>{config.title}</Typography><Typography color="text.secondary" mt={1}>{config.description}</Typography></Box>
-      <Stack direction="row" spacing={1}><Button startIcon={<RefreshRounded />} onClick={() => void result.reload()}>새로고침</Button>{!config.readonly && !config.updateOnly && <Button variant="contained" startIcon={<AddRounded />} onClick={() => showForm()}>새 {config.singular}</Button>}</Stack>
+      <Box><Typography variant="h1" sx={{ fontSize: { xs: '2.1rem', lg: '3rem' } }}>{config.title}</Typography><Typography color="text.secondary" mt={1}>{config.description}</Typography>{paged && !result.loading && <Typography variant="body2" color="text.secondary" mt={.5} role="status">{query ? `검색 결과 ${total.toLocaleString('ko-KR')}건` : `전체 ${total.toLocaleString('ko-KR')}건`}</Typography>}</Box>
+      <Stack direction="row" spacing={1} alignItems="center">{searchable && <TextField value={search} onChange={(event) => setSearch(event.target.value)} placeholder={resource === 'audit' ? '수행자·작업·대상·IP 검색' : '아이디·이름·소속 검색'} aria-label={`${config.title} 검색`} size="small" sx={{ minWidth: { sm: 260 } }} slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchRounded fontSize="small" /></InputAdornment> } }} />}{exportable && <Button component="a" href={`/api/v1/admin/${resource}?format=csv${query ? `&q=${encodeURIComponent(query)}` : ''}`} startIcon={<FileDownloadRounded />} disabled={total === 0}>CSV 내보내기</Button>}<Button startIcon={<RefreshRounded />} onClick={() => void result.reload()}>새로고침</Button>{!config.readonly && !config.updateOnly && <Button variant="contained" startIcon={<AddRounded />} onClick={() => showForm()}>새 {config.singular}</Button>}</Stack>
     </Stack>
+    {exportable && <Alert severity="info" sx={{ mt: 3 }}>CSV 내보내기는 화면의 페이지가 아니라 현재 검색 조건에 해당하는 <strong>전체 기록</strong>을 내려받습니다.</Alert>}
     {result.loading && <LinearProgress sx={{ mt: 3 }} />}
     <Box mt={3}>{result.error ? <ErrorPanel error={result.error} retry={() => void result.reload()} /> : <TableContainer component={Card}><Table aria-label={config.title}>
       <TableHead><TableRow>{columns.map((field) => <TableCell key={field.key}>{field.label}</TableCell>)}{!config.readonly && <TableCell align="right">관리</TableCell>}</TableRow></TableHead>
-      <TableBody>{result.data?.items.map((row, index) => <TableRow key={String(row.id ?? row.code ?? index)}>{columns.map((field) => <TableCell key={field.key}>{display(row[field.key])}</TableCell>)}{!config.readonly && <TableCell align="right"><Tooltip title="수정"><IconButton onClick={() => showForm(row)}><EditRounded /></IconButton></Tooltip>{!config.updateOnly && <Tooltip title="삭제"><IconButton color="error" onClick={() => void remove(row)}><DeleteOutlineRounded /></IconButton></Tooltip>}</TableCell>}</TableRow>)}
-        {result.data?.items.length === 0 && <TableRow><TableCell colSpan={columns.length + 1} align="center" sx={{ py: 7, color: 'text.secondary' }}>등록된 항목이 없습니다.</TableCell></TableRow>}
+      <TableBody>{result.data?.items.map((row, index) => <TableRow key={String(row.id ?? row.code ?? index)}>{columns.map((field) => <TableCell key={field.key}>{display(row[field.key])}</TableCell>)}{!config.readonly && <TableCell align="right">
+        {/* Naming the row keeps a screen reader from reading a column of identical "수정" buttons. */}
+        <Tooltip title="수정"><IconButton aria-label={`${rowLabel(row)} 수정`} onClick={() => showForm(row)}><EditRounded /></IconButton></Tooltip>
+        {!config.updateOnly && <Tooltip title="삭제"><IconButton aria-label={`${rowLabel(row)} 삭제`} color="error" onClick={() => setPendingDelete(row)}><DeleteOutlineRounded /></IconButton></Tooltip>}
+      </TableCell>}</TableRow>)}
+        {result.data?.items.length === 0 && <TableRow><TableCell colSpan={columns.length + actionColumns} align="center" sx={{ py: 7, color: 'text.secondary' }}>{query ? '검색 결과가 없습니다.' : '등록된 항목이 없습니다.'}</TableCell></TableRow>}
       </TableBody>
-    </Table></TableContainer>}</Box>
+    </Table>{paged && <TablePagination component="div" count={total} page={page} onPageChange={(_, next) => setPage(next)} rowsPerPage={pageSize} rowsPerPageOptions={pageSizes} onRowsPerPageChange={(event) => { setPageSize(Number(event.target.value)); setPage(0); }} labelRowsPerPage="페이지당" labelDisplayedRows={({ from, to, count }) => `${count.toLocaleString('ko-KR')}건 중 ${from.toLocaleString('ko-KR')}–${to.toLocaleString('ko-KR')}`} getItemAriaLabel={(type) => type === 'next' ? '다음 페이지' : '이전 페이지'} />}</TableContainer>}</Box>
     <Dialog open={open} onClose={() => !busy && setOpen(false)} fullWidth maxWidth="sm">
-      <DialogTitle>{editing ? `${config.singular} 수정` : `새 ${config.singular}`}</DialogTitle>
-      <DialogContent><Stack spacing={2} mt={1}>{config.fields.map((field) => field.type === 'boolean'
-        ? <FormControlLabel key={field.key} control={<Switch checked={Boolean(form[field.key])} disabled={field.readonly} onChange={(event) => setForm({ ...form, [field.key]: event.target.checked })} />} label={field.label} />
-        : <TextField key={field.key} label={field.label} type={field.type === 'number' ? 'number' : field.type === 'date' ? 'datetime-local' : 'text'} multiline={field.type === 'textarea' || field.type === 'json'} minRows={field.type === 'textarea' || field.type === 'json' ? 3 : undefined} required={field.required} disabled={field.readonly || (Boolean(field.lookup) && lookupResult.loading)} select={field.type === 'select' || Boolean(field.lookup)} value={String(form[field.key] ?? '')} onChange={(event) => setForm({ ...form, [field.key]: field.type === 'number' ? Number(event.target.value) : event.target.value })} helperText={field.type === 'tags' ? '쉼표로 구분' : field.type === 'json' ? '유효한 JSON 형식' : field.lookup && lookupResult.error ? '목록을 불러오지 못했습니다.' : undefined} slotProps={field.type === 'date' ? { inputLabel: { shrink: true } } : undefined}>{field.lookup && !field.required && <MenuItem value="">미지정</MenuItem>}{field.lookup ? lookupResult.data?.[field.lookup].map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>) : field.options?.map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}</TextField>)}</Stack></DialogContent>
-      <DialogActions><Button onClick={() => setOpen(false)}>취소</Button><Button variant="contained" onClick={() => void save()} disabled={busy}>저장</Button></DialogActions>
+      <Box component="form" noValidate={false} onSubmit={(event) => void save(event)}>
+        <DialogTitle>{editing ? `${config.singular} 수정` : `새 ${config.singular}`}</DialogTitle>
+        <DialogContent><Stack spacing={2} mt={1}>{config.fields.map((field) => field.type === 'boolean'
+          ? <FormControlLabel key={field.key} control={<Switch checked={Boolean(form[field.key])} disabled={field.readonly} onChange={(event) => setForm({ ...form, [field.key]: event.target.checked })} />} label={field.label} />
+          : <TextField
+              key={field.key}
+              label={field.label}
+              type={field.type === 'number' ? 'number' : field.type === 'date' ? 'datetime-local' : 'text'}
+              multiline={field.type === 'textarea' || field.type === 'json'}
+              minRows={field.type === 'textarea' || field.type === 'json' ? 3 : undefined}
+              required={field.required}
+              disabled={busy || field.readonly || (Boolean(field.lookup) && lookupResult.loading)}
+              select={field.type === 'select' || Boolean(field.lookup)}
+              value={String(form[field.key] ?? '')}
+              error={Boolean(jsonErrors[field.key])}
+              onChange={(event) => setForm({ ...form, [field.key]: field.type === 'number' && event.target.value !== '' ? Number(event.target.value) : event.target.value })}
+              helperText={jsonErrors[field.key] ?? (field.type === 'tags' ? '쉼표로 구분' : field.type === 'json' ? '유효한 JSON 형식' : field.lookup && lookupResult.error ? '목록을 불러오지 못했습니다.' : undefined)}
+              slotProps={field.type === 'date' ? { inputLabel: { shrink: true } } : undefined}
+            >{field.lookup && !field.required && <MenuItem value="">미지정</MenuItem>}{field.lookup ? lookupResult.data?.[field.lookup].map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>) : field.options?.map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}</TextField>)}</Stack></DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpen(false)} disabled={busy}>취소</Button>
+          <Button type="submit" variant="contained" disabled={busy || Object.keys(jsonErrors).length > 0} startIcon={busy ? <CircularProgress size={18} color="inherit" /> : undefined}>{busy ? '저장 중…' : '저장'}</Button>
+        </DialogActions>
+      </Box>
+    </Dialog>
+    {/* A themed dialog names the row being removed; window.confirm named only the resource type. */}
+    <Dialog open={Boolean(pendingDelete)} onClose={() => !deleting && setPendingDelete(undefined)} maxWidth="xs" fullWidth>
+      <DialogTitle>{config.singular} 삭제</DialogTitle>
+      <DialogContent>
+        <DialogContentText><Box component="strong" sx={{ color: 'text.primary' }}>{pendingDelete ? rowLabel(pendingDelete) : ''}</Box>을(를) 삭제합니다.</DialogContentText>
+        <Alert severity="warning" sx={{ mt: 2 }}>되돌릴 수 없습니다.</Alert>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setPendingDelete(undefined)} disabled={deleting}>취소</Button>
+        <Button color="error" variant="contained" onClick={() => void remove()} disabled={deleting} startIcon={deleting ? <CircularProgress size={18} color="inherit" /> : <DeleteOutlineRounded />}>{deleting ? '삭제 중…' : '삭제'}</Button>
+      </DialogActions>
     </Dialog>
   </Container>;
 }
+
+/** Exposed for unit tests; not part of the page's public surface. */
+export const __testing = { rowLabel, jsonFieldErrors };

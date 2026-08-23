@@ -36,6 +36,8 @@ import {
 } from "@mui/material";
 import { Link as RouterLink, useSearchParams } from "react-router-dom";
 import { ErrorPanel } from "../../../components/ErrorPanel";
+import { UnsavedChangesDialog } from "../../../components/UnsavedChangesDialog";
+import { useUnsavedGuard } from "../../../hooks/useUnsavedGuard";
 import {
   DEFENSE_PACKS,
   DEFENSE_SLUGS,
@@ -244,7 +246,7 @@ function ReportDashboard({
             p: 2,
             maxHeight: 360,
             overflow: "auto",
-            bgcolor: "#050b12",
+            bgcolor: "surface.code",
             borderRadius: 2,
             fontSize: ".9rem",
             whiteSpace: "pre-wrap",
@@ -442,6 +444,7 @@ export function DefenseContentStudioPage() {
     normalizeDefenseStudioView(params.get("view")),
   );
   const [editor, setEditor] = useState("[]");
+  const [loadedEditor, setLoadedEditor] = useState("");
   const [saving, setSaving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [reviewComment, setReviewComment] = useState("");
@@ -507,9 +510,16 @@ export function DefenseContentStudioPage() {
       );
   }, [slug, versionId, versions.data]);
   useEffect(() => {
-    if (sectionData.data && sectionData.data.version.id === selected?.id)
-      setEditor(JSON.stringify(sectionData.data.data, null, 2));
+    if (sectionData.data && sectionData.data.version.id === selected?.id) {
+      const text = JSON.stringify(sectionData.data.data, null, 2);
+      setEditor(text);
+      setLoadedEditor(text);
+    }
   }, [sectionData.data, selected?.id]);
+  // Switching game, version or section reloads the editor, so an unsaved draft
+  // has to be confirmed away rather than silently replaced.
+  const dirty = Boolean(loadedEditor) && editor !== loadedEditor;
+  const { guard, askingToDiscard, discard, keepEditing } = useUnsavedGuard(dirty);
   useEffect(() => {
     const next = new URLSearchParams({ game: slug, section });
     if (versionId) next.set("version", versionId);
@@ -555,6 +565,7 @@ export function DefenseContentStudioPage() {
         checksum,
         parsed.value,
       );
+      setLoadedEditor(editor);
     });
   const create = () =>
     mutate("새 Defense Draft를 만들었습니다.", async () => {
@@ -607,11 +618,11 @@ export function DefenseContentStudioPage() {
             select
             label="게임"
             value={slug}
-            onChange={(event) => {
+            onChange={(event) => guard(() => {
               versions.setData(undefined);
               setSlug(event.target.value as DefenseSlug);
               setVersionId("");
-            }}
+            })}
             sx={{ minWidth: 220 }}
           >
             {DEFENSE_SLUGS.map((value) => (
@@ -625,7 +636,7 @@ export function DefenseContentStudioPage() {
             <Select
               label="편집 버전"
               value={versionId}
-              onChange={(event) => setVersionId(event.target.value)}
+              onChange={(event) => guard(() => setVersionId(event.target.value))}
             >
               {versionItems.map((item) => (
                 <MenuItem key={item.id} value={item.id}>
@@ -649,7 +660,7 @@ export function DefenseContentStudioPage() {
       </Alert>
       <Tabs
         value={view}
-        onChange={(_, value: typeof view) => setView(value)}
+        onChange={(_, value: typeof view) => guard(() => setView(value))}
         variant="scrollable"
         scrollButtons="auto"
         sx={{ mt: 2, borderBottom: 1, borderColor: "divider" }}
@@ -677,9 +688,10 @@ export function DefenseContentStudioPage() {
                     fullWidth
                     label="콘텐츠 영역"
                     value={section}
-                    onChange={(event) =>
-                      setSection(event.target.value as DefenseSection)
-                    }
+                    onChange={(event) => {
+                      const next = event.target.value as DefenseSection;
+                      guard(() => setSection(next));
+                    }}
                     sx={{ mt: 2 }}
                   >
                     {sections
@@ -1102,6 +1114,7 @@ export function DefenseContentStudioPage() {
           </Button>
         </DialogActions>
       </Dialog>
+      <UnsavedChangesDialog open={askingToDiscard} onKeepEditing={keepEditing} onDiscard={discard} />
     </Container>
   );
 }
