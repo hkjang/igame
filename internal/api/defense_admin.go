@@ -209,12 +209,12 @@ func (s *Server) listDefenseVersions(w http.ResponseWriter, r *http.Request) {
 	}
 	gameID, _, err := s.defenseGame(r.Context(), slug)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	rows, err := s.DB.Query(r.Context(), `SELECT `+defenseVersionColumns+` FROM defense_content_versions WHERE game_id=$1 ORDER BY version_no DESC`, gameID)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -222,13 +222,17 @@ func (s *Server) listDefenseVersions(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		version, err := scanDefenseVersion(rows)
 		if err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		version = s.normalizeDefenseChecksum(r.Context(), version)
 		item := defenseVersionJSON(version)
 		item["game_slug"] = slug
 		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	writeJSON(w, 200, map[string]any{"items": items})
 }
@@ -257,18 +261,18 @@ func (s *Server) createDefenseVersion(w http.ResponseWriter, r *http.Request) {
 	}
 	gameID, _, err := s.defenseGame(r.Context(), slug)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	tx, err := s.DB.Begin(r.Context())
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer tx.Rollback(r.Context())
 	_, err = tx.Exec(r.Context(), `SELECT pg_advisory_xact_lock(hashtextextended($1::text,0))`, gameID)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	var source defenseVersionRecord
@@ -281,13 +285,13 @@ func (s *Server) createDefenseVersion(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, pgx.ErrNoRows) {
 			writeError(w, 404, "source_version_not_found", "source version must belong to the same Defense game")
 		} else {
-			dbError(w, err)
+			s.dbError(w, r, err)
 		}
 		return
 	}
 	var number int
 	if err = tx.QueryRow(r.Context(), `SELECT COALESCE(max(version_no),0)+1 FROM defense_content_versions WHERE game_id=$1`, gameID).Scan(&number); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if strings.TrimSpace(in.Label) == "" {
@@ -310,11 +314,11 @@ func (s *Server) createDefenseVersion(w http.ResponseWriter, r *http.Request) {
 	var created, updated time.Time
 	err = tx.QueryRow(r.Context(), `INSERT INTO defense_content_versions(game_id,version_no,label,status,content_version,policy_version,asset_version,checksum,notes,content,source_version_id,created_by) VALUES($1,$2,$3,'draft',$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id,created_at,updated_at`, gameID, number, in.Label, contentVersion, in.PolicyVersion, in.AssetVersion, checksum, in.Notes, source.RawContent, source.ID, p.UserID).Scan(&id, &created, &updated)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if err = tx.Commit(r.Context()); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	version := defenseVersionRecord{ID: id, GameID: gameID, VersionNo: number, Label: in.Label, Status: "draft", ContentVersion: contentVersion, PolicyVersion: in.PolicyVersion, AssetVersion: in.AssetVersion, Checksum: checksum, Notes: in.Notes, RawContent: source.RawContent, SourceVersionID: &source.ID, CreatedBy: &p.UserID, CreatedAt: created, UpdatedAt: updated}
@@ -330,7 +334,7 @@ func defenseVersionIDForSlug(w http.ResponseWriter, r *http.Request, s *Server, 
 	}
 	version, err := s.loadDefenseVersion(r.Context(), id)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return version, false
 	}
 	gameID, _, err := s.defenseGame(r.Context(), slug)
@@ -366,7 +370,7 @@ func (s *Server) testDefenseVersion(w http.ResponseWriter, r *http.Request) {
 	var tested, updated time.Time
 	err := s.DB.QueryRow(r.Context(), `UPDATE defense_content_versions SET status='testing',tested_at=now(),checksum=$2,updated_at=now() WHERE id=$1 AND status IN ('draft','testing') RETURNING tested_at,updated_at`, version.ID, checksum).Scan(&tested, &updated)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	version.Status = "testing"
@@ -399,7 +403,7 @@ func (s *Server) previewDefenseVersion(w http.ResponseWriter, r *http.Request) {
 		}
 		var creatorTeam string
 		if err := s.DB.QueryRow(r.Context(), `SELECT team FROM users WHERE id=$1`, *version.CreatedBy).Scan(&creatorTeam); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		if code, message := realmGuardManagerReviewTeamError(p.Team, creatorTeam); code != "" {
@@ -433,7 +437,7 @@ func (s *Server) listPendingDefenseVersions(w http.ResponseWriter, r *http.Reque
 	}
 	rows, err := s.DB.Query(r.Context(), `SELECT v.id,v.game_id,v.version_no,v.label,v.status,v.content_version,v.policy_version,v.asset_version,v.checksum,v.notes,v.content,v.source_version_id,v.created_by,v.approved_by,v.created_at,v.tested_at,v.approval_requested_at,v.approved_at,v.review_comment,v.reviewed_at,v.published_at,v.updated_at,g.slug,g.name,COALESCE(creator.username,''),COALESCE(creator.display_name,''),COALESCE(creator.team,''),COALESCE((SELECT published.content FROM defense_content_versions published WHERE published.game_id=v.game_id AND published.status='published' LIMIT 1),'{}'::jsonb) FROM defense_content_versions v JOIN games g ON g.id=v.game_id LEFT JOIN users creator ON creator.id=v.created_by WHERE v.status='pending_approval' AND ($1::text<>'manager' OR (creator.team<>'' AND creator.team=$2)) ORDER BY v.approval_requested_at,v.version_no`, p.Role, p.Team)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -443,7 +447,7 @@ func (s *Server) listPendingDefenseVersions(w http.ResponseWriter, r *http.Reque
 		var slug, name, creatorUsername, creatorDisplayName, creatorTeam string
 		var publishedContent json.RawMessage
 		if err := rows.Scan(&version.ID, &version.GameID, &version.VersionNo, &version.Label, &version.Status, &version.ContentVersion, &version.PolicyVersion, &version.AssetVersion, &version.Checksum, &version.Notes, &version.RawContent, &version.SourceVersionID, &version.CreatedBy, &version.ApprovedBy, &version.CreatedAt, &version.TestedAt, &version.RequestedAt, &version.ApprovedAt, &version.ReviewComment, &version.ReviewedAt, &version.PublishedAt, &version.UpdatedAt, &slug, &name, &creatorUsername, &creatorDisplayName, &creatorTeam, &publishedContent); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		item := defenseVersionJSON(version)
@@ -452,6 +456,10 @@ func (s *Server) listPendingDefenseVersions(w http.ResponseWriter, r *http.Reque
 		item["creator"] = map[string]any{"username": creatorUsername, "display_name": creatorDisplayName, "team": creatorTeam}
 		item["changed_sections"] = defenseChangedSections(version.RawContent, publishedContent)
 		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	writeJSON(w, 200, map[string]any{"items": items})
 }
@@ -513,13 +521,13 @@ func (s *Server) reviewDefenseVersion(w http.ResponseWriter, r *http.Request) {
 	}
 	tx, err := s.DB.Begin(r.Context())
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer tx.Rollback(r.Context())
 	version, err := scanDefenseVersion(tx.QueryRow(r.Context(), `SELECT `+defenseVersionColumns+` FROM defense_content_versions WHERE id=$1 FOR UPDATE`, id))
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if version.Status != "pending_approval" {
@@ -537,7 +545,7 @@ func (s *Server) reviewDefenseVersion(w http.ResponseWriter, r *http.Request) {
 		}
 		var creatorTeam string
 		if err = tx.QueryRow(r.Context(), `SELECT team FROM users WHERE id=$1`, *version.CreatedBy).Scan(&creatorTeam); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		if code, message := realmGuardManagerReviewTeamError(p.Team, creatorTeam); code != "" {
@@ -551,11 +559,11 @@ func (s *Server) reviewDefenseVersion(w http.ResponseWriter, r *http.Request) {
 		_, err = tx.Exec(r.Context(), `UPDATE defense_content_versions SET status='draft',approved_by=NULL,approved_at=NULL,approval_requested_at=NULL,tested_at=NULL,review_comment=$2,reviewed_at=now(),updated_at=now() WHERE id=$1`, id, in.Comment)
 	}
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if err = tx.Commit(r.Context()); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	version.Status = map[bool]string{true: "approved", false: "draft"}[in.Decision == "approved"]
@@ -592,18 +600,18 @@ func (s *Server) publishDefenseVersion(w http.ResponseWriter, r *http.Request) {
 	}
 	tx, err := s.DB.Begin(r.Context())
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer tx.Rollback(r.Context())
 	_, err = tx.Exec(r.Context(), `SELECT pg_advisory_xact_lock(hashtextextended($1::text,1))`, version.GameID)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	version, err = scanDefenseVersion(tx.QueryRow(r.Context(), `SELECT `+defenseVersionColumns+` FROM defense_content_versions WHERE id=$1 FOR UPDATE`, version.ID))
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if version.Status == "published" {
@@ -617,11 +625,11 @@ func (s *Server) publishDefenseVersion(w http.ResponseWriter, r *http.Request) {
 		}
 		_, err = tx.Exec(r.Context(), `UPDATE defense_content_versions SET status='pending_approval',approval_requested_at=COALESCE(approval_requested_at,now()),updated_at=now() WHERE id=$1`, version.ID)
 		if err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		if err = tx.Commit(r.Context()); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		version.Status = "pending_approval"
@@ -647,11 +655,11 @@ func (s *Server) publishDefenseVersion(w http.ResponseWriter, r *http.Request) {
 		_, err = tx.Exec(r.Context(), `UPDATE defense_content_versions SET status='published',checksum=$2,published_at=now(),updated_at=now() WHERE id=$1`, version.ID, checksum)
 	}
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if err = tx.Commit(r.Context()); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	version.Status = "published"
@@ -674,12 +682,12 @@ func (s *Server) defenseTelemetryReport(w http.ResponseWriter, r *http.Request) 
 	}
 	gameID, _, err := s.defenseGame(r.Context(), slug)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	version, err := s.loadDefensePublished(r.Context(), slug)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	since := s.Now().Add(-time.Duration(days) * 24 * time.Hour)
@@ -687,7 +695,7 @@ func (s *Server) defenseTelemetryReport(w http.ResponseWriter, r *http.Request) 
 	var avgScore, avgDuration, avgLearning float64
 	err = s.DB.QueryRow(r.Context(), `SELECT count(*),count(DISTINCT user_id),count(*) FILTER(WHERE victory),COALESCE(avg(score),0),COALESCE(avg(duration_ms),0),COALESCE(avg(learning_score),0) FROM defense_results WHERE game_id=$1 AND content_version_id=$2 AND verified AND created_at>=$3`, gameID, version.ID, since).Scan(&runs, &users, &victories, &avgScore, &avgDuration, &avgLearning)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	completionRate := float64(0)
@@ -704,12 +712,19 @@ func (s *Server) defenseTelemetryReport(w http.ResponseWriter, r *http.Request) 
 	departmentCount := int64(0)
 	if privacy.ShowDepartment {
 		if err = s.DB.QueryRow(r.Context(), `SELECT count(DISTINCT u.department) FROM defense_results r JOIN users u ON u.id=r.user_id WHERE r.game_id=$1 AND r.content_version_id=$2 AND r.verified AND r.created_at>=$3 AND u.department<>''`, gameID, version.ID, since).Scan(&departmentCount); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 	}
-	summary := map[string]any{"participants": users, "plays": runs, "completion_rate": completionRate, "average_score": avgScore, "average_game_score": avgScore, "average_play_time_ms": avgDuration, "average_learning_score": avgLearning, "department_count": departmentCount}
-	writeJSON(w, 200, map[string]any{"game": slug, "days": days, "version": defenseVersionJSON(version), "summary": summary, "participants": users, "plays": runs, "runs": runs, "unique_users": users, "completion_rate": completionRate, "average_score": avgScore, "average_game_score": avgScore, "average_play_time_ms": avgDuration, "average_duration_ms": avgDuration, "average_learning_score": avgLearning, "department_count": departmentCount, "department_visible": privacy.ShowDepartment, "verification_method": defenseVerificationMethod})
+	// Refused authoritative results are the signal operators watch for forged
+	// submissions, the same way the RealmGuard report surfaces them.
+	var rejected int64
+	if err = s.DB.QueryRow(r.Context(), `SELECT count(*) FROM audit_logs WHERE action='defense.result.reject' AND created_at>=$1 AND detail->>'game'=$2`, since, slug).Scan(&rejected); err != nil {
+		s.dbError(w, r, err)
+		return
+	}
+	summary := map[string]any{"participants": users, "plays": runs, "completion_rate": completionRate, "average_score": avgScore, "average_game_score": avgScore, "average_play_time_ms": avgDuration, "average_learning_score": avgLearning, "department_count": departmentCount, "rejected_results": rejected}
+	writeJSON(w, 200, map[string]any{"game": slug, "days": days, "version": defenseVersionJSON(version), "summary": summary, "rejected_results": rejected, "participants": users, "plays": runs, "runs": runs, "unique_users": users, "completion_rate": completionRate, "average_score": avgScore, "average_game_score": avgScore, "average_play_time_ms": avgDuration, "average_duration_ms": avgDuration, "average_learning_score": avgLearning, "department_count": departmentCount, "department_visible": privacy.ShowDepartment, "verification_method": defenseVerificationMethod})
 }
 
 func (s *Server) defenseLearningReport(w http.ResponseWriter, r *http.Request) {
@@ -719,12 +734,12 @@ func (s *Server) defenseLearningReport(w http.ResponseWriter, r *http.Request) {
 	}
 	gameID, _, err := s.defenseGame(r.Context(), slug)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	version, err := s.loadDefensePublished(r.Context(), slug)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	content, err := decodeDefenseContent(version.RawContent)
@@ -743,12 +758,12 @@ func (s *Server) defenseLearningReport(w http.ResponseWriter, r *http.Request) {
 	var averageGameScore, averageLearningScore, averagePlayTime, retryRate, improvement float64
 	err = s.DB.QueryRow(r.Context(), `SELECT count(DISTINCT user_id),count(*),count(*) FILTER(WHERE victory),COALESCE(avg(score),0),COALESCE(avg(learning_score),0),COALESCE(avg(duration_ms),0) FROM defense_results WHERE game_id=$1 AND content_version_id=$2 AND verified`, gameID, version.ID).Scan(&participants, &plays, &battleClears, &averageGameScore, &averageLearningScore, &averagePlayTime)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	err = s.DB.QueryRow(r.Context(), `SELECT COALESCE(100.0*count(*) FILTER(WHERE attempts>1)/NULLIF(count(*),0),0),COALESCE(avg(last_score-first_score) FILTER(WHERE attempts>1),0) FROM (SELECT user_id,stage_id,difficulty,count(*) attempts,(array_agg(learning_score ORDER BY created_at,id))[1] first_score,(array_agg(learning_score ORDER BY created_at DESC,id DESC))[1] last_score FROM defense_results WHERE game_id=$1 AND content_version_id=$2 AND verified GROUP BY user_id,stage_id,difficulty) retries`, gameID, version.ID).Scan(&retryRate, &improvement)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	var campaignCompletedUsers int64
@@ -756,13 +771,13 @@ func (s *Server) defenseLearningReport(w http.ResponseWriter, r *http.Request) {
 	if campaignCount > 0 {
 		err = s.DB.QueryRow(r.Context(), `SELECT count(*) FROM (SELECT user_id FROM defense_campaign_progress WHERE game_id=$1 AND content_version_id=$2 GROUP BY user_id HAVING count(*) FILTER(WHERE completed)=$3) completed_users`, gameID, version.ID, campaignCount).Scan(&campaignCompletedUsers)
 		if err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 	}
 	rows, err := s.DB.Query(r.Context(), `SELECT topic,count(*) FILTER(WHERE correct),count(*),round(100.0*count(*) FILTER(WHERE correct)/NULLIF(count(*),0))::int FROM defense_event_answers WHERE game_id=$1 AND content_version_id=$2 GROUP BY topic ORDER BY topic`, gameID, version.ID)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	topics := []map[string]any{}
@@ -771,10 +786,14 @@ func (s *Server) defenseLearningReport(w http.ResponseWriter, r *http.Request) {
 		var correct, total, score int
 		if err = rows.Scan(&topic, &correct, &total, &score); err != nil {
 			rows.Close()
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		topics = append(topics, map[string]any{"type": "topic", "topic": topic, "correct": correct, "total": total, "score": score, "accuracy": score})
+	}
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	rows.Close()
 	questionText := map[string]string{}
@@ -783,7 +802,7 @@ func (s *Server) defenseLearningReport(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err = s.DB.Query(r.Context(), `SELECT question_id,min(topic),count(*) FILTER(WHERE correct),count(*),round(100.0*count(*) FILTER(WHERE correct)/NULLIF(count(*),0))::int FROM defense_event_answers WHERE game_id=$1 AND content_version_id=$2 GROUP BY question_id ORDER BY question_id`, gameID, version.ID)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	questions := []map[string]any{}
@@ -792,10 +811,14 @@ func (s *Server) defenseLearningReport(w http.ResponseWriter, r *http.Request) {
 		var correct, total, accuracy int
 		if err = rows.Scan(&questionID, &topic, &correct, &total, &accuracy); err != nil {
 			rows.Close()
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		questions = append(questions, map[string]any{"type": "question", "question_id": questionID, "question": questionText[questionID], "topic": topic, "correct": correct, "total": total, "accuracy": accuracy})
+	}
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	rows.Close()
 	weakTopics := []map[string]any{}
@@ -812,7 +835,7 @@ func (s *Server) defenseLearningReport(w http.ResponseWriter, r *http.Request) {
 	if privacy.ShowDepartment {
 		rows, err = s.DB.Query(r.Context(), `SELECT u.department,count(DISTINCT r.user_id),count(*),count(*) FILTER(WHERE r.victory),COALESCE(round(avg(r.score)),0)::bigint,COALESCE(round(avg(r.learning_score)),0)::int,COALESCE(round(avg(r.duration_ms)),0)::bigint FROM defense_results r JOIN users u ON u.id=r.user_id WHERE r.game_id=$1 AND r.content_version_id=$2 AND r.verified AND u.department<>'' GROUP BY u.department ORDER BY u.department`, gameID, version.ID)
 		if err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		defer rows.Close()
@@ -821,10 +844,14 @@ func (s *Server) defenseLearningReport(w http.ResponseWriter, r *http.Request) {
 			var users, attempts, completed, learning int
 			var score, playTime int64
 			if err = rows.Scan(&department, &users, &attempts, &completed, &score, &learning, &playTime); err != nil {
-				dbError(w, err)
+				s.dbError(w, r, err)
 				return
 			}
 			departments = append(departments, map[string]any{"type": "department", "department": department, "participants": users, "attempts": attempts, "completed": completed, "score": score, "learning_score": learning, "average_play_time_ms": playTime})
+		}
+		if err := rows.Err(); err != nil {
+			s.dbError(w, r, err)
+			return
 		}
 	}
 	battleClearRate := float64(0)

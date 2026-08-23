@@ -561,7 +561,7 @@ func validRealmGuardColor(value string) bool {
 func (s *Server) realmGuardConfig(w http.ResponseWriter, r *http.Request) {
 	version, err := s.loadRealmGuardPublished(r.Context())
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	response, err := realmGuardConfigPayload(version)
@@ -638,29 +638,39 @@ func realmGuardConfigPayload(version realmGuardVersionRecord) (map[string]any, e
 func (s *Server) realmGuardVersion(w http.ResponseWriter, r *http.Request) {
 	version, err := s.loadRealmGuardPublished(r.Context())
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	writeJSON(w, 200, map[string]any{"version": realmGuardVersionJSON(version)})
 }
 
-type realmGuardExecer interface {
+// execer is satisfied by both *pgxpool.Pool and pgx.Tx, so seeding helpers can
+// run standalone or join a caller's transaction.
+type execer interface {
 	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
 	QueryRow(context.Context, string, ...any) pgx.Row
 }
 
-func ensureRealmGuardUserWith(ctx context.Context, db realmGuardExecer, userID uuid.UUID, content realmGuardDecodedContent) error {
+func ensureRealmGuardUserWith(ctx context.Context, db execer, userID uuid.UUID, content realmGuardDecodedContent) error {
+	heroIDs, heroUnlocked := make([]string, 0, len(content.Heroes)), make([]bool, 0, len(content.Heroes))
 	for _, hero := range content.Heroes {
-		_, err := db.Exec(ctx, `INSERT INTO realmguard_user_heroes(user_id,hero_id,unlocked) VALUES($1,$2,$3) ON CONFLICT DO NOTHING`, userID, hero.ID, hero.UnlockStage <= 1)
-		if err != nil {
-			return err
-		}
+		heroIDs = append(heroIDs, hero.ID)
+		heroUnlocked = append(heroUnlocked, hero.UnlockStage <= 1)
 	}
+	if _, err := db.Exec(ctx, `INSERT INTO realmguard_user_heroes(user_id,hero_id,unlocked)
+		SELECT $1,hero.id,hero.unlocked FROM unnest($2::text[],$3::boolean[]) AS hero(id,unlocked)
+		ON CONFLICT DO NOTHING`, userID, heroIDs, heroUnlocked); err != nil {
+		return err
+	}
+	skillIDsAll, skillUnlocked := make([]string, 0, len(content.Skills)), make([]bool, 0, len(content.Skills))
 	for _, skill := range content.Skills {
-		_, err := db.Exec(ctx, `INSERT INTO realmguard_user_skills(user_id,skill_id,unlocked) VALUES($1,$2,$3) ON CONFLICT DO NOTHING`, userID, skill.ID, skill.UnlockStage <= 1)
-		if err != nil {
-			return err
-		}
+		skillIDsAll = append(skillIDsAll, skill.ID)
+		skillUnlocked = append(skillUnlocked, skill.UnlockStage <= 1)
+	}
+	if _, err := db.Exec(ctx, `INSERT INTO realmguard_user_skills(user_id,skill_id,unlocked)
+		SELECT $1,skill.id,skill.unlocked FROM unnest($2::text[],$3::boolean[]) AS skill(id,unlocked)
+		ON CONFLICT DO NOTHING`, userID, skillIDsAll, skillUnlocked); err != nil {
+		return err
 	}
 	heroID := ""
 	for _, hero := range content.Heroes {
@@ -726,11 +736,10 @@ func ensureRealmGuardUserWith(ctx context.Context, db realmGuardExecer, userID u
 	if firstCampaign == nil {
 		return fmt.Errorf("RealmGuard content has no campaign stage")
 	}
-	for _, difficulty := range []string{"casual", "normal", "veteran"} {
-		_, err = db.Exec(ctx, `INSERT INTO realmguard_user_progress(user_id,stage_id,difficulty,unlocked) VALUES($1,$2,$3,true) ON CONFLICT DO NOTHING`, userID, firstCampaign.ID, difficulty)
-		if err != nil {
-			return err
-		}
+	if _, err := db.Exec(ctx, `INSERT INTO realmguard_user_progress(user_id,stage_id,difficulty,unlocked)
+		SELECT $1,$2,d.difficulty,true FROM unnest(ARRAY['casual','normal','veteran']) AS d(difficulty)
+		ON CONFLICT DO NOTHING`, userID, firstCampaign.ID); err != nil {
+		return err
 	}
 	return nil
 }
@@ -802,6 +811,9 @@ func (s *Server) realmGuardProgressData(ctx context.Context, p Principal, versio
 			aggregate.Difficulties = append(aggregate.Difficulties, difficulty)
 		}
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	rows.Close()
 	stageItems := []map[string]any{}
 	totalStars, highestStage, unlockedStage, lastCampaign := 0, 0, 0, 0
@@ -847,6 +859,9 @@ func (s *Server) realmGuardProgressData(ctx context.Context, p Principal, versio
 		heroes = append(heroes, map[string]any{"hero_id": id, "unlocked": unlocked, "level": level, "xp": xp, "updated_at": updated})
 		heroLevels[id] = level
 	}
+	if err := heroRows.Err(); err != nil {
+		return nil, err
+	}
 	heroRows.Close()
 	skillRows, err := s.DB.Query(ctx, `SELECT skill_id,unlocked,level,updated_at FROM realmguard_user_skills WHERE user_id=$1 ORDER BY skill_id`, p.UserID)
 	if err != nil {
@@ -863,6 +878,9 @@ func (s *Server) realmGuardProgressData(ctx context.Context, p Principal, versio
 			return nil, err
 		}
 		skills = append(skills, map[string]any{"skill_id": id, "unlocked": unlocked, "level": level, "updated_at": updated})
+	}
+	if err := skillRows.Err(); err != nil {
+		return nil, err
 	}
 	skillRows.Close()
 	var heroID string
@@ -893,7 +911,7 @@ func (s *Server) realmGuardProgress(w http.ResponseWriter, r *http.Request) {
 	p, _ := principalFrom(r)
 	version, err := s.loadRealmGuardPublished(r.Context())
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	content, err := decodeRealmGuardContent(version.RawContent)
@@ -903,7 +921,7 @@ func (s *Server) realmGuardProgress(w http.ResponseWriter, r *http.Request) {
 	}
 	data, err := s.realmGuardProgressData(r.Context(), p, version, content)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	writeJSON(w, 200, data)
@@ -933,7 +951,7 @@ func (s *Server) putRealmGuardProgress(w http.ResponseWriter, r *http.Request) {
 	}
 	version, err := s.loadRealmGuardPublished(r.Context())
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	content, err := decodeRealmGuardContent(version.RawContent)
@@ -942,14 +960,14 @@ func (s *Server) putRealmGuardProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.ensureRealmGuardUser(r.Context(), p.UserID, content); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	var currentHero string
 	var currentSkills []string
 	var currentSettings json.RawMessage
 	if err := s.DB.QueryRow(r.Context(), `SELECT hero_id,skill_ids,settings FROM realmguard_user_loadouts WHERE user_id=$1`, p.UserID).Scan(&currentHero, &currentSkills, &currentSettings); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	in.HeroID = strings.TrimSpace(in.HeroID)
@@ -1008,13 +1026,13 @@ func (s *Server) putRealmGuardProgress(w http.ResponseWriter, r *http.Request) {
 	}
 	_, err = s.DB.Exec(r.Context(), `UPDATE realmguard_user_loadouts SET hero_id=$2,skill_ids=$3,settings=$4,updated_at=now() WHERE user_id=$1`, p.UserID, in.HeroID, skillIDs, settings)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	s.audit(r, "realmguard.loadout.update", "realmguard_loadout", p.UserID.String(), map[string]any{"hero_id": in.HeroID, "skill_ids": skillIDs})
 	data, err := s.realmGuardProgressData(r.Context(), p, version, content)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	writeJSON(w, 200, data)
@@ -1370,7 +1388,7 @@ func (s *Server) submitRealmGuardResult(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		s.Log.Error("RealmGuard result transaction failed", "session_id", in.SessionID, "user_id", p.UserID, "error", err)
-		dbError(w, err)
+		s.dbError(w, r, err)
 	}
 }
 
@@ -1718,7 +1736,7 @@ func unlockRealmGuardAchievementsTx(ctx context.Context, tx pgx.Tx, userID uuid.
 func (s *Server) realmGuardRankings(w http.ResponseWriter, r *http.Request) {
 	version, err := s.loadRealmGuardPublished(r.Context())
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	mode := r.URL.Query().Get("mode")
@@ -1783,7 +1801,7 @@ func (s *Server) realmGuardRankings(w http.ResponseWriter, r *http.Request) {
 			department_totals AS (SELECT department,SUM(score) score,COUNT(*) members FROM user_best GROUP BY department)
 			SELECT row_number() OVER(ORDER BY score DESC),department,score,members FROM department_totals ORDER BY score DESC LIMIT $8`, version.ID, mode, difficulty, stageID, heroID, since, period, limit)
 		if queryErr != nil {
-			dbError(w, queryErr)
+			s.dbError(w, r, queryErr)
 			return
 		}
 		defer rows.Close()
@@ -1793,10 +1811,14 @@ func (s *Server) realmGuardRankings(w http.ResponseWriter, r *http.Request) {
 			var name string
 			var members int
 			if err := rows.Scan(&rank, &name, &score, &members); err != nil {
-				dbError(w, err)
+				s.dbError(w, r, err)
 				return
 			}
 			items = append(items, map[string]any{"rank": rank, "name": name, "department": name, "score": score, "members": members})
+		}
+		if err := rows.Err(); err != nil {
+			s.dbError(w, r, err)
+			return
 		}
 		writeJSON(w, 200, map[string]any{"items": items, "group": group, "metric": metric, "period": period, "version": realmGuardVersionJSON(version)})
 		return
@@ -1811,7 +1833,7 @@ func (s *Server) realmGuardRankings(w http.ResponseWriter, r *http.Request) {
 			hero_totals AS (SELECT hero_id,SUM(score) score,COUNT(*) members FROM user_best GROUP BY hero_id)
 			SELECT row_number() OVER(ORDER BY score DESC),hero_id,score,members FROM hero_totals ORDER BY score DESC LIMIT $8`, version.ID, mode, difficulty, stageID, heroID, since, period, limit)
 		if queryErr != nil {
-			dbError(w, queryErr)
+			s.dbError(w, r, queryErr)
 			return
 		}
 		defer rows.Close()
@@ -1821,10 +1843,14 @@ func (s *Server) realmGuardRankings(w http.ResponseWriter, r *http.Request) {
 			var name string
 			var members int
 			if err := rows.Scan(&rank, &name, &score, &members); err != nil {
-				dbError(w, err)
+				s.dbError(w, r, err)
 				return
 			}
 			items = append(items, map[string]any{"rank": rank, "name": name, "hero_id": name, "score": score, "members": members})
+		}
+		if err := rows.Err(); err != nil {
+			s.dbError(w, r, err)
+			return
 		}
 		writeJSON(w, 200, map[string]any{"items": items, "group": group, "metric": metric, "period": period, "version": realmGuardVersionJSON(version)})
 		return
@@ -1839,7 +1865,7 @@ func (s *Server) realmGuardRankings(w http.ResponseWriter, r *http.Request) {
 		ORDER BY u.id,rr.score DESC,rr.created_at ASC)
 		SELECT row_number() OVER(ORDER BY score DESC,created_at),id,username,display_name,nickname,department,stage_id,hero_id,difficulty,score,stars,duration_ms,created_at FROM best ORDER BY score DESC,created_at LIMIT $8`, version.ID, mode, difficulty, stageID, heroID, since, period, limit)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -1856,7 +1882,7 @@ func (s *Server) realmGuardRankings(w http.ResponseWriter, r *http.Request) {
 		var stars int
 		var created time.Time
 		if err := rows.Scan(&rank, &userID, &username, &display, &nickname, &department, &itemStage, &itemHero, &itemDifficulty, &score, &stars, &duration, &created); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		name := nickname
@@ -1871,6 +1897,10 @@ func (s *Server) realmGuardRankings(w http.ResponseWriter, r *http.Request) {
 			item["department"] = department
 		}
 		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	writeJSON(w, 200, map[string]any{"items": items, "group": group, "metric": metric, "period": period, "version": realmGuardVersionJSON(version)})
 }
@@ -1896,7 +1926,7 @@ func (s *Server) realmGuardDepartmentStars(w http.ResponseWriter, r *http.Reques
 		department_total AS (SELECT department,SUM(stars) stars,COUNT(*) members FROM user_total GROUP BY department)
 		SELECT row_number() OVER(ORDER BY stars DESC),department,stars,members FROM department_total WHERE stars>0 ORDER BY stars DESC LIMIT $8`, version.ID, mode, difficulty, stageID, heroID, since, period, limit)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -1906,10 +1936,14 @@ func (s *Server) realmGuardDepartmentStars(w http.ResponseWriter, r *http.Reques
 		var department string
 		var members int
 		if err := rows.Scan(&rank, &department, &stars, &members); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		items = append(items, map[string]any{"rank": rank, "name": department, "department": department, "stars": stars, "members": members})
+	}
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	writeJSON(w, 200, map[string]any{"items": items, "group": "department", "metric": "stars", "period": period, "version": realmGuardVersionJSON(version)})
 }

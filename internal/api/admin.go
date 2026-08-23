@@ -23,7 +23,7 @@ var editableSettings = map[string]bool{"service": true, "approval": true, "priva
 func (s *Server) listSettings(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.DB.Query(r.Context(), `SELECT key,value,updated_at FROM system_settings ORDER BY key`)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -34,7 +34,7 @@ func (s *Server) listSettings(w http.ResponseWriter, r *http.Request) {
 		var raw json.RawMessage
 		var at time.Time
 		if err := rows.Scan(&key, &raw, &at); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		var value any
@@ -51,6 +51,10 @@ func (s *Server) listSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		items[key] = value
 		updated[key] = at
+	}
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	writeJSON(w, 200, map[string]any{"settings": items, "updated_at": updated})
 }
@@ -76,7 +80,7 @@ func (s *Server) getSetting(w http.ResponseWriter, r *http.Request) {
 	var at time.Time
 	err := s.DB.QueryRow(r.Context(), `SELECT value,updated_at FROM system_settings WHERE key=$1`, key).Scan(&raw, &at)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	writeJSON(w, 200, map[string]any{"key": key, "value": raw, "updated_at": at})
@@ -113,9 +117,10 @@ func (s *Server) putSetting(w http.ResponseWriter, r *http.Request) {
 	p, _ := principalFrom(r)
 	_, err := s.DB.Exec(r.Context(), `INSERT INTO system_settings(key,value,updated_by) VALUES($1,$2,$3) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_by=excluded.updated_by,updated_at=now()`, key, wrapper.Value, p.UserID)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
+	s.invalidateSetting(key)
 	s.audit(r, "setting.update", "setting", key, nil)
 	writeJSON(w, 200, map[string]any{"key": key, "value": wrapper.Value})
 }
@@ -238,7 +243,7 @@ func clockMinutes(value string, allow24 bool) (int, error) {
 func (s *Server) getOIDCSetting(w http.ResponseWriter, r *http.Request) {
 	var cfg oidcSetting
 	if err := s.setting(r.Context(), "oidc", &cfg); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	configured := cfg.ClientSecret != ""
@@ -273,7 +278,7 @@ func (s *Server) putOIDCSetting(w http.ResponseWriter, r *http.Request) {
 	} else {
 		sealed, err := s.Secrets.Seal(in.ClientSecret)
 		if err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		in.ClientSecret = sealed
@@ -283,9 +288,11 @@ func (s *Server) putOIDCSetting(w http.ResponseWriter, r *http.Request) {
 	p, _ := principalFrom(r)
 	_, err := s.DB.Exec(r.Context(), `UPDATE system_settings SET value=$1,secret=true,updated_by=$2,updated_at=now() WHERE key='oidc'`, raw, p.UserID)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
+	s.invalidateSetting("oidc")
+	s.invalidateOIDCProviders()
 	s.audit(r, "oidc.update", "setting", "oidc", map[string]any{"enabled": in.Enabled, "issuer": in.Issuer, "client_id": in.ClientID})
 	in.ClientSecret = ""
 	writeJSON(w, 200, map[string]any{"setting": in, "client_secret_configured": configured, "redirect_uri": s.requestBaseURL(r) + "/api/v1/auth/oidc/callback"})
@@ -327,7 +334,7 @@ func (s *Server) loadAISetting(ctx context.Context) (aiSetting, error) {
 func (s *Server) getAISetting(w http.ResponseWriter, r *http.Request) {
 	var cfg aiSetting
 	if err := s.setting(r.Context(), "ai", &cfg); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	configured := cfg.APIKey != ""
@@ -367,7 +374,7 @@ func (s *Server) putAISetting(w http.ResponseWriter, r *http.Request) {
 	} else {
 		sealed, e := s.Secrets.Seal(in.APIKey)
 		if e != nil {
-			dbError(w, e)
+			s.dbError(w, r, e)
 			return
 		}
 		in.APIKey = sealed
@@ -376,10 +383,11 @@ func (s *Server) putAISetting(w http.ResponseWriter, r *http.Request) {
 	p, _ := principalFrom(r)
 	_, err := s.DB.Exec(r.Context(), `UPDATE system_settings SET value=$1,secret=true,updated_by=$2,updated_at=now() WHERE key='ai'`, raw, p.UserID)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	configured := in.APIKey != ""
+	s.invalidateSetting("ai")
 	s.audit(r, "ai.update", "setting", "ai", map[string]any{"enabled": in.Enabled, "base_url": in.BaseURL, "model": in.DefaultModel})
 	in.APIKey = ""
 	writeJSON(w, 200, map[string]any{"setting": in, "api_key_configured": configured})
@@ -388,7 +396,7 @@ func (s *Server) putAISetting(w http.ResponseWriter, r *http.Request) {
 func (s *Server) adminDashboard(w http.ResponseWriter, r *http.Request) {
 	data, err := s.analyticsData(r.Context())
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	location := s.serviceLocation(r.Context())
@@ -397,7 +405,7 @@ func (s *Server) adminDashboard(w http.ResponseWriter, r *http.Request) {
 	var users, games, scoresToday int64
 	err = s.DB.QueryRow(r.Context(), `SELECT (SELECT count(*) FROM users WHERE status='active'),(SELECT count(*) FROM games WHERE status='active'),(SELECT count(*) FROM scores WHERE created_at >= $1)`, dayStart).Scan(&users, &games, &scoresToday)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	data["users"] = users
@@ -410,25 +418,32 @@ func (s *Server) adminDashboard(w http.ResponseWriter, r *http.Request) {
 func (s *Server) listUsers(w http.ResponseWriter, r *http.Request) {
 	limit, offset := pageParams(r)
 	q := r.URL.Query().Get("q")
-	rows, err := s.DB.Query(r.Context(), `SELECT id,username,display_name,email,department,team,role,status,created_at,last_login_at FROM users WHERE $1='' OR username ILIKE '%'||$1||'%' OR display_name ILIKE '%'||$1||'%' OR email ILIKE '%'||$1||'%' OR department ILIKE '%'||$1||'%' OR team ILIKE '%'||$1||'%' ORDER BY created_at DESC LIMIT $2 OFFSET $3`, q, limit, offset)
+	// count(*) OVER() carries the unpaged total alongside the page, so the
+	// console can say how much is there without a second round trip.
+	rows, err := s.DB.Query(r.Context(), `SELECT id,username,display_name,email,department,team,role,status,created_at,last_login_at,count(*) OVER() FROM users WHERE $1='' OR username ILIKE '%'||$1||'%' OR display_name ILIKE '%'||$1||'%' OR email ILIKE '%'||$1||'%' OR department ILIKE '%'||$1||'%' OR team ILIKE '%'||$1||'%' ORDER BY created_at DESC LIMIT $2 OFFSET $3`, q, limit, offset)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer rows.Close()
 	items := []map[string]any{}
+	total := int64(0)
 	for rows.Next() {
 		var id uuid.UUID
 		var username, display, email, department, team, role, status string
 		var created time.Time
 		var last *time.Time
-		if err := rows.Scan(&id, &username, &display, &email, &department, &team, &role, &status, &created, &last); err != nil {
-			dbError(w, err)
+		if err := rows.Scan(&id, &username, &display, &email, &department, &team, &role, &status, &created, &last, &total); err != nil {
+			s.dbError(w, r, err)
 			return
 		}
 		items = append(items, map[string]any{"id": id, "username": username, "display_name": display, "email": email, "department": department, "team": team, "role": role, "status": status, "created_at": created, "last_login_at": last})
 	}
-	writeJSON(w, 200, map[string]any{"items": items})
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"items": items, "total": total, "limit": limit, "offset": offset})
 }
 
 func (s *Server) updateUser(w http.ResponseWriter, r *http.Request) {
@@ -467,7 +482,7 @@ func (s *Server) updateUser(w http.ResponseWriter, r *http.Request) {
 	}
 	tag, err := s.DB.Exec(r.Context(), `UPDATE users SET display_name=COALESCE($2,display_name),department=COALESCE($3,department),team=COALESCE($4,team),role=COALESCE($5,role),status=COALESCE($6,status),password_hash=COALESCE($7,password_hash),updated_at=now() WHERE id=$1`, id, in.DisplayName, in.Department, in.Team, in.Role, in.Status, hash)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if tag.RowsAffected() == 0 {
@@ -480,26 +495,41 @@ func (s *Server) updateUser(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) listAuditLogs(w http.ResponseWriter, r *http.Request) {
 	limit, offset := pageParams(r)
-	rows, err := s.DB.Query(r.Context(), `SELECT a.id,a.actor_id,COALESCE(u.username,''),a.action,a.resource_type,a.resource_id,a.remote_addr,a.user_agent,a.detail,a.created_at FROM audit_logs a LEFT JOIN users u ON u.id=a.actor_id ORDER BY a.created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if r.URL.Query().Get("format") == "csv" {
+		s.exportAuditLogs(w, r, q)
+		return
+	}
+	// An audit trail is only useful if an operator can reach past the newest
+	// page, so the query carries both a filter and the unpaged total.
+	rows, err := s.DB.Query(r.Context(), `SELECT a.id,a.actor_id,COALESCE(u.username,''),a.action,a.resource_type,a.resource_id,a.remote_addr,a.user_agent,a.detail,a.created_at,count(*) OVER()
+		FROM audit_logs a LEFT JOIN users u ON u.id=a.actor_id
+		WHERE $1='' OR u.username ILIKE '%'||$1||'%' OR a.action ILIKE '%'||$1||'%' OR a.resource_type ILIKE '%'||$1||'%' OR a.resource_id ILIKE '%'||$1||'%' OR a.remote_addr ILIKE '%'||$1||'%'
+		ORDER BY a.created_at DESC LIMIT $2 OFFSET $3`, q, limit, offset)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer rows.Close()
 	items := []map[string]any{}
+	total := int64(0)
 	for rows.Next() {
 		var id int64
 		var actor *uuid.UUID
 		var username, action, typ, rid, remote, agent string
 		var detail json.RawMessage
 		var created time.Time
-		if err := rows.Scan(&id, &actor, &username, &action, &typ, &rid, &remote, &agent, &detail, &created); err != nil {
-			dbError(w, err)
+		if err := rows.Scan(&id, &actor, &username, &action, &typ, &rid, &remote, &agent, &detail, &created, &total); err != nil {
+			s.dbError(w, r, err)
 			return
 		}
 		items = append(items, map[string]any{"id": id, "actor_id": actor, "actor_username": username, "action": action, "resource_type": typ, "resource_id": rid, "remote_addr": remote, "user_agent": agent, "detail": detail, "created_at": created})
 	}
-	writeJSON(w, 200, map[string]any{"items": items})
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"items": items, "total": total, "limit": limit, "offset": offset})
 }
 
 func chiURLParam(r *http.Request, key string) string { return chi.URLParam(r, key) }
@@ -509,7 +539,7 @@ func (s *Server) adminListGames(w http.ResponseWriter, r *http.Request) {
 	limit, offset := pageParams(r)
 	rows, err := s.DB.Query(r.Context(), gameSelect+` ORDER BY g.created_at DESC LIMIT $2 OFFSET $3`, p.UserID, limit, offset)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -517,12 +547,23 @@ func (s *Server) adminListGames(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		item, err := scanGame(rows)
 		if err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		items = append(items, item)
 	}
-	writeJSON(w, 200, map[string]any{"items": items})
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
+	}
+	// scanGame is shared with the public catalog, so the total comes from its
+	// own small query rather than widening that row shape.
+	var total int64
+	if err := s.DB.QueryRow(r.Context(), `SELECT count(*) FROM games`).Scan(&total); err != nil {
+		s.dbError(w, r, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"items": items, "total": total, "limit": limit, "offset": offset})
 }
 
 func (s *Server) createGame(w http.ResponseWriter, r *http.Request) {
@@ -548,7 +589,7 @@ func (s *Server) createGame(w http.ResponseWriter, r *http.Request) {
 	s.audit(r, "game.create", "game", id.String(), map[string]any{"slug": in.Slug})
 	item, err := scanGame(s.DB.QueryRow(r.Context(), gameSelect+` WHERE g.id=$2`, p.UserID, id))
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	writeJSON(w, 201, map[string]any{"game": item})
@@ -570,7 +611,7 @@ func (s *Server) updateGame(w http.ResponseWriter, r *http.Request) {
 	}
 	var currentSlug string
 	if err := s.DB.QueryRow(r.Context(), `SELECT slug FROM games WHERE id=$1`, id).Scan(&currentSlug); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if (isProtectedAuthoritativeGameSlug(currentSlug) || isProtectedAuthoritativeGameSlug(in.Slug)) && (currentSlug != in.Slug || in.Status != "active") {
@@ -589,7 +630,7 @@ func (s *Server) updateGame(w http.ResponseWriter, r *http.Request) {
 	s.audit(r, "game.update", "game", id.String(), nil)
 	item, err := scanGame(s.DB.QueryRow(r.Context(), gameSelect+` WHERE g.id=$2`, p.UserID, id))
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	writeJSON(w, 200, map[string]any{"game": item})
@@ -605,7 +646,7 @@ func (s *Server) deleteGame(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, pgx.ErrNoRows) {
 			writeError(w, 404, "not_found", "game not found")
 		} else {
-			dbError(w, err)
+			s.dbError(w, r, err)
 		}
 		return
 	}
@@ -615,7 +656,7 @@ func (s *Server) deleteGame(w http.ResponseWriter, r *http.Request) {
 	}
 	tag, err := s.DB.Exec(r.Context(), `UPDATE games SET status='disabled',updated_at=now() WHERE id=$1`, id)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if tag.RowsAffected() == 0 {
@@ -636,7 +677,7 @@ type categoryInput struct {
 func (s *Server) listCategories(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.DB.Query(r.Context(), `SELECT id,slug,name,description,sort_order,created_at FROM categories ORDER BY sort_order,name`)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -647,10 +688,14 @@ func (s *Server) listCategories(w http.ResponseWriter, r *http.Request) {
 		var order int
 		var created time.Time
 		if err := rows.Scan(&id, &slug, &name, &desc, &order, &created); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		items = append(items, map[string]any{"id": id, "slug": slug, "name": name, "description": desc, "sort_order": order, "created_at": created})
+	}
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	writeJSON(w, 200, map[string]any{"items": items})
 }
@@ -708,7 +753,7 @@ func (s *Server) deleteCategory(w http.ResponseWriter, r *http.Request) {
 	}
 	tag, err := s.DB.Exec(r.Context(), `DELETE FROM categories WHERE id=$1`, id)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if tag.RowsAffected() == 0 {

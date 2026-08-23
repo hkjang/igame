@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -104,21 +106,57 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in.Username = strings.TrimSpace(in.Username)
+	keys := loginThrottleKeys(s.clientIP(r), in.Username)
+	if wait := s.logins.retryAfter(s.Now(), keys); wait > 0 {
+		w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
+		writeError(w, http.StatusTooManyRequests, "too_many_attempts", "too many failed sign-in attempts; try again later")
+		return
+	}
 	var p Principal
 	var hash string
 	err := s.DB.QueryRow(r.Context(), `SELECT id,username,display_name,email,department,team,role,password_hash FROM users WHERE lower(username)=lower($1) AND status='active'`, in.Username).Scan(
 		&p.UserID, &p.Username, &p.DisplayName, &p.Email, &p.Department, &p.Team, &p.Role, &hash)
-	if err != nil || hash == "" || bcrypt.CompareHashAndPassword([]byte(hash), []byte(in.Password)) != nil {
+	if err != nil || hash == "" {
+		// Verify the supplied password against a decoy so an unknown account
+		// costs the same as a wrong password and cannot be probed by timing.
+		_ = bcrypt.CompareHashAndPassword(decoyPasswordHash(), []byte(in.Password))
+		s.failLogin(r, keys, in.Username)
 		writeError(w, 401, "invalid_credentials", "invalid username or password")
 		return
 	}
+	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(in.Password)) != nil {
+		s.failLogin(r, keys, in.Username)
+		writeError(w, 401, "invalid_credentials", "invalid username or password")
+		return
+	}
+	s.logins.recordSuccess(keys)
 	if err := s.issueSession(w, r, p.UserID); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	_, _ = s.DB.Exec(r.Context(), `UPDATE users SET last_login_at=now() WHERE id=$1`, p.UserID)
 	s.audit(r, "auth.login", "user", p.UserID.String(), map[string]any{"method": "local", "username": p.Username})
 	writeJSON(w, 200, map[string]any{"user": p})
+}
+
+// decoyPasswordHash is a bcrypt digest of a value nobody knows. It exists only
+// to keep the cost of rejecting an unknown user identical to rejecting a wrong
+// password.
+var decoyPasswordHash = sync.OnceValue(func() []byte {
+	secret, err := randomToken(32)
+	if err != nil {
+		secret = "igame-decoy-password"
+	}
+	hash, _ := bcrypt.GenerateFromPassword([]byte(secret), bcrypt.DefaultCost)
+	return hash
+})
+
+func (s *Server) failLogin(r *http.Request, keys map[string]int, username string) {
+	now := s.Now()
+	s.logins.recordFailure(now, keys)
+	if s.Log != nil && s.logins.retryAfter(now, keys) > 0 {
+		s.Log.Warn("local sign-in throttled", "username", username, "remote_addr", s.clientIP(r))
+	}
 }
 
 func (s *Server) issueSession(w http.ResponseWriter, r *http.Request, userID uuid.UUID) error {
@@ -168,7 +206,7 @@ func (s *Server) oidcLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	providerCtx := oidc.ClientContext(r.Context(), s.HTTP)
-	provider, err := oidc.NewProvider(providerCtx, cfg.Issuer)
+	provider, err := s.oidcProvider(providerCtx, cfg.Issuer)
 	if err != nil {
 		writeError(w, 502, "oidc_discovery_failed", "OIDC provider discovery failed")
 		return
@@ -188,7 +226,7 @@ func (s *Server) oidcLogin(w http.ResponseWriter, r *http.Request) {
 	returnTo := safeReturnTo(r.URL.Query().Get("return_to"))
 	_, err = s.DB.Exec(r.Context(), `INSERT INTO oidc_flows(state_hash,nonce,code_verifier,return_to,expires_at) VALUES($1,$2,$3,$4,now()+interval '10 minutes')`, stateHash[:], nonce, verifier, returnTo)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	oauthCfg := oauth2.Config{ClientID: cfg.ClientID, ClientSecret: cfg.ClientSecret, Endpoint: provider.Endpoint(), RedirectURL: s.requestBaseURL(r) + "/api/v1/auth/oidc/callback", Scopes: cfg.Scopes}
@@ -219,7 +257,7 @@ func (s *Server) oidcCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	providerCtx := oidc.ClientContext(r.Context(), s.HTTP)
-	provider, err := oidc.NewProvider(providerCtx, cfg.Issuer)
+	provider, err := s.oidcProvider(providerCtx, cfg.Issuer)
 	if err != nil {
 		writeError(w, 502, "oidc_discovery_failed", "OIDC provider discovery failed")
 		return
@@ -287,11 +325,11 @@ func (s *Server) oidcCallback(w http.ResponseWriter, r *http.Request) {
 		err = s.DB.QueryRow(r.Context(), `INSERT INTO users(username,display_name,email,department,team,role,status,oidc_subject,last_login_at) VALUES($1,$2,$3,$4,$5,$6,'active',$7,now()) RETURNING id`, username, display, email, department, team, role, sub).Scan(&userID)
 	}
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if err = s.issueSession(w, r, userID); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, safeReturnTo(returnTo), http.StatusFound)
@@ -338,7 +376,7 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 		COALESCE((SELECT sum(a.xp) FROM user_achievements ua JOIN achievements a ON a.id=ua.achievement_id WHERE ua.user_id=u.id),0)
 		FROM users u WHERE u.id=$1`, p.UserID).Scan(&nickname, &avatarURL, &rankingOptOut, &xp)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	writeJSON(w, 200, map[string]any{"user": map[string]any{
@@ -374,7 +412,7 @@ func (s *Server) updateMe(w http.ResponseWriter, r *http.Request) {
 	}
 	err := s.DB.QueryRow(r.Context(), `UPDATE users SET display_name=COALESCE($2,display_name),nickname=COALESCE($3,nickname),avatar_url=COALESCE($4,avatar_url),ranking_opt_out=COALESCE($5,ranking_opt_out),updated_at=now() WHERE id=$1 RETURNING id,username,display_name,email,department,team,role,nickname,avatar_url,ranking_opt_out`, p.UserID, in.DisplayName, in.Nickname, in.AvatarURL, in.RankingOptOut).Scan(&out.ID, &out.Username, &out.DisplayName, &out.Email, &out.Department, &out.Team, &out.Role, &out.Nickname, &out.AvatarURL, &out.RankingOptOut)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	s.audit(r, "profile.update", "user", p.UserID.String(), nil)
@@ -409,7 +447,7 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
 	}
 	newHash, err := bcrypt.GenerateFromPassword([]byte(in.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	cookie, err := r.Cookie(sessionCookie)
@@ -420,7 +458,7 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
 	tokenHash := sha256.Sum256([]byte(cookie.Value))
 	tx, err := s.DB.Begin(r.Context())
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer tx.Rollback(r.Context())
@@ -428,11 +466,11 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
 		_, err = tx.Exec(r.Context(), `DELETE FROM auth_sessions WHERE user_id=$1 AND token_hash<>$2`, p.UserID, tokenHash[:])
 	}
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if err = tx.Commit(r.Context()); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	s.audit(r, "password.change", "user", p.UserID.String(), map[string]any{"other_sessions_revoked": true})
@@ -446,7 +484,7 @@ func (s *Server) getPreferences(w http.ResponseWriter, r *http.Request) {
 	if err == pgx.ErrNoRows {
 		raw = []byte("{}")
 	} else if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	writeJSON(w, 200, map[string]any{"preferences": raw})
@@ -461,7 +499,7 @@ func (s *Server) putPreferences(w http.ResponseWriter, r *http.Request) {
 	raw, _ := json.Marshal(value)
 	_, err := s.DB.Exec(r.Context(), `INSERT INTO user_preferences(user_id,value) VALUES($1,$2) ON CONFLICT(user_id) DO UPDATE SET value=excluded.value,updated_at=now()`, p.UserID, raw)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	writeJSON(w, 200, map[string]any{"preferences": value})

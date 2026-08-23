@@ -356,21 +356,35 @@ func handleRealmGuardDesignerError(w http.ResponseWriter, err error) {
 func (s *Server) listRealmGuardVersions(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.DB.Query(r.Context(), `SELECT `+realmGuardVersionColumns+` FROM realmguard_content_versions ORDER BY version_no DESC`)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
-	defer rows.Close()
+	versions, err := collectRealmGuardVersions(rows)
+	if err != nil {
+		s.dbError(w, r, err)
+		return
+	}
 	items := []map[string]any{}
+	for _, version := range versions {
+		items = append(items, realmGuardVersionJSON(s.normalizeRealmGuardChecksum(r.Context(), version)))
+	}
+	writeJSON(w, 200, map[string]any{"items": items})
+}
+
+// collectRealmGuardVersions drains the cursor before the caller issues any
+// follow-up query. Querying while rows are open borrows a second pooled
+// connection per row and can deadlock the pool under load.
+func collectRealmGuardVersions(rows pgx.Rows) ([]realmGuardVersionRecord, error) {
+	defer rows.Close()
+	var versions []realmGuardVersionRecord
 	for rows.Next() {
 		version, err := scanRealmGuardVersion(rows)
 		if err != nil {
-			dbError(w, err)
-			return
+			return nil, err
 		}
-		version = s.normalizeRealmGuardChecksum(r.Context(), version)
-		items = append(items, realmGuardVersionJSON(version))
+		versions = append(versions, version)
 	}
-	writeJSON(w, 200, map[string]any{"items": items})
+	return versions, rows.Err()
 }
 
 func (s *Server) previewRealmGuardVersion(w http.ResponseWriter, r *http.Request) {
@@ -381,7 +395,7 @@ func (s *Server) previewRealmGuardVersion(w http.ResponseWriter, r *http.Request
 	}
 	version, err := s.loadRealmGuardVersion(r.Context(), id)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if !slices.Contains([]string{"draft", "testing", "pending_approval", "approved", "published"}, version.Status) {
@@ -392,7 +406,7 @@ func (s *Server) previewRealmGuardVersion(w http.ResponseWriter, r *http.Request
 		creatorTeam := ""
 		if version.CreatedBy != nil {
 			if err := s.DB.QueryRow(r.Context(), `SELECT team FROM users WHERE id=$1`, *version.CreatedBy).Scan(&creatorTeam); err != nil {
-				dbError(w, err)
+				s.dbError(w, r, err)
 				return
 			}
 		}
@@ -433,22 +447,22 @@ func (s *Server) createRealmGuardVersion(w http.ResponseWriter, r *http.Request)
 	}
 	tx, err := s.DB.Begin(r.Context())
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer tx.Rollback(r.Context())
 	if _, err = tx.Exec(r.Context(), `SELECT pg_advisory_xact_lock(hashtext('realmguard_content_versions'))`); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	published, err := scanRealmGuardVersion(tx.QueryRow(r.Context(), `SELECT `+realmGuardVersionColumns+` FROM realmguard_content_versions WHERE status='published' FOR SHARE`))
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	var versionNo int
 	if err = tx.QueryRow(r.Context(), `SELECT COALESCE(max(version_no),0)+1 FROM realmguard_content_versions`).Scan(&versionNo); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if strings.TrimSpace(in.Label) == "" {
@@ -464,11 +478,11 @@ func (s *Server) createRealmGuardVersion(w http.ResponseWriter, r *http.Request)
 	err = tx.QueryRow(r.Context(), `INSERT INTO realmguard_content_versions(version_no,label,status,content_version,stage_version,balance_version,asset_version,checksum,notes,content,created_by)
 		VALUES($1,$2,'draft',$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id,created_at,updated_at`, versionNo, in.Label, contentVersion, published.StageVersion, published.BalanceVersion, in.AssetVersion, checksum, in.Notes, published.RawContent, p.UserID).Scan(&id, &created, &updated)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if err = tx.Commit(r.Context()); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	version := realmGuardVersionRecord{ID: id, VersionNo: versionNo, Label: in.Label, Status: "draft", ContentVersion: contentVersion, StageVersion: published.StageVersion, BalanceVersion: published.BalanceVersion, AssetVersion: in.AssetVersion, Checksum: checksum, Notes: in.Notes, RawContent: published.RawContent, CreatedBy: &p.UserID, CreatedAt: created, UpdatedAt: updated}
@@ -483,13 +497,13 @@ func (s *Server) testRealmGuardVersion(w http.ResponseWriter, r *http.Request) {
 	}
 	tx, err := s.DB.Begin(r.Context())
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer tx.Rollback(r.Context())
 	version, err := scanRealmGuardVersion(tx.QueryRow(r.Context(), `SELECT `+realmGuardVersionColumns+` FROM realmguard_content_versions WHERE id=$1 FOR UPDATE`, id))
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if version.Status != "draft" && version.Status != "testing" {
@@ -516,11 +530,11 @@ func (s *Server) testRealmGuardVersion(w http.ResponseWriter, r *http.Request) {
 	var tested, updated time.Time
 	err = tx.QueryRow(r.Context(), `UPDATE realmguard_content_versions SET status='testing',tested_at=now(),checksum=$2,updated_at=now() WHERE id=$1 RETURNING tested_at,updated_at`, id, version.Checksum).Scan(&tested, &updated)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if err = tx.Commit(r.Context()); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	version.Status, version.TestedAt, version.UpdatedAt = "testing", &tested, updated
@@ -542,23 +556,26 @@ func (s *Server) listPendingRealmGuardVersions(w http.ResponseWriter, r *http.Re
 	published, publishedErr := s.loadRealmGuardPublished(r.Context())
 	rows, err := s.DB.Query(r.Context(), `SELECT `+realmGuardVersionColumns+` FROM realmguard_content_versions v WHERE status='pending_approval' AND ($1::text<>'manager' OR EXISTS(SELECT 1 FROM users creator WHERE creator.id=v.created_by AND creator.team<>'' AND creator.team=$2)) ORDER BY approval_requested_at,version_no`, p.Role, p.Team)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
-	defer rows.Close()
+	versions, err := collectRealmGuardVersions(rows)
+	if err != nil {
+		s.dbError(w, r, err)
+		return
+	}
+	creators, err := s.realmGuardCreators(r.Context(), versions)
+	if err != nil {
+		s.dbError(w, r, err)
+		return
+	}
 	items := []map[string]any{}
-	for rows.Next() {
-		version, err := scanRealmGuardVersion(rows)
-		if err != nil {
-			dbError(w, err)
-			return
-		}
+	for _, version := range versions {
 		version = s.normalizeRealmGuardChecksum(r.Context(), version)
 		item := realmGuardVersionJSON(version)
 		if version.CreatedBy != nil {
-			var username, displayName, team string
-			if err := s.DB.QueryRow(r.Context(), `SELECT username,display_name,team FROM users WHERE id=$1`, *version.CreatedBy).Scan(&username, &displayName, &team); err == nil {
-				item["creator"] = map[string]any{"id": *version.CreatedBy, "username": username, "display_name": displayName, "team": team}
+			if creator, ok := creators[*version.CreatedBy]; ok {
+				item["creator"] = creator
 			}
 		}
 		if publishedErr == nil {
@@ -568,6 +585,35 @@ func (s *Server) listPendingRealmGuardVersions(w http.ResponseWriter, r *http.Re
 		items = append(items, item)
 	}
 	writeJSON(w, 200, map[string]any{"items": items})
+}
+
+// realmGuardCreators resolves every author in one query instead of one per
+// pending version.
+func (s *Server) realmGuardCreators(ctx context.Context, versions []realmGuardVersionRecord) (map[uuid.UUID]map[string]any, error) {
+	ids := make([]uuid.UUID, 0, len(versions))
+	for _, version := range versions {
+		if version.CreatedBy != nil && !slices.Contains(ids, *version.CreatedBy) {
+			ids = append(ids, *version.CreatedBy)
+		}
+	}
+	creators := map[uuid.UUID]map[string]any{}
+	if len(ids) == 0 {
+		return creators, nil
+	}
+	rows, err := s.DB.Query(ctx, `SELECT id,username,display_name,team FROM users WHERE id=ANY($1)`, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id uuid.UUID
+		var username, displayName, team string
+		if err := rows.Scan(&id, &username, &displayName, &team); err != nil {
+			return nil, err
+		}
+		creators[id] = map[string]any{"id": id, "username": username, "display_name": displayName, "team": team}
+	}
+	return creators, rows.Err()
 }
 
 func realmGuardChangedSections(before, after json.RawMessage) []string {
@@ -638,13 +684,13 @@ func (s *Server) approveRealmGuardVersion(w http.ResponseWriter, r *http.Request
 	}
 	tx, err := s.DB.Begin(r.Context())
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer tx.Rollback(r.Context())
 	version, err := scanRealmGuardVersion(tx.QueryRow(r.Context(), `SELECT `+realmGuardVersionColumns+` FROM realmguard_content_versions WHERE id=$1 FOR UPDATE`, id))
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if version.Status != "pending_approval" {
@@ -662,7 +708,7 @@ func (s *Server) approveRealmGuardVersion(w http.ResponseWriter, r *http.Request
 		}
 		var creatorTeam string
 		if err := tx.QueryRow(r.Context(), `SELECT team FROM users WHERE id=$1`, *version.CreatedBy).Scan(&creatorTeam); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		if code, message := realmGuardManagerReviewTeamError(p.Team, creatorTeam); code != "" {
@@ -677,11 +723,11 @@ func (s *Server) approveRealmGuardVersion(w http.ResponseWriter, r *http.Request
 		_, err = tx.Exec(r.Context(), `UPDATE realmguard_content_versions SET status='draft',approved_by=NULL,approved_at=NULL,approval_requested_at=NULL,tested_at=NULL,review_comment=$2,reviewed_at=now(),updated_at=now() WHERE id=$1`, id, in.Comment)
 	}
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if err = tx.Commit(r.Context()); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	version.ReviewComment, version.ReviewedAt = in.Comment, &reviewedAt
@@ -721,17 +767,17 @@ func (s *Server) publishRealmGuardVersion(w http.ResponseWriter, r *http.Request
 	}
 	tx, err := s.DB.Begin(r.Context())
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer tx.Rollback(r.Context())
 	if _, err = tx.Exec(r.Context(), `SELECT pg_advisory_xact_lock(hashtext('realmguard_publish'))`); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	version, err := scanRealmGuardVersion(tx.QueryRow(r.Context(), `SELECT `+realmGuardVersionColumns+` FROM realmguard_content_versions WHERE id=$1 FOR UPDATE`, id))
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if err := validateRealmGuardContent(version.RawContent); err != nil {
@@ -750,11 +796,11 @@ func (s *Server) publishRealmGuardVersion(w http.ResponseWriter, r *http.Request
 		requestedAt := s.Now()
 		_, err = tx.Exec(r.Context(), `UPDATE realmguard_content_versions SET status='pending_approval',approval_requested_at=COALESCE(approval_requested_at,now()),notes=CASE WHEN $2::text IS NULL THEN notes ELSE $2 END,updated_at=now() WHERE id=$1`, id, optional.Notes)
 		if err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		if err = tx.Commit(r.Context()); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		version.Status, version.RequestedAt = "pending_approval", &requestedAt
@@ -782,11 +828,11 @@ func (s *Server) publishRealmGuardVersion(w http.ResponseWriter, r *http.Request
 		_, err = tx.Exec(r.Context(), `UPDATE realmguard_content_versions SET status='published',checksum=$2,notes=CASE WHEN $3::text IS NULL THEN notes ELSE $3 END,published_at=now(),updated_at=now() WHERE id=$1`, id, checksum, optional.Notes)
 	}
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if err = tx.Commit(r.Context()); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	publishedAt := s.Now()
@@ -814,7 +860,7 @@ func (s *Server) realmGuardTelemetry(w http.ResponseWriter, r *http.Request) {
 		version, err = s.loadRealmGuardVersion(r.Context(), id)
 	}
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	var runs, users, campaignRuns, victories int64
@@ -822,7 +868,7 @@ func (s *Server) realmGuardTelemetry(w http.ResponseWriter, r *http.Request) {
 	var totalPlaytime, highestWave int64
 	err = s.DB.QueryRow(r.Context(), `SELECT count(*),count(DISTINCT user_id),COALESCE(avg(score),0),COALESCE(avg(duration_ms),0),COALESCE(sum(duration_ms),0),COALESCE(max(waves_completed),0),count(*) FILTER(WHERE mode='campaign'),count(*) FILTER(WHERE mode='campaign' AND stars>0) FROM realmguard_results WHERE verified AND content_version_id=$2 AND created_at>=$1`, since, version.ID).Scan(&runs, &users, &avgScore, &avgDuration, &totalPlaytime, &highestWave, &campaignRuns, &victories)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	queryBreakdown := func(column string) ([]map[string]any, error) {
@@ -841,21 +887,24 @@ func (s *Server) realmGuardTelemetry(w http.ResponseWriter, r *http.Request) {
 			}
 			items = append(items, map[string]any{"key": key, "runs": count, "unique_users": unique, "avg_score": score, "avg_duration_ms": duration})
 		}
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
 		return items, nil
 	}
 	stages, err := queryBreakdown("stage_id")
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	heroes, err := queryBreakdown("hero_id")
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	difficulties, err := queryBreakdown("difficulty")
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	queryUsage := func(event, key string) ([]map[string]any, error) {
@@ -877,17 +926,17 @@ func (s *Server) realmGuardTelemetry(w http.ResponseWriter, r *http.Request) {
 	}
 	towerUsage, err := queryUsage("realmguard.tower.build", "tower")
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	skillUsage, err := queryUsage("realmguard.skill.cast", "skill")
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	failedRows, err := s.DB.Query(r.Context(), `SELECT stage_id,waves_completed,count(*) FROM realmguard_results WHERE content_version_id=$1 AND verified AND mode='campaign' AND stars=0 AND created_at>=$2 GROUP BY stage_id,waves_completed ORDER BY stage_id,waves_completed`, version.ID, since)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	failedWaves := []map[string]any{}
@@ -897,10 +946,14 @@ func (s *Server) realmGuardTelemetry(w http.ResponseWriter, r *http.Request) {
 		var count int64
 		if err := failedRows.Scan(&stageID, &wave, &count); err != nil {
 			failedRows.Close()
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		failedWaves = append(failedWaves, map[string]any{"stage_id": stageID, "wave": wave, "runs": count})
+	}
+	if err := failedRows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	failedRows.Close()
 	var rejected int64

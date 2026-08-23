@@ -30,7 +30,7 @@ func (s *Server) querySeasons(w http.ResponseWriter, r *http.Request, admin bool
 	}
 	rows, err := s.DB.Query(r.Context(), `SELECT id,name,description,starts_at,ends_at,status,created_at FROM seasons `+where+` ORDER BY starts_at DESC`)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -40,10 +40,14 @@ func (s *Server) querySeasons(w http.ResponseWriter, r *http.Request, admin bool
 		var name, desc, status string
 		var start, end, created time.Time
 		if err := rows.Scan(&id, &name, &desc, &start, &end, &status, &created); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		items = append(items, map[string]any{"id": id, "name": name, "description": desc, "starts_at": start, "ends_at": end, "status": status, "created_at": created})
+	}
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	writeJSON(w, 200, map[string]any{"items": items})
 }
@@ -71,7 +75,7 @@ func (s *Server) createSeason(w http.ResponseWriter, r *http.Request) {
 	var id uuid.UUID
 	err := s.DB.QueryRow(r.Context(), `INSERT INTO seasons(name,description,starts_at,ends_at,status) VALUES($1,$2,$3,$4,$5) RETURNING id`, in.Name, in.Description, in.StartsAt, in.EndsAt, in.Status).Scan(&id)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	s.audit(r, "season.create", "season", id.String(), nil)
@@ -92,7 +96,7 @@ func (s *Server) updateSeason(w http.ResponseWriter, r *http.Request) {
 	}
 	tag, err := s.DB.Exec(r.Context(), `UPDATE seasons SET name=$2,description=$3,starts_at=$4,ends_at=$5,status=$6 WHERE id=$1`, id, in.Name, in.Description, in.StartsAt, in.EndsAt, in.Status)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if tag.RowsAffected() == 0 {
@@ -109,7 +113,7 @@ func (s *Server) deleteSeason(w http.ResponseWriter, r *http.Request) {
 	}
 	tag, err := s.DB.Exec(r.Context(), `UPDATE seasons SET status='closed' WHERE id=$1`, id)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if tag.RowsAffected() == 0 {
@@ -141,7 +145,7 @@ func (s *Server) queryEvents(w http.ResponseWriter, r *http.Request, admin bool)
 	}
 	rows, err := s.DB.Query(r.Context(), `SELECT e.id,e.name,e.description,e.event_type,e.game_id,COALESCE(g.name,''),e.starts_at,e.ends_at,e.status,e.rules,e.created_at,EXISTS(SELECT 1 FROM event_participants ep WHERE ep.event_id=e.id AND ep.user_id=$1),(SELECT count(*) FROM event_participants ep WHERE ep.event_id=e.id) FROM events e LEFT JOIN games g ON g.id=e.game_id `+where+` ORDER BY e.starts_at DESC`, p.UserID)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -155,10 +159,14 @@ func (s *Server) queryEvents(w http.ResponseWriter, r *http.Request, admin bool)
 		var joined bool
 		var participants int64
 		if err := rows.Scan(&id, &name, &desc, &typ, &gameID, &gameName, &start, &end, &status, &rules, &created, &joined, &participants); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		items = append(items, map[string]any{"id": id, "name": name, "description": desc, "event_type": typ, "game_id": gameID, "game_name": gameName, "starts_at": start, "ends_at": end, "status": status, "rules": rules, "joined": joined, "participant_count": participants, "created_at": created})
+	}
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	writeJSON(w, 200, map[string]any{"items": items})
 }
@@ -196,7 +204,7 @@ func (s *Server) createEvent(w http.ResponseWriter, r *http.Request) {
 	var id uuid.UUID
 	err := s.DB.QueryRow(r.Context(), `INSERT INTO events(name,description,event_type,game_id,starts_at,ends_at,status,rules) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`, in.Name, in.Description, in.EventType, in.GameID, in.StartsAt, in.EndsAt, in.Status, in.Rules).Scan(&id)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	s.audit(r, "event.create", "event", id.String(), nil)
@@ -217,7 +225,7 @@ func (s *Server) updateEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	tag, err := s.DB.Exec(r.Context(), `UPDATE events SET name=$2,description=$3,event_type=$4,game_id=$5,starts_at=$6,ends_at=$7,status=$8,rules=$9 WHERE id=$1`, id, in.Name, in.Description, in.EventType, in.GameID, in.StartsAt, in.EndsAt, in.Status, in.Rules)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if tag.RowsAffected() == 0 {
@@ -234,7 +242,7 @@ func (s *Server) deleteEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	tag, err := s.DB.Exec(r.Context(), `UPDATE events SET status='cancelled' WHERE id=$1`, id)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if tag.RowsAffected() == 0 {
@@ -252,7 +260,7 @@ func (s *Server) joinEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	tag, err := s.DB.Exec(r.Context(), `INSERT INTO event_participants(event_id,user_id) SELECT id,$2 FROM events WHERE id=$1 AND status='active' AND now() BETWEEN starts_at AND ends_at ON CONFLICT DO NOTHING`, id, p.UserID)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if tag.RowsAffected() == 0 {
@@ -290,7 +298,7 @@ func (s *Server) queryAchievements(w http.ResponseWriter, r *http.Request, admin
 	}
 	rows, err := s.DB.Query(r.Context(), `SELECT a.id,a.game_id,a.code,a.name,a.description,a.icon_url,a.criteria,a.xp,a.active,a.created_at FROM achievements a `+where+` ORDER BY a.name`)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -304,10 +312,14 @@ func (s *Server) queryAchievements(w http.ResponseWriter, r *http.Request, admin
 		var active bool
 		var created time.Time
 		if err := rows.Scan(&id, &gid, &code, &name, &desc, &icon, &criteria, &xp, &active, &created); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		items = append(items, map[string]any{"id": id, "game_id": gid, "code": code, "name": name, "description": desc, "icon_url": icon, "criteria": criteria, "xp": xp, "active": active, "created_at": created})
+	}
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	writeJSON(w, 200, map[string]any{"items": items})
 }
@@ -378,7 +390,7 @@ func (s *Server) deleteAchievement(w http.ResponseWriter, r *http.Request) {
 	}
 	tag, err := s.DB.Exec(r.Context(), `UPDATE achievements SET active=false WHERE id=$1`, id)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if tag.RowsAffected() == 0 {
@@ -392,7 +404,7 @@ func (s *Server) myAchievements(w http.ResponseWriter, r *http.Request) {
 	p, _ := principalFrom(r)
 	rows, err := s.DB.Query(r.Context(), `SELECT a.id,a.game_id,a.code,a.name,a.description,a.icon_url,a.xp,ua.unlocked_at,ua.metadata FROM user_achievements ua JOIN achievements a ON a.id=ua.achievement_id WHERE ua.user_id=$1 ORDER BY ua.unlocked_at DESC`, p.UserID)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -406,11 +418,15 @@ func (s *Server) myAchievements(w http.ResponseWriter, r *http.Request) {
 		var unlocked time.Time
 		var metadata json.RawMessage
 		if err := rows.Scan(&id, &gid, &code, &name, &desc, &icon, &points, &unlocked, &metadata); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		xp += points
 		items = append(items, map[string]any{"id": id, "game_id": gid, "code": code, "name": name, "description": desc, "icon_url": icon, "xp": points, "unlocked_at": unlocked, "metadata": metadata})
+	}
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	writeJSON(w, 200, map[string]any{"items": items, "total_xp": xp, "level": levelForXP(xp)})
 }
@@ -452,7 +468,7 @@ func (s *Server) unlockAchievement(w http.ResponseWriter, r *http.Request) {
 	}
 	tag, err := s.DB.Exec(r.Context(), `INSERT INTO user_achievements(user_id,achievement_id,metadata) VALUES($1,$2,$3) ON CONFLICT DO NOTHING`, p.UserID, achievementID, in.Metadata)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	status := http.StatusCreated
@@ -506,7 +522,7 @@ func (s *Server) createWorkflowRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if protected, err := s.workflowTargetsProtectedGame(r.Context(), in); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	} else if protected {
 		writeError(w, 409, "protected_game_identity", "built-in authoritative games cannot be created, renamed, disabled, or replaced through generic workflow")
@@ -530,7 +546,7 @@ func (s *Server) createWorkflowRequest(w http.ResponseWriter, r *http.Request) {
 	var id uuid.UUID
 	err := s.DB.QueryRow(r.Context(), `INSERT INTO workflow_requests(requester_id,action,resource_type,resource_id,payload) VALUES($1,$2,$3,$4,$5) RETURNING id`, p.UserID, in.Action, in.ResourceType, in.ResourceID, in.Payload).Scan(&id)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	s.audit(r, "workflow.submit", "workflow_request", id.String(), map[string]any{"action": in.Action})
@@ -644,7 +660,7 @@ func (s *Server) listWorkflowReviews(w http.ResponseWriter, r *http.Request) {
 func (s *Server) queryWorkflow(w http.ResponseWriter, r *http.Request, requester *uuid.UUID, reviewerTeam *string, status string) {
 	rows, err := s.DB.Query(r.Context(), `SELECT wr.id,wr.requester_id,COALESCE(u.username,''),COALESCE(u.display_name,''),COALESCE(u.department,''),COALESCE(u.team,''),wr.reviewer_id,COALESCE(reviewer.username,''),wr.action,wr.resource_type,wr.resource_id,wr.payload,wr.status,wr.comment,wr.created_at,wr.reviewed_at,wr.applied_at FROM workflow_requests wr LEFT JOIN users u ON u.id=wr.requester_id LEFT JOIN users reviewer ON reviewer.id=wr.reviewer_id WHERE ($1::uuid IS NULL OR wr.requester_id=$1) AND ($2::text IS NULL OR (u.team=$2 AND u.team<>'')) AND ($3='all' OR wr.status=$3) ORDER BY wr.created_at DESC`, requester, reviewerTeam, status)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -657,10 +673,14 @@ func (s *Server) queryWorkflow(w http.ResponseWriter, r *http.Request, requester
 		var created time.Time
 		var reviewed, applied *time.Time
 		if err := rows.Scan(&id, &requester, &username, &displayName, &department, &team, &reviewer, &reviewerUsername, &action, &typ, &resource, &payload, &itemStatus, &comment, &created, &reviewed, &applied); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		items = append(items, map[string]any{"id": id, "requester_id": requester, "requester_username": username, "requester_display_name": displayName, "requester_department": department, "requester_team": team, "reviewer_id": reviewer, "reviewer_username": reviewerUsername, "action": action, "resource_type": typ, "resource_id": resource, "payload": payload, "status": itemStatus, "comment": comment, "created_at": created, "reviewed_at": reviewed, "applied_at": applied})
+	}
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	writeJSON(w, 200, map[string]any{"items": items})
 }
@@ -700,7 +720,7 @@ func (s *Server) reviewWorkflowRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	tx, err := s.DB.Begin(r.Context())
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer tx.Rollback(r.Context())
@@ -731,12 +751,12 @@ func (s *Server) reviewWorkflowRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	_, err = tx.Exec(r.Context(), `UPDATE workflow_requests SET status=$2,reviewer_id=$3,comment=$4,reviewed_at=now() WHERE id=$1`, id, in.Decision, p.UserID, in.Comment)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	input.ResourceID = resource
 	if err = tx.Commit(r.Context()); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	status := in.Decision

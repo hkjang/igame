@@ -21,7 +21,7 @@ func (s *Server) serviceLocation(ctx context.Context) *time.Location {
 	if cfg.Timezone == "" {
 		cfg.Timezone = "Asia/Seoul"
 	}
-	location, err := time.LoadLocation(cfg.Timezone)
+	location, err := loadLocation(cfg.Timezone)
 	if err != nil {
 		return time.FixedZone("KST", 9*60*60)
 	}
@@ -132,7 +132,7 @@ func (s *Server) normalizeTournament(ctx context.Context, in *tournamentInput) (
 func (s *Server) listTournaments(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.DB.Query(r.Context(), `SELECT t.id,t.name,t.description,t.game_id,COALESCE(g.name,''),t.format,t.max_participants,t.starts_at,t.ends_at,t.status,t.rules,t.created_at,t.updated_at FROM tournaments t LEFT JOIN games g ON g.id=t.game_id ORDER BY t.starts_at DESC`)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -146,10 +146,14 @@ func (s *Server) listTournaments(w http.ResponseWriter, r *http.Request) {
 		var ends *time.Time
 		var rules json.RawMessage
 		if err := rows.Scan(&id, &name, &desc, &gameID, &gameName, &format, &max, &starts, &ends, &status, &rules, &created, &updated); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		items = append(items, map[string]any{"id": id, "name": name, "description": desc, "game_id": gameID, "game_name": gameName, "format": format, "max_participants": max, "starts_at": starts, "ends_at": ends, "status": status, "rules": rules, "created_at": created, "updated_at": updated})
+	}
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	writeJSON(w, 200, map[string]any{"items": items})
 }
@@ -166,7 +170,7 @@ func (s *Server) createTournament(w http.ResponseWriter, r *http.Request) {
 	var id uuid.UUID
 	err = s.DB.QueryRow(r.Context(), `INSERT INTO tournaments(name,description,game_id,format,max_participants,starts_at,ends_at,status,rules) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`, in.Name, in.Description, gameID, in.Format, in.MaxParticipants, starts, ends, in.Status, in.Rules).Scan(&id)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	s.audit(r, "tournament.create", "tournament", id.String(), nil)
@@ -188,7 +192,7 @@ func (s *Server) updateTournament(w http.ResponseWriter, r *http.Request) {
 	}
 	tag, err := s.DB.Exec(r.Context(), `UPDATE tournaments SET name=$2,description=$3,game_id=$4,format=$5,max_participants=$6,starts_at=$7,ends_at=$8,status=$9,rules=$10,updated_at=now() WHERE id=$1`, id, in.Name, in.Description, gameID, in.Format, in.MaxParticipants, starts, ends, in.Status, in.Rules)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if tag.RowsAffected() == 0 {
@@ -239,7 +243,7 @@ func normalizeReward(in *rewardInput) error {
 func (s *Server) listRewards(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.DB.Query(r.Context(), `SELECT id,name,description,reward_type,metadata,enabled,created_at,updated_at FROM rewards ORDER BY created_at DESC`)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -251,10 +255,14 @@ func (s *Server) listRewards(w http.ResponseWriter, r *http.Request) {
 		var enabled bool
 		var created, updated time.Time
 		if err := rows.Scan(&id, &name, &desc, &typ, &metadata, &enabled, &created, &updated); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		items = append(items, map[string]any{"id": id, "name": name, "description": desc, "type": typ, "metadata": metadata, "enabled": enabled, "created_at": created, "updated_at": updated})
+	}
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	writeJSON(w, 200, map[string]any{"items": items})
 }
@@ -270,7 +278,7 @@ func (s *Server) createReward(w http.ResponseWriter, r *http.Request) {
 	var id uuid.UUID
 	err := s.DB.QueryRow(r.Context(), `INSERT INTO rewards(name,description,reward_type,metadata,enabled) VALUES($1,$2,$3,$4,$5) RETURNING id`, in.Name, in.Description, in.Type, in.Metadata, *in.Enabled).Scan(&id)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	s.audit(r, "reward.create", "reward", id.String(), nil)
@@ -291,7 +299,7 @@ func (s *Server) updateReward(w http.ResponseWriter, r *http.Request) {
 	}
 	tag, err := s.DB.Exec(r.Context(), `UPDATE rewards SET name=$2,description=$3,reward_type=$4,metadata=$5,enabled=$6,updated_at=now() WHERE id=$1`, id, in.Name, in.Description, in.Type, in.Metadata, *in.Enabled)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if tag.RowsAffected() == 0 {
@@ -352,7 +360,7 @@ func (s *Server) queryNotices(w http.ResponseWriter, r *http.Request, admin bool
 	}
 	rows, err := s.DB.Query(r.Context(), `SELECT id,title,content,status,pinned,published_at,created_at,updated_at FROM notices `+where+` ORDER BY pinned DESC,published_at DESC NULLS LAST,created_at DESC`)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -364,10 +372,14 @@ func (s *Server) queryNotices(w http.ResponseWriter, r *http.Request, admin bool
 		var published *time.Time
 		var created, updated time.Time
 		if err := rows.Scan(&id, &title, &content, &status, &pinned, &published, &created, &updated); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		items = append(items, map[string]any{"id": id, "title": title, "content": content, "status": status, "pinned": pinned, "published_at": published, "created_at": created, "updated_at": updated})
+	}
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	writeJSON(w, 200, map[string]any{"items": items})
 }
@@ -384,7 +396,7 @@ func (s *Server) createNotice(w http.ResponseWriter, r *http.Request) {
 	var id uuid.UUID
 	err = s.DB.QueryRow(r.Context(), `INSERT INTO notices(title,content,status,pinned,published_at) VALUES($1,$2,$3,$4,$5) RETURNING id`, in.Title, in.Content, in.Status, in.Pinned, published).Scan(&id)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	s.audit(r, "notice.create", "notice", id.String(), nil)
@@ -406,7 +418,7 @@ func (s *Server) updateNotice(w http.ResponseWriter, r *http.Request) {
 	}
 	tag, err := s.DB.Exec(r.Context(), `UPDATE notices SET title=$2,content=$3,status=$4,pinned=$5,published_at=$6,updated_at=now() WHERE id=$1`, id, in.Title, in.Content, in.Status, in.Pinned, published)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if tag.RowsAffected() == 0 {
@@ -466,7 +478,7 @@ func (s *Server) queryBanners(w http.ResponseWriter, r *http.Request, admin bool
 	}
 	rows, err := s.DB.Query(r.Context(), `SELECT id,title,image_url,link_url,starts_at,ends_at,sort_order,enabled,created_at,updated_at FROM banners `+where+` ORDER BY sort_order,starts_at DESC`)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -479,10 +491,14 @@ func (s *Server) queryBanners(w http.ResponseWriter, r *http.Request, admin bool
 		var order int
 		var enabled bool
 		if err := rows.Scan(&id, &title, &image, &link, &starts, &ends, &order, &enabled, &created, &updated); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		items = append(items, map[string]any{"id": id, "title": title, "image_url": image, "link_url": link, "starts_at": starts, "ends_at": ends, "sort_order": order, "enabled": enabled, "created_at": created, "updated_at": updated})
+	}
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	writeJSON(w, 200, map[string]any{"items": items})
 }
@@ -499,7 +515,7 @@ func (s *Server) createBanner(w http.ResponseWriter, r *http.Request) {
 	var id uuid.UUID
 	err = s.DB.QueryRow(r.Context(), `INSERT INTO banners(title,image_url,link_url,starts_at,ends_at,sort_order,enabled) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id`, in.Title, in.ImageURL, in.LinkURL, starts, ends, in.SortOrder, *in.Enabled).Scan(&id)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	s.audit(r, "banner.create", "banner", id.String(), nil)
@@ -521,7 +537,7 @@ func (s *Server) updateBanner(w http.ResponseWriter, r *http.Request) {
 	}
 	tag, err := s.DB.Exec(r.Context(), `UPDATE banners SET title=$2,image_url=$3,link_url=$4,starts_at=$5,ends_at=$6,sort_order=$7,enabled=$8,updated_at=now() WHERE id=$1`, id, in.Title, in.ImageURL, in.LinkURL, starts, ends, in.SortOrder, *in.Enabled)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if tag.RowsAffected() == 0 {
@@ -547,7 +563,7 @@ func (s *Server) deleteExtended(w http.ResponseWriter, r *http.Request, table, r
 	}
 	tag, err := s.DB.Exec(r.Context(), `DELETE FROM `+table+` WHERE id=$1`, id)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if tag.RowsAffected() == 0 {
@@ -564,7 +580,7 @@ func (s *Server) adminRankings(w http.ResponseWriter, r *http.Request) {
 	game := r.URL.Query().Get("game_id")
 	rows, err := s.DB.Query(r.Context(), `SELECT s.id,s.session_id,s.user_id,u.username,u.display_name,u.department,u.team,s.game_id,g.name,s.score,s.verified,s.moderation_status,s.rejection_reason,s.metadata,s.created_at FROM scores s JOIN users u ON u.id=s.user_id JOIN games g ON g.id=s.game_id WHERE ($1='' OR s.moderation_status=$1) AND ($2='' OR s.game_id::text=$2 OR g.slug=$2) ORDER BY s.created_at DESC LIMIT $3 OFFSET $4`, status, game, limit, offset)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -577,10 +593,14 @@ func (s *Server) adminRankings(w http.ResponseWriter, r *http.Request) {
 		var metadata json.RawMessage
 		var created time.Time
 		if err := rows.Scan(&id, &sessionID, &userID, &username, &display, &dept, &team, &gameID, &gameName, &score, &verified, &status, &reason, &metadata, &created); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		items = append(items, map[string]any{"id": id, "session_id": sessionID, "user_id": userID, "username": username, "display_name": display, "department": dept, "team": team, "game_id": gameID, "game_name": gameName, "score": score, "verified": verified, "status": status, "rejection_reason": reason, "metadata": metadata, "created_at": created})
+	}
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	writeJSON(w, 200, map[string]any{"items": items})
 }
@@ -631,7 +651,7 @@ func (s *Server) moderateRanking(w http.ResponseWriter, r *http.Request) {
 	}
 	tag, err := s.DB.Exec(r.Context(), `UPDATE scores SET moderation_status=$2,verified=$3,rejection_reason=$4 WHERE id=$1`, id, status, verified, reason)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if tag.RowsAffected() == 0 {
@@ -648,7 +668,7 @@ func (s *Server) excludeRanking(w http.ResponseWriter, r *http.Request) {
 	}
 	tag, err := s.DB.Exec(r.Context(), `UPDATE scores SET moderation_status='excluded',verified=false,rejection_reason='moderated_excluded' WHERE id=$1`, id)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if tag.RowsAffected() == 0 {
@@ -695,12 +715,15 @@ func (s *Server) analyticsData(ctx context.Context) (map[string]any, error) {
 		}
 		popular = append(popular, map[string]any{"name": name, "launches": count})
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return map[string]any{"dau": dau, "wau": wau, "mau": mau, "game_launches": launches, "avg_session_seconds": avgSession, "completion_rate": completion, "ranking_participation": rankingParticipation, "event_participation": eventParticipation, "retention": retention, "pending_approvals": pending, "popular_games": popular}, nil
 }
 func (s *Server) adminAnalytics(w http.ResponseWriter, r *http.Request) {
 	data, err := s.analyticsData(r.Context())
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	writeJSON(w, 200, data)
@@ -720,7 +743,7 @@ func (s *Server) getEvent(w http.ResponseWriter, r *http.Request) {
 	var participants int64
 	err := s.DB.QueryRow(r.Context(), `SELECT e.name,e.description,e.event_type,e.game_id,COALESCE(g.name,''),e.starts_at,e.ends_at,e.status,e.rules,e.created_at,EXISTS(SELECT 1 FROM event_participants ep WHERE ep.event_id=e.id AND ep.user_id=$2),(SELECT count(*) FROM event_participants ep WHERE ep.event_id=e.id) FROM events e LEFT JOIN games g ON g.id=e.game_id WHERE e.id=$1 AND e.status<>'draft'`, id, p.UserID).Scan(&name, &desc, &typ, &gameID, &gameName, &starts, &ends, &status, &rules, &created, &joined, &participants)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	writeJSON(w, 200, map[string]any{"event": map[string]any{"id": id, "name": name, "description": desc, "event_type": typ, "game_id": gameID, "game_name": gameName, "starts_at": starts, "ends_at": ends, "status": status, "rules": rules, "joined": joined, "participant_count": participants, "created_at": created}})

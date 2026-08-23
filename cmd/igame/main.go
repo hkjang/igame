@@ -61,7 +61,11 @@ func main() {
 		log.Error("encryption initialization failed", "error", err)
 		os.Exit(1)
 	}
-	server := &http.Server{Addr: ":8080", Handler: api.New(db, box, log).Router(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 0, IdleTimeout: 2 * time.Minute, MaxHeaderBytes: 1 << 20}
+	service := api.New(db, box, log)
+	server := &http.Server{Addr: ":8080", Handler: service.Router(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 0, IdleTimeout: 2 * time.Minute, MaxHeaderBytes: 1 << 20}
+	// Idle stream clients must not hold a graceful shutdown open for the whole
+	// shutdown timeout.
+	server.RegisterOnShutdown(service.Drain)
 	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
 	defer cleanupCancel()
 	go cleanupExpired(cleanupCtx, db, log)
@@ -108,17 +112,26 @@ func checkHealth(ctx context.Context, endpoint string) error {
 func cleanupExpired(ctx context.Context, db *pgxpool.Pool, log *slog.Logger) {
 	ticker := time.NewTicker(time.Hour)
 	defer ticker.Stop()
+	// Run once at startup so a restart also clears whatever expired while the
+	// service was down, instead of waiting a full hour for the first tick.
+	cleanupOnce(ctx, db, log)
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			_, sessionErr := db.Exec(ctx, `DELETE FROM auth_sessions WHERE expires_at<now()`)
-			_, flowErr := db.Exec(ctx, `DELETE FROM oidc_flows WHERE expires_at<now()`)
-			_, gameErr := db.Exec(ctx, `UPDATE game_sessions SET status='abandoned',ended_at=now(),duration_ms=GREATEST(0,extract(epoch FROM(now()-started_at))*1000)::bigint WHERE status='active' AND started_at<now()-interval '24 hours'`)
-			if sessionErr != nil || flowErr != nil || gameErr != nil {
-				log.Warn("expired state cleanup failed", "session_error", sessionErr, "flow_error", flowErr, "game_session_error", gameErr)
-			}
+			cleanupOnce(ctx, db, log)
 		}
+	}
+}
+
+func cleanupOnce(ctx context.Context, db *pgxpool.Pool, log *slog.Logger) {
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	_, sessionErr := db.Exec(ctx, `DELETE FROM auth_sessions WHERE expires_at<now()`)
+	_, flowErr := db.Exec(ctx, `DELETE FROM oidc_flows WHERE expires_at<now()`)
+	_, gameErr := db.Exec(ctx, `UPDATE game_sessions SET status='abandoned',ended_at=now(),duration_ms=GREATEST(0,extract(epoch FROM(now()-started_at))*1000)::bigint WHERE status='active' AND started_at<now()-interval '24 hours'`)
+	if sessionErr != nil || flowErr != nil || gameErr != nil {
+		log.Warn("expired state cleanup failed", "session_error", sessionErr, "flow_error", flowErr, "game_session_error", gameErr)
 	}
 }

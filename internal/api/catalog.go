@@ -125,7 +125,7 @@ func (s *Server) listGames(w http.ResponseWriter, r *http.Request) {
 	favorite := r.URL.Query().Get("favorite") == "true"
 	rows, err := s.DB.Query(r.Context(), gameSelect+` WHERE g.status='active' AND ($2='' OR g.name ILIKE '%'||$2||'%' OR g.description ILIKE '%'||$2||'%' OR $2=ANY(g.tags)) AND ($3='' OR c.slug=$3) AND (NOT $4 OR EXISTS(SELECT 1 FROM favorites ff WHERE ff.game_id=g.id AND ff.user_id=$1)) ORDER BY g.name LIMIT $5 OFFSET $6`, p.UserID, q, category, favorite, limit, offset)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -133,10 +133,14 @@ func (s *Server) listGames(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		item, err := scanGame(rows)
 		if err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	writeJSON(w, 200, map[string]any{"items": items, "limit": limit, "offset": offset})
 }
@@ -146,7 +150,7 @@ func (s *Server) getGame(w http.ResponseWriter, r *http.Request) {
 	identifier := chi.URLParam(r, "id")
 	item, err := scanGame(s.DB.QueryRow(r.Context(), gameSelect+` WHERE g.status='active' AND (g.id::text=$2 OR g.slug=$2)`, p.UserID, identifier))
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	writeJSON(w, 200, map[string]any{"game": item})
@@ -156,12 +160,12 @@ func (s *Server) addFavorite(w http.ResponseWriter, r *http.Request) {
 	p, _ := principalFrom(r)
 	id, err := s.parseGameIdentifier(r)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	_, err = s.DB.Exec(r.Context(), `INSERT INTO favorites(user_id,game_id) VALUES($1,$2) ON CONFLICT DO NOTHING`, p.UserID, id)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	w.WriteHeader(204)
@@ -170,12 +174,12 @@ func (s *Server) removeFavorite(w http.ResponseWriter, r *http.Request) {
 	p, _ := principalFrom(r)
 	id, err := s.parseGameIdentifier(r)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	_, err = s.DB.Exec(r.Context(), `DELETE FROM favorites WHERE user_id=$1 AND game_id=$2`, p.UserID, id)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	w.WriteHeader(204)
@@ -221,12 +225,12 @@ func (s *Server) startGameSession(w http.ResponseWriter, r *http.Request) {
 	}
 	gameID, err := s.parseGameIdentifier(r)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	var gameSlug string
 	if err := s.DB.QueryRow(r.Context(), `SELECT slug FROM games WHERE id=$1`, gameID).Scan(&gameSlug); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if gameSlug == realmGuardSlug && requestedRealmGuardVersion == nil {
@@ -247,7 +251,7 @@ func (s *Server) startGameSession(w http.ResponseWriter, r *http.Request) {
 	}
 	var recentStarts int
 	if err := s.DB.QueryRow(r.Context(), `SELECT count(*) FROM game_sessions WHERE user_id=$1 AND started_at>=now()-interval '1 minute'`, p.UserID).Scan(&recentStarts); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if recentStarts >= 30 {
@@ -267,7 +271,7 @@ func (s *Server) startGameSession(w http.ResponseWriter, r *http.Request) {
 	var started time.Time
 	tx, err := s.DB.Begin(r.Context())
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer tx.Rollback(r.Context())
@@ -295,11 +299,11 @@ func (s *Server) startGameSession(w http.ResponseWriter, r *http.Request) {
 			writeError(w, 409, "defense_config_stale", "Defense Series content changed; reload the published configuration before starting")
 			return
 		}
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if err = tx.Commit(r.Context()); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	_, _ = s.DB.Exec(r.Context(), `INSERT INTO user_achievements(user_id,achievement_id) SELECT $1,id FROM achievements WHERE code='first-play' ON CONFLICT DO NOTHING`, p.UserID)
@@ -366,7 +370,7 @@ func (s *Server) playAllowed(r *http.Request, gameID uuid.UUID) (bool, string) {
 	if service.Timezone == "" {
 		service.Timezone = "Asia/Seoul"
 	}
-	location, err := time.LoadLocation(service.Timezone)
+	location, err := loadLocation(service.Timezone)
 	if err != nil {
 		location = time.FixedZone("KST", 9*60*60)
 	}
@@ -474,7 +478,7 @@ func (s *Server) submitScore(w http.ResponseWriter, r *http.Request) {
 	hash := sha256.Sum256([]byte(in.SessionToken))
 	tx, err := s.DB.Begin(r.Context())
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer tx.Rollback(r.Context())
@@ -542,11 +546,11 @@ func (s *Server) submitScore(w http.ResponseWriter, r *http.Request) {
 	}
 	_, err = tx.Exec(r.Context(), `UPDATE game_sessions SET status='finished',ended_at=COALESCE(ended_at,now()),duration_ms=COALESCE(duration_ms,$2),result=result||jsonb_build_object('score',$3::bigint) WHERE id=$1`, in.SessionID, duration, in.Score)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if err = tx.Commit(r.Context()); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	statusCode := 201
@@ -666,7 +670,7 @@ func (s *Server) submitTelemetry(w http.ResponseWriter, r *http.Request) {
 	}
 	_, err = s.DB.Exec(r.Context(), `INSERT INTO game_telemetry(session_id,user_id,game_id,event,data,occurred_at) VALUES($1,$2,$3,$4,$5,$6)`, in.SessionID, p.UserID, gameID, in.Event, in.Data, occurred)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	w.WriteHeader(http.StatusAccepted)
@@ -675,7 +679,7 @@ func (s *Server) submitTelemetry(w http.ResponseWriter, r *http.Request) {
 func (s *Server) insertRealmGuardTelemetry(w http.ResponseWriter, r *http.Request, p Principal, in telemetryInput, gameID uuid.UUID, occurred time.Time, tokenHash []byte) {
 	tx, err := s.DB.Begin(r.Context())
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer tx.Rollback(r.Context())
@@ -698,24 +702,24 @@ func (s *Server) insertRealmGuardTelemetry(w http.ResponseWriter, r *http.Reques
 			return
 		}
 		if err = tx.Commit(r.Context()); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "duplicate": true, "client_event_id": in.ClientEventID, "sequence": in.Sequence})
 		return
 	}
 	if err != pgx.ErrNoRows {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	var lastSequence int
 	if err = tx.QueryRow(r.Context(), `SELECT COALESCE(max(sequence_no),0) FROM game_telemetry WHERE session_id=$1`, in.SessionID).Scan(&lastSequence); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	rows, err := tx.Query(r.Context(), `SELECT event,count(*) FROM game_telemetry WHERE session_id=$1 GROUP BY event`, in.SessionID)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	eventCounts := map[string]int{}
@@ -724,14 +728,14 @@ func (s *Server) insertRealmGuardTelemetry(w http.ResponseWriter, r *http.Reques
 		var count int
 		if err = rows.Scan(&event, &count); err != nil {
 			rows.Close()
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		eventCounts[event] = count
 	}
 	rows.Close()
 	if err = rows.Err(); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if realmGuardTelemetryLimitReached(in.Event, eventCounts) {
@@ -744,11 +748,11 @@ func (s *Server) insertRealmGuardTelemetry(w http.ResponseWriter, r *http.Reques
 	}
 	_, err = tx.Exec(r.Context(), `INSERT INTO game_telemetry(session_id,user_id,game_id,event,data,occurred_at,client_event_id,sequence_no) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, in.SessionID, p.UserID, gameID, in.Event, in.Data, occurred, in.ClientEventID, in.Sequence)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if err = tx.Commit(r.Context()); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "duplicate": false, "client_event_id": in.ClientEventID, "sequence": in.Sequence})
@@ -767,7 +771,7 @@ func (s *Server) rankings(w http.ResponseWriter, r *http.Request) {
 	var order, gameName, gameSlug string
 	err := s.DB.QueryRow(r.Context(), `SELECT id,score_order,name,slug FROM games WHERE id::text=$1 OR slug=$1`, gameID).Scan(&id, &order, &gameName, &gameSlug)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if gameSlug == realmGuardSlug {
@@ -812,7 +816,7 @@ func (s *Server) rankings(w http.ResponseWriter, r *http.Request) {
 		query := fmt.Sprintf(`WITH user_best AS (SELECT u.id,u.%s group_name,%s(s.score) score FROM scores s JOIN users u ON u.id=s.user_id WHERE s.game_id=$1 AND s.verified AND s.moderation_status='valid' AND NOT u.ranking_opt_out AND ($2::timestamptz='0001-01-01' OR s.created_at >= $2) AND ($3<>'season' OR s.season_id=(SELECT id FROM seasons WHERE status='active' LIMIT 1)) AND u.%s<>'' GROUP BY u.id,u.%s), group_totals AS (SELECT group_name,SUM(score) score,COUNT(*) members FROM user_best GROUP BY group_name) SELECT row_number() OVER(ORDER BY score %s),group_name,score,members FROM group_totals ORDER BY score %s LIMIT $4`, column, aggregate, column, column, direction, direction)
 		rows, err := s.DB.Query(r.Context(), query, id, since, period, limit)
 		if err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		defer rows.Close()
@@ -823,12 +827,16 @@ func (s *Server) rankings(w http.ResponseWriter, r *http.Request) {
 			var score int64
 			var members int
 			if err := rows.Scan(&rank, &groupName, &score, &members); err != nil {
-				dbError(w, err)
+				s.dbError(w, r, err)
 				return
 			}
 			item := map[string]any{"rank": rank, "name": groupName, "display_name": groupName, "score": score, "members": members, "game_name": gameName}
 			item[group] = groupName
 			items = append(items, item)
+		}
+		if err := rows.Err(); err != nil {
+			s.dbError(w, r, err)
+			return
 		}
 		writeJSON(w, 200, map[string]any{"items": items, "period": period, "group": group})
 		return
@@ -840,7 +848,7 @@ func (s *Server) rankings(w http.ResponseWriter, r *http.Request) {
 	query := fmt.Sprintf(`WITH best AS (SELECT u.id,u.username,u.display_name,u.nickname,u.department,u.team,%s(s.score) score FROM scores s JOIN users u ON u.id=s.user_id WHERE s.game_id=$1 AND s.verified AND s.moderation_status='valid' AND NOT u.ranking_opt_out AND ($2::timestamptz='0001-01-01' OR s.created_at >= $2) AND ($3<>'season' OR s.season_id=(SELECT id FROM seasons WHERE status='active' LIMIT 1)) GROUP BY u.id) SELECT row_number() OVER(ORDER BY score %s),id,username,display_name,nickname,department,team,score FROM best ORDER BY score %s LIMIT $4`, aggregate, direction, direction)
 	rows, err := s.DB.Query(r.Context(), query, id, since, period, limit)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -856,7 +864,7 @@ func (s *Server) rankings(w http.ResponseWriter, r *http.Request) {
 		var username, display, nickname, dept, team string
 		var score int64
 		if err := rows.Scan(&rank, &uid, &username, &display, &nickname, &dept, &team, &score); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		name := nickname
@@ -872,6 +880,10 @@ func (s *Server) rankings(w http.ResponseWriter, r *http.Request) {
 		}
 		items = append(items, item)
 	}
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
+	}
 	writeJSON(w, 200, map[string]any{"items": items, "period": period, "group": "individual"})
 }
 
@@ -880,7 +892,7 @@ func (s *Server) playHistory(w http.ResponseWriter, r *http.Request) {
 	limit, offset := pageParams(r)
 	rows, err := s.DB.Query(r.Context(), `SELECT gs.id,gs.game_id,g.name,g.slug,gs.status,gs.started_at,gs.ended_at,gs.duration_ms,s.score,s.verified FROM game_sessions gs JOIN games g ON g.id=gs.game_id LEFT JOIN scores s ON s.session_id=gs.id WHERE gs.user_id=$1 ORDER BY gs.started_at DESC LIMIT $2 OFFSET $3`, p.UserID, limit, offset)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -893,10 +905,14 @@ func (s *Server) playHistory(w http.ResponseWriter, r *http.Request) {
 		var duration, score *int64
 		var verified *bool
 		if err := rows.Scan(&id, &gid, &name, &slug, &status, &started, &ended, &duration, &score, &verified); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		items = append(items, map[string]any{"id": id, "game_id": gid, "game_name": name, "game_slug": slug, "status": status, "started_at": started, "ended_at": ended, "duration_ms": duration, "score": score, "verified": verified})
+	}
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	writeJSON(w, 200, map[string]any{"items": items})
 }

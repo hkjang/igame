@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -41,12 +42,31 @@ type Server struct {
 	Log     *slog.Logger
 	HTTP    *http.Client
 	Now     func() time.Time
+
+	settingsMu    sync.RWMutex
+	settingsCache map[string]settingEntry
+	providerMu    sync.RWMutex
+	providerCache map[string]providerEntry
+	logins        loginThrottle
+	draining      chan struct{}
+	drainOnce     sync.Once
+}
+
+// Drain releases responses that would otherwise stay connected indefinitely, so
+// a graceful shutdown is not held open by idle stream clients. Requests that are
+// actually doing work are left alone and finish normally.
+func (s *Server) Drain() {
+	s.drainOnce.Do(func() {
+		if s.draining != nil {
+			close(s.draining)
+		}
+	})
 }
 
 func New(db *pgxpool.Pool, secrets *secretbox.Box, log *slog.Logger) *Server {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil // offline installations do not inherit ambient proxy variables
-	return &Server{DB: db, Secrets: secrets, Log: log, HTTP: &http.Client{Transport: transport, Timeout: 30 * time.Second}, Now: func() time.Time { return time.Now().UTC() }}
+	return &Server{DB: db, Secrets: secrets, Log: log, HTTP: &http.Client{Transport: transport, Timeout: 30 * time.Second}, Now: func() time.Time { return time.Now().UTC() }, draining: make(chan struct{})}
 }
 
 type Principal struct {
@@ -150,6 +170,7 @@ func (s *Server) Router() http.Handler {
 		a.Route("/api/v1/admin", func(admin chi.Router) {
 			admin.Use(s.requireRole("admin", "operator"))
 			admin.Get("/dashboard", s.adminDashboard)
+			admin.Get("/status", s.adminStatus)
 			admin.Get("/analytics", s.adminAnalytics)
 			admin.With(s.requireRole("admin")).Get("/settings", s.listSettings)
 			admin.With(s.requireRole("admin")).Get("/settings/{key}", s.getSetting)
@@ -243,8 +264,16 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 			AllowedFrameOrigins   []string `json:"allowed_frame_origins"`
 			AllowedConnectOrigins []string `json:"allowed_connect_origins"`
 		}
+		// The health endpoints answer without consulting service configuration so
+		// they stay usable while the database is degraded.
 		if r.URL.Path != "/healthz" && r.URL.Path != "/readyz" {
 			_ = s.setting(r.Context(), "service", &policy)
+			// Only the configured public URL or a trusted proxy may declare HTTPS;
+			// an untrusted forwarded header must not be able to pin HSTS on a
+			// deployment that is actually served over plaintext.
+			if strings.HasPrefix(s.requestBaseURL(r), "https://") {
+				w.Header().Set("Strict-Transport-Security", "max-age=31536000")
+			}
 		}
 		frames := []string{"'self'"}
 		connect := []string{"'self'"}
@@ -329,7 +358,13 @@ func (s *Server) authenticate(r *http.Request) (Principal, error) {
 	}
 	hash := sha256.Sum256([]byte(cookie.Value))
 	var p Principal
-	err = s.DB.QueryRow(r.Context(), `SELECT u.id,u.username,u.display_name,u.email,u.department,u.team,u.role
+	// The last_seen_at refresh rides along in a data-modifying CTE: PostgreSQL
+	// runs it exactly once per statement, which keeps authentication at a single
+	// round trip on every request.
+	err = s.DB.QueryRow(r.Context(), `WITH touched AS (
+			UPDATE auth_sessions SET last_seen_at=now()
+			WHERE token_hash=$1 AND expires_at>now() AND last_seen_at<now()-interval '5 minutes')
+		SELECT u.id,u.username,u.display_name,u.email,u.department,u.team,u.role
 		FROM auth_sessions s JOIN users u ON u.id=s.user_id
 		WHERE s.token_hash=$1 AND s.expires_at>now() AND u.status='active'`, hash[:]).Scan(
 		&p.UserID, &p.Username, &p.DisplayName, &p.Email, &p.Department, &p.Team, &p.Role)
@@ -337,14 +372,16 @@ func (s *Server) authenticate(r *http.Request) (Principal, error) {
 		return Principal{}, err
 	}
 	p.AuthType = "session"
-	_, _ = s.DB.Exec(r.Context(), `UPDATE auth_sessions SET last_seen_at=now() WHERE token_hash=$1 AND last_seen_at<now()-interval '5 minutes'`, hash[:])
 	return p, nil
 }
 
 func (s *Server) authenticateAPIKey(ctx context.Context, raw string) (Principal, error) {
 	hash := sha256.Sum256([]byte(raw))
 	var p Principal
-	err := s.DB.QueryRow(ctx, `SELECT u.id,u.username,u.display_name,u.email,u.department,u.team,u.role,k.permissions
+	err := s.DB.QueryRow(ctx, `WITH touched AS (
+			UPDATE api_keys SET last_used_at=now()
+			WHERE key_hash=$1 AND revoked_at IS NULL AND (last_used_at IS NULL OR last_used_at<now()-interval '5 minutes'))
+		SELECT u.id,u.username,u.display_name,u.email,u.department,u.team,u.role,k.permissions
 		FROM api_keys k JOIN users u ON u.id=k.user_id
 		WHERE k.key_hash=$1 AND k.revoked_at IS NULL AND (k.expires_at IS NULL OR k.expires_at>now()) AND u.status='active'`, hash[:]).Scan(
 		&p.UserID, &p.Username, &p.DisplayName, &p.Email, &p.Department, &p.Team, &p.Role, &p.Permissions)
@@ -360,7 +397,6 @@ func (s *Server) authenticateAPIKey(ctx context.Context, raw string) (Principal,
 	}
 	p.Permissions = effectiveKeyPermissions(p, p.Permissions, policy)
 	p.AuthType = "api_key"
-	_, _ = s.DB.Exec(ctx, `UPDATE api_keys SET last_used_at=now() WHERE key_hash=$1 AND (last_used_at IS NULL OR last_used_at<now()-interval '5 minutes')`, hash[:])
 	return p, nil
 }
 
@@ -596,12 +632,27 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 	writeJSON(w, status, map[string]any{"error": map[string]string{"code": code, "message": message}})
 }
 
-func dbError(w http.ResponseWriter, err error) {
+// dbError maps a query failure onto the public error contract. Anything that is
+// not a missing row is a server fault and is logged with the request identity;
+// the client still only learns that the request failed.
+func (s *Server) dbError(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeError(w, 404, "not_found", "resource not found")
 		return
 	}
+	s.logRequestError(r, err)
 	writeError(w, 500, "internal_error", "internal server error")
+}
+
+func (s *Server) logRequestError(r *http.Request, err error) {
+	if s.Log == nil || err == nil || errors.Is(err, context.Canceled) {
+		return
+	}
+	attrs := []any{"error", err}
+	if r != nil {
+		attrs = append(attrs, "method", r.Method, "path", r.URL.Path, "request_id", middleware.GetReqID(r.Context()))
+	}
+	s.Log.Error("request failed", attrs...)
 }
 
 func pageParams(r *http.Request) (limit, offset int) {
@@ -643,8 +694,8 @@ func hexHash(value string) string {
 }
 
 func (s *Server) setting(ctx context.Context, key string, dst any) error {
-	var raw []byte
-	if err := s.DB.QueryRow(ctx, `SELECT value FROM system_settings WHERE key=$1`, key).Scan(&raw); err != nil {
+	raw, err := s.settingRaw(ctx, key)
+	if err != nil {
 		return err
 	}
 	if err := json.Unmarshal(raw, dst); err != nil {

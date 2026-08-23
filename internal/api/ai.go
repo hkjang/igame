@@ -98,6 +98,9 @@ func (s *Server) aiChatCompletions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer response.Body.Close()
+	// The invocation is audited even when the browser disconnects part way
+	// through the stream, which returns early from the copy loop below.
+	defer s.audit(r, "ai.invoke", "ai", "chat.completions", map[string]any{"model": payload["model"], "stream": stream, "max_tokens": maxTokens, "upstream_status": response.StatusCode})
 	contentType := response.Header.Get("Content-Type")
 	if contentType == "" {
 		if stream {
@@ -130,7 +133,6 @@ func (s *Server) aiChatCompletions(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	s.audit(r, "ai.invoke", "ai", "chat.completions", map[string]any{"model": payload["model"], "stream": stream, "max_tokens": maxTokens, "upstream_status": response.StatusCode})
 }
 
 func jsonInt(value any) (int, bool) {

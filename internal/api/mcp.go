@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -60,14 +61,40 @@ func sameOrigin(origin, base string) bool {
 	return e1 == nil && e2 == nil && strings.EqualFold(o.Scheme, b.Scheme) && strings.EqualFold(o.Host, b.Host)
 }
 
+// mcpKeepAlive stays under the idle timeout a reverse proxy is likely to apply
+// to a streaming response.
+const mcpKeepAlive = 25 * time.Second
+
 func (s *Server) mcpGet(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeRPC(w, http.StatusNotImplemented, rpcResponse{JSONRPC: "2.0", Error: &rpcError{Code: -32003, Message: "streaming is not supported by this connection"}}, false)
+		return
+	}
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache, no-store")
 	w.Header().Set("X-Accel-Buffering", "no")
 	w.WriteHeader(200)
-	_, _ = w.Write([]byte("retry: 3000\n: igame MCP stream ready\n\n"))
-	if f, ok := w.(http.Flusher); ok {
-		f.Flush()
+	_, _ = io.WriteString(w, "retry: 3000\n: igame MCP stream ready\n\n")
+	flusher.Flush()
+	// The server sends no unsolicited messages, but the stream is held open
+	// until the client leaves. Returning immediately would make every client
+	// reconnect on the retry interval, and each reconnect costs a full
+	// authentication round trip.
+	ticker := time.NewTicker(mcpKeepAlive)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-s.draining:
+			return
+		case <-ticker.C:
+			if _, err := io.WriteString(w, ": keep-alive\n\n"); err != nil {
+				return
+			}
+			flusher.Flush()
+		}
 	}
 }
 
@@ -274,6 +301,7 @@ func (s *Server) captureHandlerBody(parent *http.Request, method, target string,
 func (s *Server) captureHandlerRouteBody(parent *http.Request, method, target string, handler http.HandlerFunc, body []byte, param, value string) (any, error) {
 	request := httptest.NewRequest(method, target, bytes.NewReader(body)).WithContext(parent.Context())
 	request.Header.Set("Content-Type", "application/json")
+	adoptCaller(request, parent)
 	if param != "" {
 		route := chi.NewRouteContext()
 		route.URLParams.Add(param, value)
@@ -293,6 +321,20 @@ func (s *Server) captureHandlerRouteBody(parent *http.Request, method, target st
 	return result, nil
 }
 
+// adoptCaller gives the synthetic request the real caller's identity so a
+// handler reached through an MCP tool records the same address, host and agent
+// it would over REST instead of httptest's placeholder.
+func adoptCaller(request, parent *http.Request) {
+	request.RemoteAddr = parent.RemoteAddr
+	request.Host = parent.Host
+	request.TLS = parent.TLS
+	for _, header := range []string{"User-Agent", "X-Forwarded-For", "X-Real-IP", "X-Forwarded-Proto", "X-Forwarded-Host"} {
+		if value := parent.Header.Get(header); value != "" {
+			request.Header.Set(header, value)
+		}
+	}
+}
+
 func numberArg(v any) (int, bool) {
 	switch n := v.(type) {
 	case float64:
@@ -307,6 +349,7 @@ func numberArg(v any) (int, bool) {
 }
 func (s *Server) captureHandler(parent *http.Request, method, target string, handler http.HandlerFunc, param, value string) (any, error) {
 	request := httptest.NewRequest(method, target, nil).WithContext(parent.Context())
+	adoptCaller(request, parent)
 	if param != "" {
 		route := chi.NewRouteContext()
 		route.URLParams.Add(param, value)

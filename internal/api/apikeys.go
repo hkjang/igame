@@ -104,7 +104,7 @@ func (s *Server) listAPIKeys(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := s.DB.Query(r.Context(), `SELECT id,name,key_prefix,permissions,expires_at,last_used_at,revoked_at,created_at FROM api_keys WHERE user_id=$1 ORDER BY created_at DESC`, p.UserID)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -116,10 +116,14 @@ func (s *Server) listAPIKeys(w http.ResponseWriter, r *http.Request) {
 		var expires, lastUsed, revoked *time.Time
 		var created time.Time
 		if err := rows.Scan(&id, &name, &prefix, &perms, &expires, &lastUsed, &revoked, &created); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		items = append(items, map[string]any{"id": id, "name": name, "prefix": prefix, "permissions": perms, "expires_at": expires, "last_used_at": lastUsed, "revoked_at": revoked, "created_at": created})
+	}
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	writeJSON(w, 200, map[string]any{"items": items, "available_permissions": availableKeyPermissions(p, policy), "max_keys": policy.MaxKeys, "max_ttl_days": policy.MaxTTLDays})
 }
@@ -156,7 +160,7 @@ func (s *Server) createAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 	random, err := randomToken(32)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	raw := "igk_" + random
@@ -165,7 +169,7 @@ func (s *Server) createAPIKey(w http.ResponseWriter, r *http.Request) {
 	var created time.Time
 	err = s.DB.QueryRow(r.Context(), `INSERT INTO api_keys(user_id,name,key_prefix,key_hash,permissions,expires_at) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,created_at`, p.UserID, in.Name, tokenPrefix(raw), hash[:], in.Permissions, in.ExpiresAt).Scan(&id, &created)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	s.audit(r, "api_key.create", "api_key", id.String(), map[string]any{"permissions": in.Permissions})
@@ -198,7 +202,7 @@ func (s *Server) updateAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 	tag, err := s.DB.Exec(r.Context(), `UPDATE api_keys SET name=$3,permissions=$4,expires_at=$5 WHERE id=$1 AND user_id=$2 AND revoked_at IS NULL`, id, p.UserID, in.Name, in.Permissions, in.ExpiresAt)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if tag.RowsAffected() == 0 {
@@ -217,7 +221,7 @@ func (s *Server) rotateAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 	tx, err := s.DB.Begin(r.Context())
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer tx.Rollback(r.Context())
@@ -226,7 +230,7 @@ func (s *Server) rotateAPIKey(w http.ResponseWriter, r *http.Request) {
 	var expires *time.Time
 	err = tx.QueryRow(r.Context(), `UPDATE api_keys SET revoked_at=now() WHERE id=$1 AND user_id=$2 AND revoked_at IS NULL RETURNING name,permissions,expires_at`, oldID, p.UserID).Scan(&name, &perms, &expires)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	random, err := randomToken(32)
@@ -240,11 +244,11 @@ func (s *Server) rotateAPIKey(w http.ResponseWriter, r *http.Request) {
 	var created time.Time
 	err = tx.QueryRow(r.Context(), `INSERT INTO api_keys(user_id,name,key_prefix,key_hash,permissions,expires_at,rotated_from) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,created_at`, p.UserID, name, tokenPrefix(raw), hash[:], perms, expires, oldID).Scan(&id, &created)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if err = tx.Commit(r.Context()); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	s.audit(r, "api_key.rotate", "api_key", id.String(), map[string]any{"rotated_from": oldID})
@@ -259,7 +263,7 @@ func (s *Server) revokeAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 	tag, err := s.DB.Exec(r.Context(), `UPDATE api_keys SET revoked_at=COALESCE(revoked_at,now()) WHERE id=$1 AND user_id=$2`, id, p.UserID)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if tag.RowsAffected() == 0 {

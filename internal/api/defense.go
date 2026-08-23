@@ -788,12 +788,12 @@ func (s *Server) defenseConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	gameID, name, err := s.defenseGame(r.Context(), slug)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	version, err := s.loadDefensePublished(r.Context(), slug)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	decoded, err := decodeDefenseContent(version.RawContent)
@@ -817,22 +817,33 @@ func (s *Server) defenseVersion(w http.ResponseWriter, r *http.Request) {
 	}
 	version, err := s.loadDefensePublished(r.Context(), slug)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	writeJSON(w, 200, map[string]any{"version": defenseVersionJSON(version)})
 }
 
 func (s *Server) ensureDefenseProgress(ctx context.Context, userID, gameID uuid.UUID, version defenseVersionRecord, content defenseDecodedContent) error {
+	return seedDefenseProgress(ctx, s.DB, userID, gameID, version.ID, content)
+}
+
+// seedDefenseProgress creates the stage/difficulty rows a player is missing. It
+// runs on every progress read and again inside the result transaction, so the
+// rows are expanded in one statement rather than three inserts per stage.
+func seedDefenseProgress(ctx context.Context, db execer, userID, gameID, versionID uuid.UUID, content defenseDecodedContent) error {
+	stageIDs := make([]string, 0, len(content.Stages))
+	unlocked := make([]bool, 0, len(content.Stages))
 	for _, stage := range content.Stages {
-		for _, difficulty := range []string{"casual", "normal", "veteran"} {
-			_, err := s.DB.Exec(ctx, `INSERT INTO defense_user_progress(user_id,game_id,stage_id,difficulty,unlocked,content_version_id) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(user_id,game_id,content_version_id,stage_id,difficulty) DO NOTHING`, userID, gameID, stage.ID, difficulty, stage.Number == 1, version.ID)
-			if err != nil {
-				return err
-			}
-		}
+		stageIDs = append(stageIDs, stage.ID)
+		unlocked = append(unlocked, stage.Number == 1)
 	}
-	return nil
+	_, err := db.Exec(ctx, `INSERT INTO defense_user_progress(user_id,game_id,stage_id,difficulty,unlocked,content_version_id)
+		SELECT $1,$2,stage.id,d.difficulty,stage.unlocked,$3
+		FROM unnest($4::text[],$5::boolean[]) AS stage(id,unlocked)
+		CROSS JOIN unnest(ARRAY['casual','normal','veteran']) AS d(difficulty)
+		ON CONFLICT(user_id,game_id,content_version_id,stage_id,difficulty) DO NOTHING`,
+		userID, gameID, versionID, stageIDs, unlocked)
+	return err
 }
 
 func (s *Server) defenseProgressData(ctx context.Context, userID, gameID uuid.UUID, version defenseVersionRecord, content defenseDecodedContent) (map[string]any, error) {
@@ -882,12 +893,12 @@ func (s *Server) defenseProgress(w http.ResponseWriter, r *http.Request) {
 	}
 	gameID, _, err := s.defenseGame(r.Context(), slug)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	version, err := s.loadDefensePublished(r.Context(), slug)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	content, err := decodeDefenseContent(version.RawContent)
@@ -897,7 +908,7 @@ func (s *Server) defenseProgress(w http.ResponseWriter, r *http.Request) {
 	}
 	data, err := s.defenseProgressData(r.Context(), p.UserID, gameID, version, content)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	writeJSON(w, 200, data)
@@ -1028,7 +1039,7 @@ func (s *Server) answerDefenseEducationEvent(w http.ResponseWriter, r *http.Requ
 	hash := sha256.Sum256([]byte(in.SessionToken))
 	tx, err := s.DB.Begin(r.Context())
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer tx.Rollback(r.Context())
@@ -1056,7 +1067,7 @@ func (s *Server) answerDefenseEducationEvent(w http.ResponseWriter, r *http.Requ
 	}
 	records, err := loadDefenseTelemetryRecords(r.Context(), tx, in.SessionID, false)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	event, _, exists := defenseQuestionForEvent(content, eventID)
@@ -1078,7 +1089,7 @@ func (s *Server) answerDefenseEducationEvent(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	if err := tx.Commit(r.Context()); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	s.audit(r, "defense.education.answer", "defense_session", in.SessionID.String(), map[string]any{"game": slug, "event_id": eventID, "correct": answer["correct"]})
@@ -1353,6 +1364,17 @@ func unlockDefenseAchievements(ctx context.Context, tx pgx.Tx, userID uuid.UUID,
 	return err
 }
 
+// rejectDefenseResult refuses an authoritative Defense Series result and leaves
+// an audit trail, so repeated forged submissions are visible to the anomaly
+// detection the attestation boundary depends on. The session transaction is
+// released first: the audit write must outlive this rollback and must not hold
+// a second pooled connection behind the session row lock.
+func (s *Server) rejectDefenseResult(w http.ResponseWriter, r *http.Request, tx pgx.Tx, slug string, sessionID uuid.UUID, status int, code, message string) {
+	_ = tx.Rollback(r.Context())
+	s.audit(r, "defense.result.reject", "game_session", sessionID.String(), map[string]any{"game": slug, "code": code, "reason": message})
+	writeError(w, status, code, message)
+}
+
 func (s *Server) submitDefenseResult(w http.ResponseWriter, r *http.Request) {
 	p, _ := principalFrom(r)
 	slug, ok := defenseSlugParam(w, r)
@@ -1375,7 +1397,7 @@ func (s *Server) submitDefenseResult(w http.ResponseWriter, r *http.Request) {
 	tokenHash := sha256.Sum256([]byte(in.SessionToken))
 	tx, err := s.DB.Begin(r.Context())
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer tx.Rollback(r.Context())
@@ -1385,11 +1407,11 @@ func (s *Server) submitDefenseResult(w http.ResponseWriter, r *http.Request) {
 	var raw json.RawMessage
 	err = tx.QueryRow(r.Context(), `SELECT gs.game_id,gs.defense_content_version_id,gs.started_at,gs.status,v.content_version,v.policy_version,v.content FROM game_sessions gs JOIN games g ON g.id=gs.game_id JOIN defense_content_versions v ON v.id=gs.defense_content_version_id WHERE gs.id=$1 AND gs.user_id=$2 AND gs.session_token_hash=$3 AND g.slug=$4 FOR UPDATE OF gs`, in.SessionID, p.UserID, tokenHash[:], slug).Scan(&gameID, &versionID, &started, &status, &contentVersion, &policyVersion, &raw)
 	if err != nil {
-		writeError(w, 409, "invalid_session", "session, token, game, or pinned content is invalid")
+		s.rejectDefenseResult(w, r, tx, slug, in.SessionID, 409, "invalid_session", "session, token, game, or pinned content is invalid")
 		return
 	}
 	if !defenseGameClaimMatches(in.GameID, slug, gameID) {
-		writeError(w, 409, "game_mismatch", "game_id does not identify the Defense Series game pinned to this session")
+		s.rejectDefenseResult(w, r, tx, slug, in.SessionID, 409, "game_mismatch", "game_id does not identify the Defense Series game pinned to this session")
 		return
 	}
 	var existingID uuid.UUID
@@ -1397,16 +1419,16 @@ func (s *Server) submitDefenseResult(w http.ResponseWriter, r *http.Request) {
 	err = tx.QueryRow(r.Context(), `SELECT id,request_hash FROM defense_results WHERE session_id=$1`, in.SessionID).Scan(&existingID, &existingHash)
 	if err == nil {
 		if existingHash != requestHash {
-			writeError(w, 409, "idempotency_conflict", "this session already has a different authoritative result")
+			s.rejectDefenseResult(w, r, tx, slug, in.SessionID, 409, "idempotency_conflict", "this session already has a different authoritative result")
 			return
 		}
 		if err := tx.Commit(r.Context()); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		result, err := s.defenseResultByID(r.Context(), existingID)
 		if err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		version, _ := s.loadDefenseVersion(r.Context(), versionID)
@@ -1416,15 +1438,15 @@ func (s *Server) submitDefenseResult(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if status != "active" {
-		writeError(w, 409, "invalid_session", "session cannot accept an authoritative result")
+		s.rejectDefenseResult(w, r, tx, slug, in.SessionID, 409, "invalid_session", "session cannot accept an authoritative result")
 		return
 	}
 	if in.ContentVersion == "" || in.PolicyVersion == "" || in.ContentVersion != contentVersion || in.PolicyVersion != policyVersion {
-		writeError(w, 409, "defense_config_mismatch", "result versions do not match the pinned Defense Series content and policy")
+		s.rejectDefenseResult(w, r, tx, slug, in.SessionID, 409, "defense_config_mismatch", "result versions do not match the pinned Defense Series content and policy")
 		return
 	}
 	content, err := decodeDefenseContent(raw)
@@ -1440,34 +1462,29 @@ func (s *Server) submitDefenseResult(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if stage.ID == "" {
-		writeError(w, 422, "invalid_stage", "stage is not present in the pinned content")
+		s.rejectDefenseResult(w, r, tx, slug, in.SessionID, 422, "invalid_stage", "stage is not present in the pinned content")
 		return
 	}
 	if !defenseHeroAvailable(content, in.Battle.HeroID, stage.Number) {
-		writeError(w, 422, "hero_locked", "hero is not unlocked for the selected pinned stage")
+		s.rejectDefenseResult(w, r, tx, slug, in.SessionID, 422, "hero_locked", "hero is not unlocked for the selected pinned stage")
 		return
 	}
-	for _, candidate := range content.Stages {
-		for _, difficulty := range []string{"casual", "normal", "veteran"} {
-			_, err = tx.Exec(r.Context(), `INSERT INTO defense_user_progress(user_id,game_id,stage_id,difficulty,unlocked,content_version_id) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(user_id,game_id,content_version_id,stage_id,difficulty) DO NOTHING`, p.UserID, gameID, candidate.ID, difficulty, candidate.Number == 1, versionID)
-			if err != nil {
-				dbError(w, err)
-				return
-			}
-		}
+	if err = seedDefenseProgress(r.Context(), tx, p.UserID, gameID, versionID, content); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	var stageUnlocked bool
 	if err = tx.QueryRow(r.Context(), `SELECT bool_or(unlocked) FROM defense_user_progress WHERE user_id=$1 AND game_id=$2 AND content_version_id=$3 AND stage_id=$4`, p.UserID, gameID, versionID, stage.ID).Scan(&stageUnlocked); err != nil || !stageUnlocked {
-		writeError(w, 403, "stage_locked", "stage is not unlocked for this user")
+		s.rejectDefenseResult(w, r, tx, slug, in.SessionID, 403, "stage_locked", "stage is not unlocked for this user")
 		return
 	}
 	totalWaves, maxSpawns, _, _ := defenseBattleBudget(content, in.StageID, in.WavesCompleted, !in.Victory)
 	if int64(in.WavesCompleted) > totalWaves || in.Kills > in.Spawned || in.Escaped > in.Spawned-in.Kills || in.Spawned > maxSpawns || in.RemainingHealth > stage.StartingHealth {
-		writeError(w, 422, "invalid_combat_counters", "combat counters exceed the pinned stage and wave budget")
+		s.rejectDefenseResult(w, r, tx, slug, in.SessionID, 422, "invalid_combat_counters", "combat counters exceed the pinned stage and wave budget")
 		return
 	}
 	if in.Victory && (int64(in.WavesCompleted) != totalWaves || in.Spawned != maxSpawns || in.Kills+in.Escaped != in.Spawned || in.RemainingHealth < 1) {
-		writeError(w, 422, "invalid_victory", "victory counters do not match all pinned waves")
+		s.rejectDefenseResult(w, r, tx, slug, in.SessionID, 422, "invalid_victory", "victory counters do not match all pinned waves")
 		return
 	}
 	if !in.Victory {
@@ -1478,21 +1495,21 @@ func (s *Server) submitDefenseResult(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if in.RemainingHealth != 0 && !resourceDepleted {
-			writeError(w, 422, "invalid_defeat", "a defeat must end with zero health or a depleted AI resource")
+			s.rejectDefenseResult(w, r, tx, slug, in.SessionID, 422, "invalid_defeat", "a defeat must end with zero health or a depleted AI resource")
 			return
 		}
 	}
 	if slug == "ai-nexus-defense" && in.Victory {
 		for _, metric := range in.ResourceState {
 			if metric.Remaining <= 0 {
-				writeError(w, 422, "invalid_victory", "AI victory requires positive compute, token, trust, and latency headroom")
+				s.rejectDefenseResult(w, r, tx, slug, in.SessionID, 422, "invalid_victory", "AI victory requires positive compute, token, trust, and latency headroom")
 				return
 			}
 		}
 	}
 	serverDuration := s.Now().Sub(started).Milliseconds()
 	if in.DurationMS > serverDuration+content.Balance.DurationToleranceMS || in.DurationMS < int64(in.WavesCompleted)*content.Balance.MinWaveDurationMS {
-		writeError(w, 422, "invalid_duration", "duration is inconsistent with server time or completed waves")
+		s.rejectDefenseResult(w, r, tx, slug, in.SessionID, 422, "invalid_duration", "duration is inconsistent with server time or completed waves")
 		return
 	}
 	seenAnswers := map[string]bool{}
@@ -1504,23 +1521,23 @@ func (s *Server) submitDefenseResult(w http.ResponseWriter, r *http.Request) {
 		seenAnswers[answer.EventID] = true
 		var storedAnswer string
 		if err := tx.QueryRow(r.Context(), `SELECT answer_id FROM defense_event_answers WHERE session_id=$1 AND event_id=$2`, in.SessionID, answer.EventID).Scan(&storedAnswer); err != nil || storedAnswer != answer.AnswerID {
-			writeError(w, 422, "answer_not_recorded", "result answers must match answers previously validated at their reached event")
+			s.rejectDefenseResult(w, r, tx, slug, in.SessionID, 422, "answer_not_recorded", "result answers must match answers previously validated at their reached event")
 			return
 		}
 	}
 	learningScore, learningBreakdown, answers, err := defenseLearningBreakdown(r.Context(), tx, in.SessionID)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	educationEffects, educationEarned, educationSpent, err := defenseStoredAnswerEffects(r.Context(), tx, in.SessionID, content)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	telemetryRecords, err := loadDefenseTelemetryRecords(r.Context(), tx, in.SessionID, true)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	wavesStarted := 0
@@ -1538,12 +1555,12 @@ func (s *Server) submitDefenseResult(w http.ResponseWriter, r *http.Request) {
 	}
 	requiredEducation := defenseRequiredEducationEvents(content, stage.ID, wavesStarted, terminalDepletedWave)
 	if len(seenAnswers) != len(educationEffects) || len(educationEffects) != len(requiredEducation) {
-		writeError(w, 422, "answer_not_recorded", "result answers must include every server-validated education event exactly once")
+		s.rejectDefenseResult(w, r, tx, slug, in.SessionID, 422, "answer_not_recorded", "result answers must include every server-validated education event exactly once")
 		return
 	}
 	for eventID := range requiredEducation {
 		if !seenAnswers[eventID] {
-			writeError(w, 422, "answer_not_recorded", "every reached education event must be answered before submitting a result")
+			s.rejectDefenseResult(w, r, tx, slug, in.SessionID, 422, "answer_not_recorded", "every reached education event must be answered before submitting a result")
 			return
 		}
 	}
@@ -1551,9 +1568,9 @@ func (s *Server) submitDefenseResult(w http.ResponseWriter, r *http.Request) {
 	attestation, err := validateDefenseTelemetryAttestation(telemetryRecords, slug, started, s.Now(), stage, content, version, in, educationEffects, educationEarned, educationSpent)
 	if err != nil {
 		if resultErr, ok := err.(realmGuardResultError); ok {
-			writeError(w, resultErr.Status, resultErr.Code, resultErr.Message)
+			s.rejectDefenseResult(w, r, tx, slug, in.SessionID, resultErr.Status, resultErr.Code, resultErr.Message)
 		} else {
-			dbError(w, err)
+			s.dbError(w, r, err)
 		}
 		return
 	}
@@ -1566,13 +1583,13 @@ func (s *Server) submitDefenseResult(w http.ResponseWriter, r *http.Request) {
 	}
 	serverProof, err := s.Secrets.Seal(string(proofPayload))
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	var resultID uuid.UUID
 	err = tx.QueryRow(r.Context(), `INSERT INTO defense_results(session_id,user_id,game_id,content_version_id,stage_id,difficulty,duration_ms,remaining_health,remaining_resource,kills,escaped,spawned,waves_completed,victory,score,stars,learning_score,policy_version,resource_state,score_breakdown,learning_breakdown,answers,request_hash,verification_method,attestation,server_proof) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26) RETURNING id`, in.SessionID, p.UserID, gameID, versionID, in.StageID, in.Difficulty, in.DurationMS, in.RemainingHealth, in.RemainingResource, int(in.Kills), int(in.Escaped), int(in.Spawned), in.WavesCompleted, in.Victory, score, stars, learningScore, policyVersion, in.ResourceState, scoreBreakdown, learningBreakdown, answers, requestHash, defenseVerificationMethod, attestationJSON, serverProof).Scan(&resultID)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	_, err = tx.Exec(r.Context(), `UPDATE game_sessions SET status='finished',ended_at=now(),duration_ms=$2,result=result||jsonb_build_object('defense_result_id',$3::text,'score',$4::bigint,'learning_score',$5::int) WHERE id=$1`, in.SessionID, in.DurationMS, resultID, score, learningScore)
@@ -1599,15 +1616,15 @@ func (s *Server) submitDefenseResult(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if err = unlockDefenseAchievements(r.Context(), tx, p.UserID, slug); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if err := tx.Commit(r.Context()); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	s.audit(r, "defense.result.accept", "defense_result", resultID.String(), map[string]any{"game": slug, "session_id": in.SessionID, "score": score, "learning_score": learningScore, "verification_method": defenseVerificationMethod, "attestation_digest": attestation.Digest})
@@ -1659,12 +1676,12 @@ func (s *Server) defenseRankings(w http.ResponseWriter, r *http.Request) {
 	}
 	gameID, gameName, err := s.defenseGame(r.Context(), slug)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	version, err := s.loadDefensePublished(r.Context(), slug)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	period, since, ok := defensePeriod(r, s.Now().In(s.serviceLocation(r.Context())))
@@ -1702,7 +1719,7 @@ func (s *Server) defenseRankings(w http.ResponseWriter, r *http.Request) {
 		query := fmt.Sprintf(`WITH user_best AS (SELECT u.id,u.%s group_name,max(dr.score) score FROM defense_results dr JOIN users u ON u.id=dr.user_id JOIN game_sessions gs ON gs.id=dr.session_id WHERE dr.game_id=$1 AND dr.content_version_id=$2 AND dr.verified AND NOT u.ranking_opt_out AND ($3::timestamptz='0001-01-01' OR dr.created_at >= $3) AND ($4<>'season' OR gs.season_id=(SELECT id FROM seasons WHERE status='active' LIMIT 1)) AND u.%s<>'' GROUP BY u.id,u.%s), totals AS (SELECT group_name,sum(score) score,count(*) members FROM user_best GROUP BY group_name) SELECT row_number() OVER(ORDER BY score DESC),group_name,score,members FROM totals ORDER BY score DESC LIMIT $5`, column, column, column)
 		rows, err := s.DB.Query(r.Context(), query, gameID, version.ID, since, period, limit)
 		if err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		defer rows.Close()
@@ -1711,17 +1728,21 @@ func (s *Server) defenseRankings(w http.ResponseWriter, r *http.Request) {
 			var name string
 			var members int
 			if err := rows.Scan(&rank, &name, &score, &members); err != nil {
-				dbError(w, err)
+				s.dbError(w, r, err)
 				return
 			}
 			item := map[string]any{"rank": rank, "name": name, "display_name": name, "score": score, "members": members, "game_name": gameName}
 			item[group] = name
 			items = append(items, item)
 		}
+		if err := rows.Err(); err != nil {
+			s.dbError(w, r, err)
+			return
+		}
 	} else {
 		rows, err := s.DB.Query(r.Context(), `WITH best AS (SELECT u.id,u.username,u.display_name,u.nickname,u.department,u.team,max(dr.score) score FROM defense_results dr JOIN users u ON u.id=dr.user_id JOIN game_sessions gs ON gs.id=dr.session_id WHERE dr.game_id=$1 AND dr.content_version_id=$2 AND dr.verified AND NOT u.ranking_opt_out AND ($3::timestamptz='0001-01-01' OR dr.created_at >= $3) AND ($4<>'season' OR gs.season_id=(SELECT id FROM seasons WHERE status='active' LIMIT 1)) GROUP BY u.id) SELECT row_number() OVER(ORDER BY score DESC),id,username,display_name,nickname,department,team,score FROM best ORDER BY score DESC LIMIT $5`, gameID, version.ID, since, period, limit)
 		if err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		defer rows.Close()
@@ -1730,7 +1751,7 @@ func (s *Server) defenseRankings(w http.ResponseWriter, r *http.Request) {
 			var id uuid.UUID
 			var username, display, nickname, department, team string
 			if err := rows.Scan(&rank, &id, &username, &display, &nickname, &department, &team, &score); err != nil {
-				dbError(w, err)
+				s.dbError(w, r, err)
 				return
 			}
 			name := nickname
@@ -1747,6 +1768,10 @@ func (s *Server) defenseRankings(w http.ResponseWriter, r *http.Request) {
 			}
 			items = append(items, item)
 		}
+		if err := rows.Err(); err != nil {
+			s.dbError(w, r, err)
+			return
+		}
 	}
 	writeJSON(w, 200, map[string]any{"items": items, "period": period, "group": group, "version": defenseVersionJSON(version)})
 }
@@ -1759,17 +1784,17 @@ func (s *Server) defenseLearning(w http.ResponseWriter, r *http.Request) {
 	}
 	gameID, name, err := s.defenseGame(r.Context(), slug)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	version, err := s.loadDefensePublished(r.Context(), slug)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	rows, err := s.DB.Query(r.Context(), `SELECT topic,count(*) FILTER(WHERE correct),count(*),round(avg(score))::int FROM defense_event_answers WHERE user_id=$1 AND game_id=$2 AND content_version_id=$3 GROUP BY topic ORDER BY topic`, p.UserID, gameID, version.ID)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	topics := []map[string]any{}
@@ -1779,12 +1804,16 @@ func (s *Server) defenseLearning(w http.ResponseWriter, r *http.Request) {
 		var correct, total, score int
 		if err := rows.Scan(&topic, &correct, &total, &score); err != nil {
 			rows.Close()
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		correctTotal += correct
 		answerTotal += total
 		topics = append(topics, map[string]any{"topic": topic, "correct": correct, "total": total, "score": score})
+	}
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	rows.Close()
 	overall := 0
@@ -1793,7 +1822,7 @@ func (s *Server) defenseLearning(w http.ResponseWriter, r *http.Request) {
 	}
 	campaignRows, err := s.DB.Query(r.Context(), `SELECT campaign_id,completed,completed_stages,required_stages,learning_score,completed_at,updated_at FROM defense_campaign_progress WHERE user_id=$1 AND game_id=$2 AND content_version_id=$3 ORDER BY campaign_id`, p.UserID, gameID, version.ID)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer campaignRows.Close()
@@ -1805,10 +1834,14 @@ func (s *Server) defenseLearning(w http.ResponseWriter, r *http.Request) {
 		var completedAt *time.Time
 		var updated time.Time
 		if err := campaignRows.Scan(&id, &completed, &completedStages, &requiredStages, &score, &completedAt, &updated); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		campaigns = append(campaigns, map[string]any{"campaign_id": id, "completed": completed, "completed_stages": completedStages, "required_stages": requiredStages, "learning_score": score, "completed_at": completedAt, "updated_at": updated})
+	}
+	if err := campaignRows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	writeJSON(w, 200, map[string]any{"game": map[string]any{"id": gameID, "slug": slug, "name": name}, "version": defenseVersionJSON(version), "policy_version": version.PolicyVersion, "overall_score": overall, "topics": topics, "completed_campaigns": campaigns})
 }

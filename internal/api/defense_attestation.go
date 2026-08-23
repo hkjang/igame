@@ -73,7 +73,7 @@ func defenseTelemetryLimitReached(event string, counts map[string]int) bool {
 func (s *Server) insertDefenseTelemetry(w http.ResponseWriter, r *http.Request, p Principal, in telemetryInput, gameID uuid.UUID, occurred time.Time, tokenHash []byte) {
 	tx, err := s.DB.Begin(r.Context())
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	defer tx.Rollback(r.Context())
@@ -96,24 +96,24 @@ func (s *Server) insertDefenseTelemetry(w http.ResponseWriter, r *http.Request, 
 			return
 		}
 		if err = tx.Commit(r.Context()); err != nil {
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "duplicate": true, "client_event_id": in.ClientEventID, "sequence": in.Sequence})
 		return
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	var lastSequence int
 	if err = tx.QueryRow(r.Context(), `SELECT COALESCE(max(sequence_no),0) FROM game_telemetry WHERE session_id=$1`, in.SessionID).Scan(&lastSequence); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	rows, err := tx.Query(r.Context(), `SELECT event,count(*) FROM game_telemetry WHERE session_id=$1 GROUP BY event`, in.SessionID)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	counts := map[string]int{}
@@ -122,10 +122,14 @@ func (s *Server) insertDefenseTelemetry(w http.ResponseWriter, r *http.Request, 
 		var count int
 		if err = rows.Scan(&event, &count); err != nil {
 			rows.Close()
-			dbError(w, err)
+			s.dbError(w, r, err)
 			return
 		}
 		counts[event] = count
+	}
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
 	}
 	rows.Close()
 	if defenseTelemetryLimitReached(in.Event, counts) {
@@ -138,11 +142,11 @@ func (s *Server) insertDefenseTelemetry(w http.ResponseWriter, r *http.Request, 
 	}
 	_, err = tx.Exec(r.Context(), `INSERT INTO game_telemetry(session_id,user_id,game_id,event,data,occurred_at,client_event_id,sequence_no) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, in.SessionID, p.UserID, gameID, in.Event, in.Data, occurred, in.ClientEventID, in.Sequence)
 	if err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	if err = tx.Commit(r.Context()); err != nil {
-		dbError(w, err)
+		s.dbError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "duplicate": false, "client_event_id": in.ClientEventID, "sequence": in.Sequence})
