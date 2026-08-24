@@ -109,7 +109,7 @@ for workflow in "${REPO_DIR}/.github/workflows/ci.yml" "${REPO_DIR}/.github/work
     || ! grep -Fq 'go version -m "${binary_dir}/igame"' "${workflow}" \
     || ! grep -Fq "grep -Fq 'go1.26.6'" "${workflow}" \
     || ! grep -Fq 'io.igame.build.go-version' "${workflow}" \
-    || ! grep -Fq 'anchore/scan-action@0d444ed77d83ee2ba7f5ced0d90d640a1281d762 # v7.3.0' "${workflow}" \
+    || ! grep -Fq 'anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0' "${workflow}" \
     || ! grep -Fq 'severity-cutoff: high' "${workflow}" \
     || ! grep -Fq 'grype-version: v0.117.0' "${workflow}" \
     || ! grep -Fq 'fail-build: true' "${workflow}" \
