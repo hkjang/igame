@@ -22,7 +22,7 @@ gzip -t igame-vX.Y.Z.tar.gz
 
 GitHub 워크플로는 SPDX JSON SBOM을 생성해 검증 증적으로 보관하지만, “Docker 이미지만 릴리스” 원칙에 따라 SBOM과 checksum 파일을 별도 Release asset으로 게시하지 않습니다.
 
-`v0.4.0` image의 RealmGuard와 Defense Series 세 게임의 Phaser runtime, 코드 생성 graphic, 콘텐츠도 같은 image layer에 포함됩니다. 최종 runtime은 package manager와 shell이 없는 `scratch` 기반이며 정적 Go binary, CA 신뢰 번들과 license evidence만 포함합니다. 반입 검사에서는 `/licenses/web`과 `/licenses/sdk/gamehub-js`의 locked package metadata, `/licenses/phaser`의 package metadata/MIT license, workflow SBOM의 Phaser·SDK version을 함께 확인합니다. Workflow evidence에는 reachable Go 취약점 검사, High/Critical 최종 이미지 검사와 binary의 Go 1.26.6 build info 검증도 포함됩니다. 브라우저가 Phaser, map, sprite, 교육 문제 또는 balance 데이터를 인터넷에서 내려받지 않습니다.
+`v0.4.1` image의 RealmGuard와 Defense Series 세 게임의 Phaser runtime, 코드 생성 graphic, 콘텐츠도 같은 image layer에 포함됩니다. 최종 runtime은 package manager와 shell이 없는 `scratch` 기반이며 정적 Go binary, CA 신뢰 번들과 license evidence만 포함합니다. 반입 검사에서는 `/licenses/web`과 `/licenses/sdk/gamehub-js`의 locked package metadata, `/licenses/phaser`의 package metadata/MIT license, workflow SBOM의 Phaser·SDK version을 함께 확인합니다. Workflow evidence에는 reachable Go 취약점 검사, High/Critical 최종 이미지 검사와 binary의 Go 1.26.6 build info 검증도 포함됩니다. 브라우저가 Phaser, map, sprite, 교육 문제 또는 balance 데이터를 인터넷에서 내려받지 않습니다.
 
 ## PostgreSQL 준비
 
