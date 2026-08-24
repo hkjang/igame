@@ -12,7 +12,7 @@ VERSION=$(tr -d '[:space:]' < "${REPO_DIR}/VERSION")
 # states: the image carries whatever content pack was last published and the
 # service version must not overwrite it. Both packs are therefore pinned here,
 # and a content release moves its own pin alongside a new seed migration.
-REALMGUARD_CONTENT_VERSION=0.2.0
+REALMGUARD_CONTENT_VERSION=0.3.0
 DEFENSE_CONTENT_VERSION=0.3.0
 
 fail() {

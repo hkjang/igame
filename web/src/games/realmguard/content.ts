@@ -1,7 +1,7 @@
 import type { EnemyArchetype, HeroDefinition, Point, RealmBalance, RealmGuardConfig, RealmStage, RealmWave, SkillDefinition, TowerDefinition, WaveEntry } from './types';
 import { calculateResult, calculateStartingGold as startingGold } from './systems/RewardSystem';
 
-export const REALMGUARD_VERSION = '0.2.0';
+export const REALMGUARD_VERSION = '0.3.0';
 
 export const ENEMIES: EnemyArchetype[] = [
   { id: 'mireling', name: '습지 꼬마', color: 0x7fcf75, hp: 45, speed: 54, armor: 0, reward: 8, lifeDamage: 1, radius: 12, traits: [] },
@@ -24,15 +24,15 @@ export const TOWERS: TowerDefinition[] = [
     { id: 'eagle_oath', name: '독수리 맹세', description: '사거리와 치명 피해 강화', rangeMultiplier: 1.35, damageMultiplier: 1.75 },
   ] },
   { id: 'runebloom', name: '룬꽃 정원', role: '방어 무시 비전 공격', color: 0xc69cff, cost: 105, damage: 33, range: 138, fireRate: .92, projectileSpeed: 360, damageType: 'arcane', branches: [
-    { id: 'star_lattice', name: '별 격자', description: '주변 적에게 연쇄 피해', damageMultiplier: 1.4, splash: 58 },
+    { id: 'star_lattice', name: '별 격자', description: '주변 적에게 연쇄 피해', damageMultiplier: 1.55, splash: 58 },
     { id: 'null_petal', name: '무효의 꽃잎', description: '강한 적 방어 관통', damageMultiplier: 1.85, pierce: 3 },
   ] },
   { id: 'stonepulse', name: '석맥 포대', role: '느린 광역 포격', color: 0xe8845c, cost: 125, damage: 62, range: 170, fireRate: 1.55, projectileSpeed: 290, damageType: 'siege', branches: [
-    { id: 'quake_drum', name: '지진북', description: '거대한 폭발 반경', damageMultiplier: 1.3, splash: 96 },
-    { id: 'ember_core', name: '잿불핵', description: '집중 고열탄', damageMultiplier: 2.2, splash: 44 },
+    { id: 'quake_drum', name: '지진북', description: '거대한 폭발 반경', damageMultiplier: 1.5, splash: 96 },
+    { id: 'ember_core', name: '잿불핵', description: '집중 고열탄', damageMultiplier: 1.9, splash: 44 },
   ] },
   { id: 'windward', name: '바람수호 병영', role: '병사 소환·길목 저지', color: 0x69dce4, cost: 95, damage: 16, range: 92, fireRate: .72, projectileSpeed: 390, damageType: 'physical', branches: [
-    { id: 'shield_line', name: '방패선', description: '강력한 지상 저지와 방어', slow: .68, damageMultiplier: 1.35 },
+    { id: 'shield_line', name: '방패선', description: '강력한 지상 저지와 방어', slow: .34, damageMultiplier: 1.35 },
     { id: 'skyrider_watch', name: '하늘기수 초소', description: '비행 대응과 빠른 공격', rateMultiplier: .58, rangeMultiplier: 1.45, damageMultiplier: 1.55 },
   ] },
 ];

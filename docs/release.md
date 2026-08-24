@@ -14,7 +14,7 @@ SBOM과 checksum은 CI에서 생성·검증하고 workflow evidence artifact와 
 
 Production build는 RealmGuard와 Defense Series source가 locked Phaser dependency를 실제로 import하는지, compiled asset에 네 게임 route/content가 존재하는지, `index.html`이 원격 script/stylesheet를 참조하지 않는지를 검사합니다. Web과 SDK package version은 root `VERSION`과 같아야 합니다. 최종 이미지에는 locked web package manifest/lock을 `/licenses/web`, SDK manifest/lock을 `/licenses/sdk/gamehub-js`, Phaser package metadata와 MIT license를 `/licenses/phaser`에 보관합니다. SPDX SBOM에서 정확한 Phaser·`@igame/gamehub-js` version이 식별되지 않으면 Release workflow를 중단합니다. `003_realmguard.sql`, `004_realmguard_attestation.sql`과 Defense Series schema/seed migration을 포함한 SQL migration은 Go binary에 embed됩니다. fresh DB에서 세 Defense content pack이 각각 하나의 published snapshot으로 생성되고, 기존 RealmGuard 경제 필드는 `bigint`를 유지해야 합니다.
 
-서비스 릴리스와 게임 콘텐츠는 서로 다른 수명 주기를 가집니다. `igame:v0.4.1`에는 회귀 호환용 RealmGuard 콘텐츠 `0.2.0`과 Defense Series 콘텐츠 `0.3.0`이 함께 들어갑니다. Web·SDK·이미지 버전은 root `VERSION`을 따르지만, 기존 게임 콘텐츠 버전을 서비스 버전으로 덮어쓰지 않습니다. 공식 세션은 각 게임 public config에서 읽은 immutable snapshot UUID를 사용합니다.
+서비스 릴리스와 게임 콘텐츠는 서로 다른 수명 주기를 가집니다. `igame:v0.4.1`에는 RealmGuard 콘텐츠 `0.3.0`과 Defense Series 콘텐츠 `0.3.0`이 함께 들어갑니다. Web·SDK·이미지 버전은 root `VERSION`을 따르지만, 기존 게임 콘텐츠 버전을 서비스 버전으로 덮어쓰지 않습니다. 공식 세션은 각 게임 public config에서 읽은 immutable snapshot UUID를 사용합니다.
 
 ## 매뉴얼 PDF 재생성
 

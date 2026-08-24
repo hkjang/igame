@@ -35,7 +35,7 @@
 
 ## RealmGuard
 
-`v0.2.0`은 igame의 독자 타워 디펜스 IP인 **RealmGuard**를 포함합니다. 10개 캠페인 stage와 끝없는 균열, 일반 enemy 10종과 boss 2종, 4종 tower와 8개 upgrade branch, 3명 hero, 3개 active skill을 데이터 기반으로 구성합니다. `/games/realmguard`의 게임 화면은 Phaser를 사용하지만 엔진과 모든 실행 자산은 Vite/Go 정적 bundle과 단일 Docker 이미지 안에 포함되어 폐쇄망에서 CDN 없이 실행됩니다.
+`v0.2.0`은 igame의 독자 타워 디펜스 IP인 **RealmGuard**를 포함합니다. 콘텐츠는 현재 `0.3.0`이며 타워 분기 밸런스가 재조정되었습니다. 10개 캠페인 stage와 끝없는 균열, 일반 enemy 10종과 boss 2종, 4종 tower와 8개 upgrade branch, 3명 hero, 3개 active skill을 데이터 기반으로 구성합니다. `/games/realmguard`의 게임 화면은 Phaser를 사용하지만 엔진과 모든 실행 자산은 Vite/Go 정적 bundle과 단일 Docker 이미지 안에 포함되어 폐쇄망에서 CDN 없이 실행됩니다.
 
 RealmGuard의 명칭·등장 개체·stage/balance 데이터와 코드 생성 그래픽은 이 프로젝트의 독자 구현이며, Kingdom Rush를 포함한 제3자 게임의 코드·서사·캐릭터·맵·시청각 자산을 포함하지 않습니다. Phaser는 MIT 라이선스의 실행 framework로만 사용하며 package metadata와 license를 이미지 `/licenses/phaser`에 함께 보관합니다.
 
@@ -102,7 +102,7 @@ make smoke
 
 릴리스 이미지는 `VERSION`을 기준으로 만듭니다. 결과물 `dist/igame-v<version>.tar.gz`는 별도 tar 포장 없이 `docker save igame:v<version> | gzip`의 출력입니다.
 
-서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.4.1`으로 정렬됩니다. RealmGuard 콘텐츠 `0.2.0`과 Defense Series 콘텐츠 `0.3.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
+서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.4.1`으로 정렬됩니다. RealmGuard 콘텐츠 `0.3.0`과 Defense Series 콘텐츠 `0.3.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
 
 ```bash
 make release
