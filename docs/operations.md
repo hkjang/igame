@@ -81,7 +81,7 @@ DB 마이그레이션은 전진 적용을 기본으로 합니다. 이전 이미�
 | `/healthz` 실패 | 프로세스 종료, OOM, 포트 충돌, 필수 env 형식 |
 | `/readyz`만 실패 | PostgreSQL DNS/TLS/권한/연결 수, 마이그레이션 오류 |
 | SSO redirect loop | public URL, 프록시 forwarded headers, redirect URI, cookie secure 설정 |
-| 로그인만 실패하고 화면은 열림 (`csrf_rejected`) | 상태 변경 요청은 브라우저 `Origin`이 서비스가 계산한 base URL과 정확히 일치해야 합니다. base URL은 `public_url`이 설정되어 있으면 그 값, 없으면 요청 `Host`입니다. 서버 로그의 `request origin rejected` 항목이 `origin`과 `expected`를 함께 남기므로 두 값을 대조합니다. 설정된 주소로 접속하거나, `public_url`을 실제 접속 주소로 맞추거나, reverse proxy 뒤라면 `trust_proxy`를 켜고 프록시가 원래 `Host`와 `X-Forwarded-*`를 전달하도록 합니다 |
+| 로그인만 실패하고 화면은 열림 (`csrf_rejected`) | 상태 변경 요청은 브라우저 `Origin`이 **설정된 `public_url`이거나 요청이 실제로 도착한 주소**여야 합니다. 둘 다 아니면 거부합니다. 서버 로그의 `request origin rejected` 항목이 받은 `origin`과 허용된 목록을 함께 남기므로 대조합니다. reverse proxy 뒤에서 TLS를 종료한다면 `trust_proxy`를 켜고 프록시가 원래 `Host`와 `X-Forwarded-Proto`/`X-Forwarded-Host`를 전달해야 합니다. 그렇지 않으면 서비스는 자신이 평문 HTTP로 보인다고 판단합니다 |
 | 토큰 검증 실패 | issuer/audience, JWKS 접근, 시계 오차, Keycloak key rotation |
 | AI 응답 중단 | provider 접근, timeout, SSE buffering, 모델 token 상한 |
 | 게임 iframe 차단 | allowlist, CSP frame-src, 게임의 frame-ancestors/X-Frame-Options |

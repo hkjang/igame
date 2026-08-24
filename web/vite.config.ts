@@ -27,7 +27,23 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    proxy: { '/api': { target: 'http://localhost:8080', changeOrigin: true } },
+    proxy: {
+      // The dev server is a different origin from the API, so the browser's
+      // Origin would not match the service address and every state-changing
+      // request would be refused. Presenting the target's own origin keeps the
+      // dev proxy working without loosening the check on the server, and never
+      // ships: production serves the built bundle from the same origin.
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        headers: { Origin: 'http://localhost:8080' },
+      },
+      '/mcp': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        headers: { Origin: 'http://localhost:8080' },
+      },
+    },
   },
   test: {
     environment: 'jsdom',

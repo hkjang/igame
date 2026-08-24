@@ -4,6 +4,8 @@
 
 igame은 브라우저를 신뢰하지 않습니다. 점수, 업적, 승인 전이, 역할, AI 호출은 모두 서버에서 검증합니다. 최종 컨테이너는 package manager와 shell이 없는 `scratch` runtime에서 non-root, read-only root filesystem, 모든 Linux capability 제거, `no-new-privileges`로 실행합니다. `/tmp`만 Compose tmpfs로 제공하고 헬스체크는 정적 Go binary의 `healthcheck` mode로 수행합니다. 릴리스 CI는 최종 이미지에 High/Critical 취약점이 있으면 중단합니다. 인터넷/CDN 의존성은 없습니다. 제공된 Compose 파일은 egress를 차단하지 않으므로 운영 방화벽이나 컨테이너 network policy에서 PostgreSQL, Keycloak과 승인된 AI endpoint만 허용해야 합니다. 별도 URL 게임 origin은 사용자 브라우저 망에서 제한합니다.
 
+상태를 바꾸는 요청은 브라우저가 보낸 `Origin`이 설정된 `public_url`이거나 요청이 실제로 도착한 주소일 때만 통과합니다. 폐쇄망에서는 같은 서비스를 IP·짧은 host명·FQDN으로 번갈아 접속하므로 정규 URL 하나만 허용하면 화면은 열리는데 로그인만 막히는 상태가 됩니다. 두 주소를 모두 받아도 CSRF 방어는 유지됩니다. 다른 사이트의 page는 자기 origin을 보내므로 어느 쪽과도 일치하지 않고, `Origin` 헤더는 브라우저가 정하므로 위조할 수 없으며, 공격자가 이 서비스로 향하게 만든 host명에는 이 서비스의 cookie가 실리지 않습니다. `Origin`이 없는 요청(script, CLI)과 Bearer 키 요청은 ambient cookie를 쓰지 않으므로 검사 대상이 아닙니다. 거부는 받은 origin과 허용 목록을 함께 로그로 남깁니다.
+
 운영 TLS는 reverse proxy에서 종료할 수 있지만 proxy와 igame 사이도 신뢰되지 않은 구간이면 TLS/mTLS를 적용합니다. 세션 cookie는 Secure, HttpOnly, SameSite 정책을 사용하고 상태 변경 요청에는 CSRF 방어를 적용합니다. 요청이 HTTPS로 제공된다고 설정(`public_url` 또는 `trust_proxy`가 켜진 상태의 forwarded header)이 확인해 줄 때만 `Strict-Transport-Security`를 보냅니다. 신뢰하지 않는 forwarded header가 평문 배포에 HSTS를 고정하지 못하게 하기 위해서입니다.
 
 ## 세 가지 키 계층

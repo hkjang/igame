@@ -37,7 +37,9 @@ type rpcError struct {
 
 func (s *Server) requireMCPAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if origin := r.Header.Get("Origin"); origin != "" && !sameOrigin(origin, s.requestBaseURL(r)) {
+		// Same reasoning as the REST origin check: a client reaching this
+		// service by a second valid address is not a cross-site request.
+		if origin := r.Header.Get("Origin"); origin != "" && !s.originAllowed(r, origin) {
 			writeRPC(w, http.StatusForbidden, rpcResponse{JSONRPC: "2.0", Error: &rpcError{Code: -32001, Message: "origin not allowed"}}, false)
 			return
 		}
@@ -53,12 +55,6 @@ func (s *Server) requireMCPAuth(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), principalKey, p)))
 	})
-}
-
-func sameOrigin(origin, base string) bool {
-	o, e1 := url.Parse(origin)
-	b, e2 := url.Parse(base)
-	return e1 == nil && e2 == nil && strings.EqualFold(o.Scheme, b.Scheme) && strings.EqualFold(o.Host, b.Host)
 }
 
 // mcpKeepAlive stays under the idle timeout a reverse proxy is likely to apply

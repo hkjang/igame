@@ -325,17 +325,16 @@ func (s *Server) csrfProtection(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		} // non-browser clients
-		expected := s.requestBaseURL(r)
-		if origin != expected {
+		if !s.originAllowed(r, origin) {
 			// A rejection here is almost always a configuration mismatch rather
-			// than an attack, and the two values are exactly what has to be
+			// than an attack, and these values are exactly what has to be
 			// reconciled. Without them an operator has only an opaque 403.
 			if s.Log != nil {
 				s.Log.Warn("request origin rejected",
-					"origin", origin, "expected", expected,
+					"origin", origin, "accepted", s.browserOrigins(r),
 					"method", r.Method, "path", r.URL.Path)
 			}
-			writeError(w, 403, "csrf_rejected", "request origin does not match the configured public URL")
+			writeError(w, 403, "csrf_rejected", "request origin does not match this service address or its configured public URL")
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -549,14 +548,26 @@ func (s *Server) clientIP(r *http.Request) string {
 	return r.RemoteAddr
 }
 
+// requestBaseURL is the canonical address of this deployment: the configured
+// public URL when there is one, otherwise wherever the request arrived. It
+// backs the OIDC redirect URI, the session cookie's Secure flag and HSTS, all
+// of which want the single canonical answer.
 func (s *Server) requestBaseURL(r *http.Request) string {
 	var service struct {
-		PublicURL  string `json:"public_url"`
-		TrustProxy bool   `json:"trust_proxy"`
+		PublicURL string `json:"public_url"`
 	}
 	if s.setting(r.Context(), "service", &service) == nil && service.PublicURL != "" {
 		return strings.TrimRight(service.PublicURL, "/")
 	}
+	return s.observedBaseURL(r)
+}
+
+// observedBaseURL is the address this particular request actually came in on.
+func (s *Server) observedBaseURL(r *http.Request) string {
+	var service struct {
+		TrustProxy bool `json:"trust_proxy"`
+	}
+	_ = s.setting(r.Context(), "service", &service)
 	scheme := "http"
 	if r.TLS != nil {
 		scheme = "https"
@@ -573,6 +584,32 @@ func (s *Server) requestBaseURL(r *http.Request) string {
 		}
 	}
 	return scheme + "://" + host
+}
+
+// browserOrigins lists the origins a browser may legitimately present for this
+// deployment: the canonical public URL, and the address the request arrived on.
+//
+// Accepting both is what lets an intranet service be reached by IP, short name
+// and FQDN without state-changing requests failing. It keeps the CSRF property
+// intact: a page on another site presents its own origin, which matches
+// neither, and it cannot forge the browser-set Origin header. A host an
+// attacker points at this service carries none of this service's cookies, so
+// matching on the observed address gives them nothing.
+func (s *Server) browserOrigins(r *http.Request) []string {
+	origins := []string{s.requestBaseURL(r)}
+	if observed := s.observedBaseURL(r); observed != origins[0] {
+		origins = append(origins, observed)
+	}
+	return origins
+}
+
+func (s *Server) originAllowed(r *http.Request, origin string) bool {
+	for _, allowed := range s.browserOrigins(r) {
+		if strings.EqualFold(origin, allowed) {
+			return true
+		}
+	}
+	return false
 }
 
 func randomToken(n int) (string, error) {
