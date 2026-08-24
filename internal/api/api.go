@@ -327,7 +327,15 @@ func (s *Server) csrfProtection(next http.Handler) http.Handler {
 		} // non-browser clients
 		expected := s.requestBaseURL(r)
 		if origin != expected {
-			writeError(w, 403, "csrf_rejected", "request origin is not allowed")
+			// A rejection here is almost always a configuration mismatch rather
+			// than an attack, and the two values are exactly what has to be
+			// reconciled. Without them an operator has only an opaque 403.
+			if s.Log != nil {
+				s.Log.Warn("request origin rejected",
+					"origin", origin, "expected", expected,
+					"method", r.Method, "path", r.URL.Path)
+			}
+			writeError(w, 403, "csrf_rejected", "request origin does not match the configured public URL")
 			return
 		}
 		next.ServeHTTP(w, r)

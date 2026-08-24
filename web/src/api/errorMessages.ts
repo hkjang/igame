@@ -16,7 +16,7 @@ const USER_FACING_MESSAGES: Record<string, string> = {
   unauthorized: '로그인이 필요합니다.',
   forbidden: '이 작업을 수행할 권한이 없습니다.',
   insufficient_scope: '사용 중인 키에 이 작업에 필요한 권한이 없습니다.',
-  csrf_rejected: '허용되지 않은 출처의 요청입니다. 페이지를 새로 고친 뒤 다시 시도해 주세요.',
+  csrf_rejected: '접속한 주소가 서비스에 설정된 공개 URL과 달라 요청이 차단되었습니다. 관리자에게 문의하거나 설정된 주소로 접속해 주세요.',
 
   // 로그인
   invalid_credentials: '아이디 또는 비밀번호가 올바르지 않습니다.',
