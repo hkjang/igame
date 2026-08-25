@@ -16,6 +16,7 @@ Client Browser (React 19 + Phaser)
 │ igame Modular Monolith (:8080)                               │
 │  ├─ Core Control Plane (REST / SSE / MCP Streamable HTTP)    │
 │  ├─ Keycloak OIDC SSO & Local Bootstrap Auth                 │
+│  ├─ Deterministic Battle Kernel & Replay Verifier            │
 │  ├─ Game Session & Telemetry Ledger Validator                │
 │  ├─ Leaderboard, Season & Tournament Engine                  │
 │  ├─ Per-User AES-256-GCM Envelope Encryption Vault           │
@@ -27,6 +28,20 @@ Client Browser (React 19 + Phaser)
 │ PostgreSQL 16+ (ACID Transactional Data Store)               │
 └──────────────────────────────────────────────────────────────┘
 ```
+
+### 1.1 서버 권위 전투 검증 (Server-Authoritative Battle Replay)
+
+RealmGuard의 전투 규칙은 renderer와 완전히 분리된 결정론적 kernel 하나로 존재하며, 브라우저(TypeScript)와 서버(Go)에 같은 알고리즘으로 구현되어 있습니다. kernel은 고정 50ms step으로만 진행하고 벽시계와 난수를 사용하지 않으며, 사칙연산과 제곱근만으로 작성해 두 언어가 같은 IEEE-754 배정밀도 결과를 내도록 보장합니다.
+
+```
+Browser                                    Server
+  BattleKernel  ──inputs──▶ ledger ──────▶ battle.Kernel (Go)
+  (renders state)                            │ replays from published content
+  Phaser scene                               ▼
+  (pixels only)                            score · stars · progress
+```
+
+브라우저는 무슨 일이 일어났는지 보고하지 않고 플레이어가 무엇을 했는지(`{tick, op, …}`)만 제출합니다. 서버는 세션에 고정된 published 콘텐츠를 kernel 입력으로 투영해 digest를 재계산하고, 브라우저가 보낸 digest와 일치할 때만 원장을 재생해 남은 생명·자원·처치·유출·완료 wave·승패를 직접 산출합니다. 두 구현의 동치성은 저장소에 커밋된 replay vector와 콘텐츠 투영 fixture로 CI에서 강제됩니다.
 
 ---
 

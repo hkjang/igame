@@ -825,7 +825,9 @@ func validateDefenseTelemetryAttestation(records []defenseTelemetryRecord, slug 
 	}
 	attestation.FirstReceivedAt, attestation.LastReceivedAt = ready.ReceivedAt.UTC(), complete.ReceivedAt.UTC()
 	attestation.ObservedDurationMS = complete.ReceivedAt.Sub(ready.ReceivedAt).Milliseconds()
-	if attestation.ObservedDurationMS+content.Balance.DurationToleranceMS+2000 < in.DurationMS {
+	// Battle time runs on the simulation clock, which the player may double, so
+	// the observed window allows for the fastest legitimate playback.
+	if (attestation.ObservedDurationMS+content.Balance.DurationToleranceMS+2000)*realmGuardMaxSpeedup < in.DurationMS {
 		return attestation, rejectRealmGuardResult(422, "telemetry_attestation_failed", "submitted duration exceeds server-observed telemetry time")
 	}
 

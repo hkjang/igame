@@ -1,0 +1,295 @@
+{
+  "stage_id": "stage-1",
+  "mode": "campaign",
+  "difficulty": "veteran",
+  "hero_id": "aerin",
+  "account_hero_level": 1,
+  "content_version": "0.3.1",
+  "stage_version": "1.1.0",
+  "balance_version": "2026.08.2",
+  "asset_version": "procedural-2",
+  "ledger": {
+    "rules_version": "realmguard-kernel-1",
+    "config_digest": "31ed8cf2fbf85ccc",
+    "ticks": 5235,
+    "commands": [
+      {
+        "tick": 1,
+        "op": "build",
+        "spot": "s1-spot-4",
+        "tower": "sunspire"
+      },
+      {
+        "tick": 2,
+        "op": "upgrade",
+        "spot": "s1-spot-4"
+      },
+      {
+        "tick": 3,
+        "op": "sell",
+        "spot": "s1-spot-4"
+      }
+    ]
+  },
+  "outcome": {
+    "victory": false,
+    "ticks": 5235,
+    "duration_ms": 261750,
+    "lives": 0,
+    "gold": 580,
+    "earned_gold": 370,
+    "spent_gold": 145,
+    "sold_gold": 94,
+    "kills": 21,
+    "escaped": 20,
+    "spawned": 43,
+    "waves_completed": 4,
+    "hero_level": 3,
+    "defeated_by_enemy": {
+      "thornback": 2,
+      "glintfox": 14,
+      "mireling": 5
+    },
+    "escaped_by_enemy": {
+      "thornback": 14,
+      "mireling": 5,
+      "glintfox": 1
+    },
+    "spawned_by_enemy": {
+      "thornback": 16,
+      "glintfox": 17,
+      "mireling": 10
+    }
+  },
+  "telemetry": [
+    {
+      "event": "realmguard.battle.ready",
+      "data": {
+        "stage_id": "stage-1",
+        "difficulty": "veteran",
+        "hero_id": "aerin"
+      }
+    },
+    {
+      "event": "realmguard.tower.build",
+      "data": {
+        "tower": "sunspire",
+        "spot": "s1-spot-4"
+      }
+    },
+    {
+      "event": "realmguard.tower.upgrade",
+      "data": {
+        "tower": "sunspire",
+        "spot": "s1-spot-4",
+        "level": 2
+      }
+    },
+    {
+      "event": "realmguard.tower.sell",
+      "data": {
+        "spot": "s1-spot-4"
+      }
+    },
+    {
+      "event": "realmguard.wave.start",
+      "data": {
+        "stage_id": "stage-1",
+        "wave": 1,
+        "early_call": false,
+        "early_bonus": 0
+      }
+    },
+    {
+      "event": "realmguard.wave.complete",
+      "data": {
+        "stage_id": "stage-1",
+        "wave": 1,
+        "lives": 16,
+        "kills": 1,
+        "escaped": 4,
+        "spawned": 5,
+        "gold": 257,
+        "earned_gold": 47,
+        "spent_gold": 145,
+        "sold_gold": 94,
+        "hero_level": 1,
+        "defeated_by_enemy": {
+          "thornback": 1
+        },
+        "escaped_by_enemy": {
+          "thornback": 4
+        },
+        "spawned_by_enemy": {
+          "thornback": 5
+        }
+      }
+    },
+    {
+      "event": "realmguard.wave.start",
+      "data": {
+        "stage_id": "stage-1",
+        "wave": 2,
+        "early_call": false,
+        "early_bonus": 0
+      }
+    },
+    {
+      "event": "realmguard.wave.complete",
+      "data": {
+        "stage_id": "stage-1",
+        "wave": 2,
+        "lives": 16,
+        "kills": 7,
+        "escaped": 4,
+        "spawned": 11,
+        "gold": 358,
+        "earned_gold": 148,
+        "spent_gold": 145,
+        "sold_gold": 94,
+        "hero_level": 1,
+        "defeated_by_enemy": {
+          "thornback": 1,
+          "glintfox": 6
+        },
+        "escaped_by_enemy": {
+          "thornback": 4
+        },
+        "spawned_by_enemy": {
+          "thornback": 5,
+          "glintfox": 6
+        }
+      }
+    },
+    {
+      "event": "realmguard.wave.start",
+      "data": {
+        "stage_id": "stage-1",
+        "wave": 3,
+        "early_call": false,
+        "early_bonus": 0
+      }
+    },
+    {
+      "event": "realmguard.wave.complete",
+      "data": {
+        "stage_id": "stage-1",
+        "wave": 3,
+        "lives": 11,
+        "kills": 12,
+        "escaped": 9,
+        "spawned": 21,
+        "gold": 436,
+        "earned_gold": 226,
+        "spent_gold": 145,
+        "sold_gold": 94,
+        "hero_level": 2,
+        "defeated_by_enemy": {
+          "thornback": 1,
+          "glintfox": 6,
+          "mireling": 5
+        },
+        "escaped_by_enemy": {
+          "thornback": 4,
+          "mireling": 5
+        },
+        "spawned_by_enemy": {
+          "thornback": 5,
+          "glintfox": 6,
+          "mireling": 10
+        }
+      }
+    },
+    {
+      "event": "realmguard.wave.start",
+      "data": {
+        "stage_id": "stage-1",
+        "wave": 4,
+        "early_call": false,
+        "early_bonus": 0
+      }
+    },
+    {
+      "event": "realmguard.wave.complete",
+      "data": {
+        "stage_id": "stage-1",
+        "wave": 4,
+        "lives": 1,
+        "kills": 13,
+        "escaped": 19,
+        "spawned": 32,
+        "gold": 492,
+        "earned_gold": 282,
+        "spent_gold": 145,
+        "sold_gold": 94,
+        "hero_level": 2,
+        "defeated_by_enemy": {
+          "thornback": 2,
+          "glintfox": 6,
+          "mireling": 5
+        },
+        "escaped_by_enemy": {
+          "thornback": 14,
+          "mireling": 5
+        },
+        "spawned_by_enemy": {
+          "thornback": 16,
+          "glintfox": 6,
+          "mireling": 10
+        }
+      }
+    },
+    {
+      "event": "realmguard.wave.start",
+      "data": {
+        "stage_id": "stage-1",
+        "wave": 5,
+        "early_call": false,
+        "early_bonus": 0
+      }
+    },
+    {
+      "event": "realmguard.battle.complete",
+      "data": {
+        "stage_id": "stage-1",
+        "mode": "campaign",
+        "difficulty": "veteran",
+        "duration_ms": 261750,
+        "lives": 0,
+        "gold": 580,
+        "earned_gold": 370,
+        "spent_gold": 145,
+        "sold_gold": 94,
+        "kills": 21,
+        "waves": 4,
+        "waves_completed": 4,
+        "escaped": 20,
+        "spawned": 43,
+        "defeated_by_enemy": {
+          "thornback": 2,
+          "glintfox": 14,
+          "mireling": 5
+        },
+        "escaped_by_enemy": {
+          "thornback": 14,
+          "mireling": 5,
+          "glintfox": 1
+        },
+        "spawned_by_enemy": {
+          "thornback": 16,
+          "glintfox": 17,
+          "mireling": 10
+        },
+        "hero_id": "aerin",
+        "hero_level": 3,
+        "content_version": "0.3.1",
+        "stage_version": "1.1.0",
+        "balance_version": "2026.08.2",
+        "asset_version": "procedural-2",
+        "victory": false,
+        "local_score": 15800,
+        "local_stars": 0
+      }
+    }
+  ]
+}

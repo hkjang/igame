@@ -29,7 +29,7 @@ export function expandWave(entries: WaveEntry[], cycle = 0): SpawnPlan[] {
     (a, b) =>
       a.at - b.at ||
       a.pathIndex - b.pathIndex ||
-      a.enemy.localeCompare(b.enemy),
+      (a.enemy < b.enemy ? -1 : a.enemy > b.enemy ? 1 : 0),
   );
 }
 

@@ -71,7 +71,7 @@
           "Model Context Protocol (/mcp Streamable HTTP) & AI Co-Pilot Game Lab"
         ],
         "screenshot": "https://hkjang.github.io/igame/images/02_home_portal.png",
-        "softwareVersion": "v0.5.0",
+        "softwareVersion": "v0.6.0",
         "license": "https://www.apache.org/licenses/LICENSE-2.0"
       },
       {
@@ -114,7 +114,7 @@
             "name": "How are telemetry and cheating prevented?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Client-reported telemetry is strictly validated on the server side using the server_received_telemetry_v1 specification to verify chronological ordering, timestamp bounds, and cumulative score consistency."
+              "text": "RealmGuard clients never report what happened. They submit only the player's recorded inputs, and the server replays the battle against the published content to decide the score itself under the server_replay_v1 specification. Defense Series validates its battle telemetry for chronological ordering, timestamp bounds, and cumulative consistency under server_received_telemetry_v1."
             }
           }
         ]
@@ -1036,7 +1036,7 @@
           <details class="faq-item">
             <summary class="faq-question">How are game scores validated against cheating?</summary>
             <div class="faq-answer">
-              Client-reported telemetry streams are verified server-side using <code>server_received_telemetry_v1</code> rules to check chronological ordering, timestamp bounds, and cumulative score consistency.
+              RealmGuard clients never report what happened. They submit only the player's recorded inputs, and the server replays the battle against the published content to decide the score itself under <code>server_replay_v1</code>. Defense Series verifies its battle telemetry for chronological ordering, timestamp bounds, and cumulative consistency under <code>server_received_telemetry_v1</code>.
             </div>
           </details>
         </div>

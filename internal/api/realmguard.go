@@ -1071,6 +1071,7 @@ type realmGuardResultInput struct {
 	Victory         *bool           `json:"victory,omitempty"`
 	Proof           string          `json:"proof,omitempty"`
 	Events          json.RawMessage `json:"events,omitempty"`
+	Ledger          json.RawMessage `json:"ledger,omitempty"`
 }
 
 type realmGuardScoreBreakdown struct {
@@ -1458,9 +1459,32 @@ func (s *Server) submitRealmGuardResultTx(ctx context.Context, p Principal, in r
 	if err := ensureRealmGuardStageUnlocked(ctx, tx, p.UserID, *stage, content); err != nil {
 		return err
 	}
+	var accountHeroLevel int
+	var heroXP int64
+	var heroUnlocked bool
+	heroExists := false
+	for _, hero := range content.Heroes {
+		if hero.ID == in.HeroID {
+			heroExists = true
+			break
+		}
+	}
+	if !heroExists {
+		return rejectRealmGuardResult(422, "invalid_hero", "hero is not present in the pinned content")
+	}
+	if err := tx.QueryRow(ctx, `SELECT unlocked,level,xp FROM realmguard_user_heroes WHERE user_id=$1 AND hero_id=$2 FOR UPDATE`, p.UserID, in.HeroID).Scan(&heroUnlocked, &accountHeroLevel, &heroXP); err != nil || !heroUnlocked {
+		return rejectRealmGuardResult(422, "invalid_hero", "hero is unknown or locked")
+	}
+	// From here the battle is the server's own replay of the player's inputs.
+	// Nothing the browser reported about what happened survives this point.
+	outcome, replay, err := replayRealmGuardBattle(in.Ledger, content, *stage, in.Difficulty, in.HeroID, accountHeroLevel)
+	if err != nil {
+		return err
+	}
+	in = applyRealmGuardReplay(in, outcome)
 	serverElapsed := s.Now().Sub(started).Milliseconds()
-	if in.DurationMS > serverElapsed+content.Balance.DurationToleranceMS {
-		return rejectRealmGuardResult(422, "invalid_duration", "active battle duration exceeds session wall time")
+	if in.DurationMS > (serverElapsed+content.Balance.DurationToleranceMS)*realmGuardMaxSpeedup {
+		return rejectRealmGuardResult(422, "invalid_duration", "replayed battle duration exceeds what the session had time for")
 	}
 	stageWaveCount := 0
 	for _, wave := range content.Waves {
@@ -1473,10 +1497,10 @@ func (s *Server) submitRealmGuardResultTx(ctx context.Context, p Principal, in r
 	}
 	cleared := stage.Mode == "campaign" && in.WavesCompleted == stageWaveCount && *in.RemainingLives > 0
 	if in.DurationMS < realmGuardMinimumDurationMS(in.WavesCompleted, cleared, content.Balance) {
-		return rejectRealmGuardResult(422, "invalid_duration", "active battle duration is too short for the reached waves")
+		return rejectRealmGuardResult(422, "invalid_duration", "replayed battle duration is too short for the reached waves")
 	}
-	if in.Victory != nil && *in.Victory != cleared {
-		return rejectRealmGuardResult(422, "victory_mismatch", "victory does not match server-derived stage completion")
+	if cleared != outcome.Victory {
+		return rejectRealmGuardResult(422, "victory_mismatch", "replayed victory does not match server-derived stage completion")
 	}
 	waveBudget := realmGuardWaveCapacity(content, stage.ID, in.WavesCompleted, !cleared)
 	if err := validateRealmGuardCombatOutcome(cleared, stage.Lives, *in.RemainingLives, in.Kills, in.Escaped, in.Spawned, waveBudget); err != nil {
@@ -1497,30 +1521,17 @@ func (s *Server) submitRealmGuardResultTx(ctx context.Context, p Principal, in r
 	if in.EarnedGold < minimumEarned || in.EarnedGold > maximumEarned || in.SoldGold > realmGuardMaxSoldGold(in.SpentGold, content.Towers, content.Balance.SellRefundRate) || *in.RemainingGold != initialGold+in.EarnedGold+in.SoldGold-in.SpentGold {
 		return rejectRealmGuardResult(422, "invalid_gold", "gold balance or earned/sold gold exceeds the pinned economy budget")
 	}
-	var accountHeroLevel int
-	var heroXP int64
-	var heroUnlocked bool
-	heroExists := false
-	for _, hero := range content.Heroes {
-		if hero.ID == in.HeroID {
-			heroExists = true
-			break
-		}
-	}
-	if !heroExists {
-		return rejectRealmGuardResult(422, "invalid_hero", "hero is not present in the pinned content")
-	}
-	if err := tx.QueryRow(ctx, `SELECT unlocked,level,xp FROM realmguard_user_heroes WHERE user_id=$1 AND hero_id=$2 FOR UPDATE`, p.UserID, in.HeroID).Scan(&heroUnlocked, &accountHeroLevel, &heroXP); err != nil || !heroUnlocked {
-		return rejectRealmGuardResult(422, "invalid_hero", "hero is unknown or locked")
-	}
 	battleHeroLevel := realmGuardBattleHeroLevel(in.Kills, content.Balance.HeroLevelXP)
 	if in.HeroLevel < 1 || in.HeroLevel > 10 || in.HeroLevel != battleHeroLevel {
 		return rejectRealmGuardResult(422, "hero_level_mismatch", "hero_level must match the battle level derived from verified kills")
 	}
 	score, stars, breakdown := calculateRealmGuardScore(*stage, content.Balance, in.Mode, in.Difficulty, in.DurationMS, *in.RemainingLives, *in.RemainingGold, in.WavesCompleted, cleared)
 	breakdownJSON, _ := json.Marshal(breakdown)
-	attestationJSON, _ := json.Marshal(attestation)
-	proofPayload, _ := json.Marshal(map[string]any{"method": realmGuardVerificationMethod, "session_id": in.SessionID, "user_id": p.UserID, "digest": attestation.Digest, "score": score, "stars": stars})
+	// One attestation document describes the whole decision: what the server
+	// replayed, and the telemetry that corroborates the session it came from.
+	attestationPayload := map[string]any{"method": realmGuardReplayMethod, "replay": replay, "telemetry": attestation, "outcome": outcome}
+	attestationJSON, _ := json.Marshal(attestationPayload)
+	proofPayload, _ := json.Marshal(map[string]any{"method": realmGuardReplayMethod, "session_id": in.SessionID, "user_id": p.UserID, "digest": attestation.Digest, "config_digest": replay.ConfigDigest, "score": score, "stars": stars})
 	if s.Secrets == nil {
 		return fmt.Errorf("server proof encryption is unavailable")
 	}
@@ -1529,17 +1540,17 @@ func (s *Server) submitRealmGuardResultTx(ctx context.Context, p Principal, in r
 		return fmt.Errorf("mint RealmGuard server proof: %w", err)
 	}
 	var resultID, scoreID uuid.UUID
-	err = tx.QueryRow(ctx, `INSERT INTO realmguard_results(session_id,user_id,content_version_id,stage_id,mode,difficulty,duration_ms,remaining_lives,remaining_gold,earned_gold,spent_gold,sold_gold,kills,escaped,spawned,waves_completed,hero_id,hero_level,score,stars,score_breakdown,proof,events,verification_method,attestation)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,'[]'::jsonb,$23,$24) RETURNING id`, in.SessionID, p.UserID, version.ID, stage.ID, in.Mode, in.Difficulty, in.DurationMS, *in.RemainingLives, *in.RemainingGold, in.EarnedGold, in.SpentGold, in.SoldGold, in.Kills, in.Escaped, in.Spawned, in.WavesCompleted, in.HeroID, battleHeroLevel, score, stars, breakdownJSON, "server:"+serverProof, realmGuardVerificationMethod, attestationJSON).Scan(&resultID)
+	err = tx.QueryRow(ctx, `INSERT INTO realmguard_results(session_id,user_id,content_version_id,stage_id,mode,difficulty,duration_ms,remaining_lives,remaining_gold,earned_gold,spent_gold,sold_gold,kills,escaped,spawned,waves_completed,hero_id,hero_level,score,stars,score_breakdown,proof,events,verification_method,attestation,ledger)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,'[]'::jsonb,$23,$24,$25) RETURNING id`, in.SessionID, p.UserID, version.ID, stage.ID, in.Mode, in.Difficulty, in.DurationMS, *in.RemainingLives, *in.RemainingGold, in.EarnedGold, in.SpentGold, in.SoldGold, in.Kills, in.Escaped, in.Spawned, in.WavesCompleted, in.HeroID, battleHeroLevel, score, stars, breakdownJSON, "server:"+serverProof, realmGuardReplayMethod, attestationJSON, []byte(in.Ledger)).Scan(&resultID)
 	if err != nil {
 		return err
 	}
-	metadata, _ := json.Marshal(map[string]any{"realmguard_result_id": resultID, "stage_id": stage.ID, "mode": in.Mode, "difficulty": in.Difficulty, "hero_id": in.HeroID, "battle_hero_level": battleHeroLevel, "account_hero_level": accountHeroLevel, "stars": stars, "content_version": version.ContentVersion, "stage_content_version": version.StageVersion, "stage_version": stage.Version, "balance_version": version.BalanceVersion, "asset_version": version.AssetVersion, "score_breakdown": breakdown, "verification_method": realmGuardVerificationMethod, "attestation_digest": attestation.Digest})
+	metadata, _ := json.Marshal(map[string]any{"realmguard_result_id": resultID, "stage_id": stage.ID, "mode": in.Mode, "difficulty": in.Difficulty, "hero_id": in.HeroID, "battle_hero_level": battleHeroLevel, "account_hero_level": accountHeroLevel, "stars": stars, "content_version": version.ContentVersion, "stage_content_version": version.StageVersion, "stage_version": stage.Version, "balance_version": version.BalanceVersion, "asset_version": version.AssetVersion, "score_breakdown": breakdown, "verification_method": realmGuardReplayMethod, "attestation_digest": attestation.Digest, "config_digest": replay.ConfigDigest})
 	err = tx.QueryRow(ctx, `INSERT INTO scores(user_id,game_id,session_id,season_id,score,metadata,verified,rejection_reason) VALUES($1,$2,$3,$4,$5,$6,true,'') RETURNING id`, p.UserID, gameID, in.SessionID, seasonID, score, metadata).Scan(&scoreID)
 	if err != nil {
 		return err
 	}
-	resultSummary, _ := json.Marshal(map[string]any{"realmguard_result_id": resultID, "score": score, "stars": stars, "verified": true, "stage_id": stage.ID, "mode": in.Mode, "verification_method": realmGuardVerificationMethod, "attestation_digest": attestation.Digest})
+	resultSummary, _ := json.Marshal(map[string]any{"realmguard_result_id": resultID, "score": score, "stars": stars, "verified": true, "stage_id": stage.ID, "mode": in.Mode, "verification_method": realmGuardReplayMethod, "attestation_digest": attestation.Digest, "config_digest": replay.ConfigDigest})
 	if _, err = tx.Exec(ctx, `UPDATE game_sessions SET status='finished',ended_at=now(),duration_ms=$2,result=result||$3 WHERE id=$1`, in.SessionID, in.DurationMS, resultSummary); err != nil {
 		return err
 	}
@@ -1565,9 +1576,9 @@ func (s *Server) submitRealmGuardResultTx(ctx context.Context, p Principal, in r
 	if err = tx.Commit(ctx); err != nil {
 		return err
 	}
-	s.audit(r, "realmguard.result.accept", "realmguard_result", resultID.String(), map[string]any{"score_id": scoreID, "score": score, "stars": stars, "stage_id": stage.ID, "version_id": version.ID, "verification_method": realmGuardVerificationMethod, "attestation_digest": attestation.Digest, "client_evidence_ignored": in.Proof != "" || string(in.Events) != "[]"})
+	s.audit(r, "realmguard.result.accept", "realmguard_result", resultID.String(), map[string]any{"score_id": scoreID, "score": score, "stars": stars, "stage_id": stage.ID, "version_id": version.ID, "verification_method": realmGuardReplayMethod, "attestation_digest": attestation.Digest, "config_digest": replay.ConfigDigest, "ledger_commands": replay.Commands, "client_evidence_ignored": in.Proof != "" || string(in.Events) != "[]"})
 	progress, err := s.realmGuardProgressData(ctx, p, version, content)
-	response := map[string]any{"result": map[string]any{"id": resultID, "score_id": scoreID, "score": score, "stars": stars, "verified": true, "victory": cleared, "battle_hero_level": battleHeroLevel, "account_hero_level": newAccountHeroLevel, "account_hero_xp": heroXP, "breakdown": breakdown, "verification_method": realmGuardVerificationMethod, "attestation": attestation, "content_version": version.ContentVersion, "stage_content_version": version.StageVersion, "stage_version": stage.Version, "balance_version": version.BalanceVersion, "asset_version": version.AssetVersion}}
+	response := map[string]any{"result": map[string]any{"id": resultID, "score_id": scoreID, "score": score, "stars": stars, "verified": true, "victory": cleared, "battle_hero_level": battleHeroLevel, "account_hero_level": newAccountHeroLevel, "account_hero_xp": heroXP, "breakdown": breakdown, "verification_method": realmGuardReplayMethod, "attestation": attestationPayload, "content_version": version.ContentVersion, "stage_content_version": version.StageVersion, "stage_version": stage.Version, "balance_version": version.BalanceVersion, "asset_version": version.AssetVersion}}
 	if err == nil {
 		response["progress"] = progress
 	} else {

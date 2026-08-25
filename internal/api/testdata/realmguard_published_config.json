@@ -1,0 +1,6593 @@
+{
+  "advanced_towers": [
+    {
+      "base_tower_id": "sunspire",
+      "description": "공격 속도와 관통 강화",
+      "id": "dawn_volley",
+      "name": "여명 연사",
+      "pierce": 2,
+      "rate_multiplier": 0.58
+    },
+    {
+      "base_tower_id": "sunspire",
+      "damage_multiplier": 1.75,
+      "description": "사거리와 치명 피해 강화",
+      "id": "eagle_oath",
+      "name": "독수리 맹세",
+      "range_multiplier": 1.35
+    },
+    {
+      "base_tower_id": "runebloom",
+      "damage_multiplier": 1.55,
+      "description": "주변 적에게 연쇄 피해",
+      "id": "star_lattice",
+      "name": "별 격자",
+      "splash": 58
+    },
+    {
+      "base_tower_id": "runebloom",
+      "damage_multiplier": 1.85,
+      "description": "강한 적 방어 관통",
+      "id": "null_petal",
+      "name": "무효의 꽃잎",
+      "pierce": 3
+    },
+    {
+      "base_tower_id": "stonepulse",
+      "damage_multiplier": 1.5,
+      "description": "거대한 폭발 반경",
+      "id": "quake_drum",
+      "name": "지진북",
+      "splash": 96
+    },
+    {
+      "base_tower_id": "stonepulse",
+      "damage_multiplier": 1.9,
+      "description": "집중 고열탄",
+      "id": "ember_core",
+      "name": "잿불핵",
+      "splash": 44
+    },
+    {
+      "base_tower_id": "windward",
+      "damage_multiplier": 1.35,
+      "description": "강력한 지상 저지와 방어",
+      "id": "shield_line",
+      "name": "방패선",
+      "slow": 0.34
+    },
+    {
+      "base_tower_id": "windward",
+      "damage_multiplier": 1.55,
+      "description": "비행 대응과 빠른 공격",
+      "id": "skyrider_watch",
+      "name": "하늘기수 초소",
+      "range_multiplier": 1.45,
+      "rate_multiplier": 0.58
+    }
+  ],
+  "balance": {
+    "clear_time_bonus_divisor": 100,
+    "clear_time_target_ms": 900000,
+    "difficulties": {
+      "casual": {
+        "difficulty_bonus": 0,
+        "enemy_hp": 0.82,
+        "enemy_speed": 0.92,
+        "gold": 1.18,
+        "score": 0.8
+      },
+      "normal": {
+        "difficulty_bonus": 5000,
+        "enemy_hp": 1,
+        "enemy_speed": 1,
+        "gold": 1,
+        "score": 1
+      },
+      "veteran": {
+        "difficulty_bonus": 10000,
+        "enemy_hp": 1.38,
+        "enemy_speed": 1.12,
+        "gold": 0.9,
+        "score": 1.5
+      }
+    },
+    "duration_tolerance_ms": 5000,
+    "endless_ramp": 0.085,
+    "endless_wave_bonus": 1000,
+    "hero_level_xp": [
+      0,
+      8,
+      20,
+      38,
+      62,
+      92,
+      130,
+      176,
+      230,
+      292
+    ],
+    "min_wave_duration_ms": 5000,
+    "score_formula": "remaining_lives*1000 + remaining_gold*10 + clear_time_bonus + difficulty_bonus",
+    "sell_refund_rate": 0.65,
+    "server_uses_score_multiplier": false,
+    "tower_upgrade_cost": [
+      0,
+      70,
+      120
+    ]
+  },
+  "base_towers": [
+    {
+      "branches": [
+        {
+          "description": "공격 속도와 관통 강화",
+          "id": "dawn_volley",
+          "name": "여명 연사",
+          "pierce": 2,
+          "rate_multiplier": 0.58
+        },
+        {
+          "damage_multiplier": 1.75,
+          "description": "사거리와 치명 피해 강화",
+          "id": "eagle_oath",
+          "name": "독수리 맹세",
+          "range_multiplier": 1.35
+        }
+      ],
+      "color": 16762967,
+      "cost": 75,
+      "damage": 18,
+      "damage_type": "physical",
+      "fire_rate": 0.52,
+      "id": "sunspire",
+      "name": "태양첨탑",
+      "projectile_speed": 440,
+      "range": 150,
+      "role": "빠른 단일 사격"
+    },
+    {
+      "branches": [
+        {
+          "damage_multiplier": 1.55,
+          "description": "주변 적에게 연쇄 피해",
+          "id": "star_lattice",
+          "name": "별 격자",
+          "splash": 58
+        },
+        {
+          "damage_multiplier": 1.85,
+          "description": "강한 적 방어 관통",
+          "id": "null_petal",
+          "name": "무효의 꽃잎",
+          "pierce": 3
+        }
+      ],
+      "color": 13016319,
+      "cost": 105,
+      "damage": 33,
+      "damage_type": "arcane",
+      "fire_rate": 0.92,
+      "id": "runebloom",
+      "name": "룬꽃 정원",
+      "projectile_speed": 360,
+      "range": 138,
+      "role": "방어 무시 비전 공격"
+    },
+    {
+      "branches": [
+        {
+          "damage_multiplier": 1.5,
+          "description": "거대한 폭발 반경",
+          "id": "quake_drum",
+          "name": "지진북",
+          "splash": 96
+        },
+        {
+          "damage_multiplier": 1.9,
+          "description": "집중 고열탄",
+          "id": "ember_core",
+          "name": "잿불핵",
+          "splash": 44
+        }
+      ],
+      "color": 15238236,
+      "cost": 125,
+      "damage": 62,
+      "damage_type": "siege",
+      "fire_rate": 1.55,
+      "id": "stonepulse",
+      "name": "석맥 포대",
+      "projectile_speed": 290,
+      "range": 170,
+      "role": "느린 광역 포격"
+    },
+    {
+      "branches": [
+        {
+          "damage_multiplier": 1.35,
+          "description": "강력한 지상 저지와 방어",
+          "id": "shield_line",
+          "name": "방패선",
+          "slow": 0.34
+        },
+        {
+          "damage_multiplier": 1.55,
+          "description": "비행 대응과 빠른 공격",
+          "id": "skyrider_watch",
+          "name": "하늘기수 초소",
+          "range_multiplier": 1.45,
+          "rate_multiplier": 0.58
+        }
+      ],
+      "color": 6937828,
+      "cost": 95,
+      "damage": 16,
+      "damage_type": "physical",
+      "fire_rate": 0.72,
+      "id": "windward",
+      "name": "바람수호 병영",
+      "projectile_speed": 390,
+      "range": 92,
+      "role": "병사 소환·길목 저지"
+    }
+  ],
+  "bosses": [
+    {
+      "armor": 0.35,
+      "color": 10312680,
+      "hp": 2200,
+      "id": "hollow_king",
+      "life_damage": 10,
+      "name": "공허왕 오르반",
+      "radius": 32,
+      "reward": 220,
+      "speed": 22,
+      "traits": [
+        "boss",
+        "phasing",
+        "armored"
+      ]
+    },
+    {
+      "armor": 0.3,
+      "color": 16746090,
+      "hp": 4100,
+      "id": "timewyrm",
+      "life_damage": 15,
+      "name": "시간룡 세라크",
+      "radius": 38,
+      "reward": 400,
+      "speed": 27,
+      "traits": [
+        "boss",
+        "swift",
+        "regenerating"
+      ]
+    }
+  ],
+  "enemies": [
+    {
+      "armor": 0,
+      "color": 8376181,
+      "hp": 45,
+      "id": "mireling",
+      "life_damage": 1,
+      "name": "습지 꼬마",
+      "radius": 12,
+      "reward": 8,
+      "speed": 54,
+      "traits": []
+    },
+    {
+      "armor": 0.24,
+      "color": 5212504,
+      "hp": 120,
+      "id": "thornback",
+      "life_damage": 1,
+      "name": "가시등",
+      "radius": 15,
+      "reward": 15,
+      "speed": 34,
+      "traits": [
+        "armored"
+      ]
+    },
+    {
+      "armor": 0,
+      "color": 16107370,
+      "hp": 58,
+      "id": "glintfox",
+      "life_damage": 1,
+      "name": "섬광여우",
+      "radius": 10,
+      "reward": 11,
+      "speed": 92,
+      "traits": [
+        "swift"
+      ]
+    },
+    {
+      "armor": 0.08,
+      "color": 9430015,
+      "hp": 85,
+      "id": "cloudray",
+      "life_damage": 1,
+      "name": "구름가오리",
+      "radius": 13,
+      "reward": 14,
+      "speed": 68,
+      "traits": [
+        "flying"
+      ]
+    },
+    {
+      "armor": 0.05,
+      "color": 15765205,
+      "hp": 105,
+      "id": "bloomseer",
+      "life_damage": 1,
+      "name": "꽃점술사",
+      "radius": 13,
+      "reward": 18,
+      "speed": 42,
+      "traits": [
+        "healer"
+      ]
+    },
+    {
+      "armor": 0.06,
+      "color": 12033279,
+      "hp": 88,
+      "id": "shardling",
+      "life_damage": 1,
+      "name": "파편충",
+      "radius": 13,
+      "reward": 14,
+      "speed": 56,
+      "traits": [
+        "splitting"
+      ]
+    },
+    {
+      "armor": 0.38,
+      "color": 9273442,
+      "hp": 260,
+      "id": "ironroot",
+      "life_damage": 2,
+      "name": "철근목",
+      "radius": 19,
+      "reward": 25,
+      "speed": 25,
+      "traits": [
+        "armored",
+        "regenerating"
+      ]
+    },
+    {
+      "armor": 0.1,
+      "color": 9144279,
+      "hp": 125,
+      "id": "veilrunner",
+      "life_damage": 1,
+      "name": "장막질주자",
+      "radius": 12,
+      "reward": 19,
+      "speed": 74,
+      "traits": [
+        "phasing",
+        "swift"
+      ]
+    },
+    {
+      "armor": 0.32,
+      "color": 14316893,
+      "hp": 360,
+      "id": "rammer",
+      "life_damage": 3,
+      "name": "성문분쇄자",
+      "radius": 21,
+      "reward": 34,
+      "speed": 28,
+      "traits": [
+        "siege",
+        "armored"
+      ]
+    },
+    {
+      "armor": 0.18,
+      "color": 7391720,
+      "hp": 210,
+      "id": "rimeheart",
+      "life_damage": 2,
+      "name": "서리심장",
+      "radius": 17,
+      "reward": 24,
+      "speed": 38,
+      "traits": [
+        "regenerating"
+      ]
+    }
+  ],
+  "heroes": [
+    {
+      "color": 16765739,
+      "damage": 32,
+      "hp": 520,
+      "id": "aerin",
+      "name": "에어린",
+      "range": 115,
+      "respawn_seconds": 9,
+      "skill1": "별빛 화살",
+      "skill2": "황혼 도약",
+      "speed": 150,
+      "title": "새벽 추적자",
+      "ultimate": "새벽의 비",
+      "unlock_stage": 1
+    },
+    {
+      "color": 14255970,
+      "damage": 48,
+      "hp": 880,
+      "id": "brann",
+      "name": "브란",
+      "range": 48,
+      "respawn_seconds": 12,
+      "skill1": "방패 강타",
+      "skill2": "철벽진",
+      "speed": 112,
+      "title": "석문 파수꾼",
+      "ultimate": "대지의 맹세",
+      "unlock_stage": 3
+    },
+    {
+      "color": 8183026,
+      "damage": 38,
+      "hp": 430,
+      "id": "nyra",
+      "name": "니라",
+      "range": 130,
+      "respawn_seconds": 10,
+      "skill1": "빙결파",
+      "skill2": "거울 서리",
+      "speed": 132,
+      "title": "서리결 마도사",
+      "ultimate": "백야",
+      "unlock_stage": 6
+    }
+  ],
+  "skills": [
+    {
+      "color": "#ff8b5e",
+      "cooldown": 38,
+      "description": "선택 지점에 강력한 범위 피해",
+      "id": "meteor",
+      "name": "별똥 낙하",
+      "unlock_stage": 1
+    },
+    {
+      "color": "#ffd36b",
+      "cooldown": 28,
+      "description": "길목을 지키는 수호대 배치",
+      "id": "reinforcement",
+      "name": "수호대 소집",
+      "unlock_stage": 4
+    },
+    {
+      "color": "#73dcff",
+      "cooldown": 44,
+      "description": "모든 적을 잠시 둔화",
+      "id": "freeze",
+      "name": "시간 서리",
+      "unlock_stage": 7
+    }
+  ],
+  "stages": [
+    {
+      "id": "stage-1",
+      "lives": 20,
+      "mode": "campaign",
+      "name": "이끼빛 관문",
+      "number": 1,
+      "path": [
+        {
+          "x": -30,
+          "y": 250
+        },
+        {
+          "x": 210,
+          "y": 250
+        },
+        {
+          "x": 210,
+          "y": 430
+        },
+        {
+          "x": 520,
+          "y": 430
+        },
+        {
+          "x": 520,
+          "y": 190
+        },
+        {
+          "x": 900,
+          "y": 190
+        },
+        {
+          "x": 900,
+          "y": 390
+        },
+        {
+          "x": 1310,
+          "y": 390
+        }
+      ],
+      "starting_gold": 290,
+      "subtitle": "첫 장막이 흔들린다",
+      "theme": "verdant",
+      "tower_spots": [
+        {
+          "id": "s1-spot-1",
+          "x": 120,
+          "y": 160
+        },
+        {
+          "id": "s1-spot-2",
+          "x": 310,
+          "y": 340
+        },
+        {
+          "id": "s1-spot-3",
+          "x": 400,
+          "y": 520
+        },
+        {
+          "id": "s1-spot-4",
+          "x": 610,
+          "y": 300
+        },
+        {
+          "id": "s1-spot-5",
+          "x": 780,
+          "y": 100
+        },
+        {
+          "id": "s1-spot-6",
+          "x": 820,
+          "y": 300
+        },
+        {
+          "id": "s1-spot-7",
+          "x": 1030,
+          "y": 480
+        },
+        {
+          "id": "s1-spot-8",
+          "x": 1130,
+          "y": 300
+        }
+      ],
+      "version": "1.1.0",
+      "waves": [
+        {
+          "entries": [
+            {
+              "count": 5,
+              "enemy": "thornback",
+              "interval": 0.825,
+              "modifiers": []
+            }
+          ],
+          "id": "s1-w1",
+          "label": "1 파동",
+          "reward": 32
+        },
+        {
+          "entries": [
+            {
+              "count": 6,
+              "enemy": "glintfox",
+              "interval": 0.825,
+              "modifiers": []
+            }
+          ],
+          "id": "s1-w2",
+          "label": "2 파동",
+          "reward": 35
+        },
+        {
+          "entries": [
+            {
+              "count": 7,
+              "enemy": "mireling",
+              "interval": 0.825,
+              "modifiers": []
+            },
+            {
+              "count": 3,
+              "delay": 1.5,
+              "enemy": "mireling",
+              "interval": 1.05
+            }
+          ],
+          "id": "s1-w3",
+          "label": "3 파동",
+          "reward": 38
+        },
+        {
+          "entries": [
+            {
+              "count": 8,
+              "enemy": "thornback",
+              "interval": 0.825,
+              "modifiers": []
+            },
+            {
+              "count": 3,
+              "delay": 1.5,
+              "enemy": "thornback",
+              "interval": 1.05
+            }
+          ],
+          "id": "s1-w4",
+          "label": "4 파동",
+          "reward": 41
+        },
+        {
+          "entries": [
+            {
+              "count": 8,
+              "enemy": "glintfox",
+              "interval": 0.825,
+              "modifiers": []
+            },
+            {
+              "count": 3,
+              "delay": 1.5,
+              "enemy": "glintfox",
+              "interval": 1.05
+            }
+          ],
+          "id": "s1-w5",
+          "label": "5 파동",
+          "reward": 44
+        },
+        {
+          "entries": [
+            {
+              "count": 9,
+              "enemy": "mireling",
+              "interval": 0.825,
+              "modifiers": []
+            },
+            {
+              "count": 4,
+              "delay": 1.5,
+              "enemy": "mireling",
+              "interval": 1.05
+            }
+          ],
+          "id": "s1-w6",
+          "label": "6 파동",
+          "reward": 47
+        },
+        {
+          "entries": [
+            {
+              "count": 10,
+              "enemy": "thornback",
+              "interval": 0.825,
+              "modifiers": []
+            },
+            {
+              "count": 4,
+              "delay": 1.5,
+              "enemy": "thornback",
+              "interval": 1.05
+            }
+          ],
+          "id": "s1-w7",
+          "label": "7 파동",
+          "reward": 50
+        },
+        {
+          "entries": [
+            {
+              "count": 11,
+              "enemy": "glintfox",
+              "interval": 0.825,
+              "modifiers": []
+            },
+            {
+              "count": 4,
+              "delay": 1.5,
+              "enemy": "glintfox",
+              "interval": 1.05
+            }
+          ],
+          "id": "s1-w8",
+          "label": "8 파동",
+          "reward": 53
+        },
+        {
+          "entries": [
+            {
+              "count": 11,
+              "enemy": "mireling",
+              "interval": 0.825,
+              "modifiers": []
+            },
+            {
+              "count": 5,
+              "delay": 1.5,
+              "enemy": "mireling",
+              "interval": 1.05
+            }
+          ],
+          "id": "s1-w9",
+          "label": "9 파동",
+          "reward": 56
+        }
+      ]
+    },
+    {
+      "id": "stage-2",
+      "lives": 20,
+      "mode": "campaign",
+      "name": "유리바람 평원",
+      "number": 2,
+      "path": [
+        {
+          "x": -30,
+          "y": 150
+        },
+        {
+          "x": 250,
+          "y": 150
+        },
+        {
+          "x": 360,
+          "y": 350
+        },
+        {
+          "x": 640,
+          "y": 350
+        },
+        {
+          "x": 760,
+          "y": 560
+        },
+        {
+          "x": 990,
+          "y": 560
+        },
+        {
+          "x": 1080,
+          "y": 270
+        },
+        {
+          "x": 1310,
+          "y": 270
+        }
+      ],
+      "starting_gold": 300,
+      "subtitle": "빛나는 들판의 추격전",
+      "theme": "verdant",
+      "tower_spots": [
+        {
+          "id": "s2-spot-1",
+          "x": 140,
+          "y": 260
+        },
+        {
+          "id": "s2-spot-2",
+          "x": 310,
+          "y": 190
+        },
+        {
+          "id": "s2-spot-3",
+          "x": 430,
+          "y": 450
+        },
+        {
+          "id": "s2-spot-4",
+          "x": 570,
+          "y": 250
+        },
+        {
+          "id": "s2-spot-5",
+          "x": 700,
+          "y": 460
+        },
+        {
+          "id": "s2-spot-6",
+          "x": 850,
+          "y": 620
+        },
+        {
+          "id": "s2-spot-7",
+          "x": 970,
+          "y": 430
+        },
+        {
+          "id": "s2-spot-8",
+          "x": 1130,
+          "y": 180
+        }
+      ],
+      "version": "1.2.0",
+      "waves": [
+        {
+          "entries": [
+            {
+              "count": 6,
+              "enemy": "glintfox",
+              "interval": 0.8,
+              "modifiers": []
+            }
+          ],
+          "id": "s2-w1",
+          "label": "1 파동",
+          "reward": 36
+        },
+        {
+          "entries": [
+            {
+              "count": 7,
+              "enemy": "cloudray",
+              "interval": 0.8,
+              "modifiers": []
+            }
+          ],
+          "id": "s2-w2",
+          "label": "2 파동",
+          "reward": 39
+        },
+        {
+          "entries": [
+            {
+              "count": 8,
+              "enemy": "mireling",
+              "interval": 0.8,
+              "modifiers": []
+            },
+            {
+              "count": 3,
+              "delay": 1.5,
+              "enemy": "cloudray",
+              "interval": 1.05
+            }
+          ],
+          "id": "s2-w3",
+          "label": "3 파동",
+          "reward": 42
+        },
+        {
+          "entries": [
+            {
+              "count": 8,
+              "enemy": "thornback",
+              "interval": 0.8,
+              "modifiers": []
+            },
+            {
+              "count": 3,
+              "delay": 1.5,
+              "enemy": "mireling",
+              "interval": 1.05
+            }
+          ],
+          "id": "s2-w4",
+          "label": "4 파동",
+          "reward": 45
+        },
+        {
+          "entries": [
+            {
+              "count": 9,
+              "enemy": "glintfox",
+              "interval": 0.8,
+              "modifiers": []
+            },
+            {
+              "count": 4,
+              "delay": 1.5,
+              "enemy": "thornback",
+              "interval": 1.05
+            }
+          ],
+          "id": "s2-w5",
+          "label": "5 파동",
+          "reward": 48
+        },
+        {
+          "entries": [
+            {
+              "count": 10,
+              "enemy": "cloudray",
+              "interval": 0.8,
+              "modifiers": []
+            },
+            {
+              "count": 4,
+              "delay": 1.5,
+              "enemy": "glintfox",
+              "interval": 1.05
+            }
+          ],
+          "id": "s2-w6",
+          "label": "6 파동",
+          "reward": 51
+        },
+        {
+          "entries": [
+            {
+              "count": 11,
+              "enemy": "mireling",
+              "interval": 0.8,
+              "modifiers": []
+            },
+            {
+              "count": 4,
+              "delay": 1.5,
+              "enemy": "cloudray",
+              "interval": 1.05
+            }
+          ],
+          "id": "s2-w7",
+          "label": "7 파동",
+          "reward": 54
+        },
+        {
+          "entries": [
+            {
+              "count": 11,
+              "enemy": "thornback",
+              "interval": 0.8,
+              "modifiers": []
+            },
+            {
+              "count": 5,
+              "delay": 1.5,
+              "enemy": "mireling",
+              "interval": 1.05
+            }
+          ],
+          "id": "s2-w8",
+          "label": "8 파동",
+          "reward": 57
+        },
+        {
+          "entries": [
+            {
+              "count": 12,
+              "enemy": "glintfox",
+              "interval": 0.8,
+              "modifiers": []
+            },
+            {
+              "count": 5,
+              "delay": 1.5,
+              "enemy": "thornback",
+              "interval": 1.05
+            }
+          ],
+          "id": "s2-w9",
+          "label": "9 파동",
+          "reward": 60
+        }
+      ]
+    },
+    {
+      "id": "stage-3",
+      "lives": 20,
+      "mode": "campaign",
+      "name": "속삭임 습지",
+      "number": 3,
+      "path": [
+        {
+          "x": -30,
+          "y": 520
+        },
+        {
+          "x": 180,
+          "y": 520
+        },
+        {
+          "x": 330,
+          "y": 300
+        },
+        {
+          "x": 560,
+          "y": 300
+        },
+        {
+          "x": 680,
+          "y": 120
+        },
+        {
+          "x": 930,
+          "y": 120
+        },
+        {
+          "x": 1060,
+          "y": 450
+        },
+        {
+          "x": 1310,
+          "y": 450
+        }
+      ],
+      "starting_gold": 310,
+      "subtitle": "늪의 속삭임을 잠재워라",
+      "theme": "verdant",
+      "tower_spots": [
+        {
+          "id": "s3-spot-1",
+          "x": 120,
+          "y": 160
+        },
+        {
+          "id": "s3-spot-2",
+          "x": 310,
+          "y": 340
+        },
+        {
+          "id": "s3-spot-3",
+          "x": 400,
+          "y": 520
+        },
+        {
+          "id": "s3-spot-4",
+          "x": 610,
+          "y": 300
+        },
+        {
+          "id": "s3-spot-5",
+          "x": 780,
+          "y": 100
+        },
+        {
+          "id": "s3-spot-6",
+          "x": 820,
+          "y": 300
+        },
+        {
+          "id": "s3-spot-7",
+          "x": 1030,
+          "y": 480
+        },
+        {
+          "id": "s3-spot-8",
+          "x": 1130,
+          "y": 300
+        }
+      ],
+      "version": "1.3.0",
+      "waves": [
+        {
+          "entries": [
+            {
+              "count": 7,
+              "enemy": "cloudray",
+              "interval": 0.775,
+              "modifiers": []
+            }
+          ],
+          "id": "s3-w1",
+          "label": "1 파동",
+          "reward": 40
+        },
+        {
+          "entries": [
+            {
+              "count": 8,
+              "enemy": "bloomseer",
+              "interval": 0.775,
+              "modifiers": []
+            }
+          ],
+          "id": "s3-w2",
+          "label": "2 파동",
+          "reward": 43
+        },
+        {
+          "entries": [
+            {
+              "count": 8,
+              "enemy": "mireling",
+              "interval": 0.775,
+              "modifiers": []
+            },
+            {
+              "count": 3,
+              "delay": 1.5,
+              "enemy": "cloudray",
+              "interval": 1.05
+            }
+          ],
+          "id": "s3-w3",
+          "label": "3 파동",
+          "reward": 46
+        },
+        {
+          "entries": [
+            {
+              "count": 9,
+              "enemy": "thornback",
+              "interval": 0.775,
+              "modifiers": []
+            },
+            {
+              "count": 4,
+              "delay": 1.5,
+              "enemy": "bloomseer",
+              "interval": 1.05
+            }
+          ],
+          "id": "s3-w4",
+          "label": "4 파동",
+          "reward": 49
+        },
+        {
+          "entries": [
+            {
+              "count": 10,
+              "enemy": "glintfox",
+              "interval": 0.775,
+              "modifiers": []
+            },
+            {
+              "count": 4,
+              "delay": 1.5,
+              "enemy": "mireling",
+              "interval": 1.05
+            }
+          ],
+          "id": "s3-w5",
+          "label": "5 파동",
+          "reward": 52
+        },
+        {
+          "entries": [
+            {
+              "count": 11,
+              "enemy": "cloudray",
+              "interval": 0.775,
+              "modifiers": []
+            },
+            {
+              "count": 4,
+              "delay": 1.5,
+              "enemy": "thornback",
+              "interval": 1.05
+            }
+          ],
+          "id": "s3-w6",
+          "label": "6 파동",
+          "reward": 55
+        },
+        {
+          "entries": [
+            {
+              "count": 11,
+              "enemy": "bloomseer",
+              "interval": 0.775,
+              "modifiers": []
+            },
+            {
+              "count": 5,
+              "delay": 1.5,
+              "enemy": "glintfox",
+              "interval": 1.05
+            }
+          ],
+          "id": "s3-w7",
+          "label": "7 파동",
+          "reward": 58
+        },
+        {
+          "entries": [
+            {
+              "count": 12,
+              "enemy": "mireling",
+              "interval": 0.775,
+              "modifiers": []
+            },
+            {
+              "count": 5,
+              "delay": 1.5,
+              "enemy": "cloudray",
+              "interval": 1.05
+            }
+          ],
+          "id": "s3-w8",
+          "label": "8 파동",
+          "reward": 61
+        },
+        {
+          "entries": [
+            {
+              "count": 13,
+              "enemy": "thornback",
+              "interval": 0.775,
+              "modifiers": []
+            },
+            {
+              "count": 5,
+              "delay": 1.5,
+              "enemy": "bloomseer",
+              "interval": 1.05
+            }
+          ],
+          "id": "s3-w9",
+          "label": "9 파동",
+          "reward": 64
+        },
+        {
+          "entries": [
+            {
+              "count": 14,
+              "enemy": "glintfox",
+              "interval": 0.775,
+              "modifiers": []
+            },
+            {
+              "count": 6,
+              "delay": 1.5,
+              "enemy": "mireling",
+              "interval": 1.05
+            }
+          ],
+          "id": "s3-w10",
+          "label": "10 파동",
+          "reward": 67
+        }
+      ]
+    },
+    {
+      "gimmick": "ember_vents",
+      "id": "stage-4",
+      "lives": 20,
+      "mode": "campaign",
+      "name": "잿불 고개",
+      "number": 4,
+      "path": [
+        {
+          "x": -30,
+          "y": 360
+        },
+        {
+          "x": 180,
+          "y": 360
+        },
+        {
+          "x": 310,
+          "y": 130
+        },
+        {
+          "x": 530,
+          "y": 130
+        },
+        {
+          "x": 650,
+          "y": 500
+        },
+        {
+          "x": 880,
+          "y": 500
+        },
+        {
+          "x": 1020,
+          "y": 260
+        },
+        {
+          "x": 1310,
+          "y": 260
+        }
+      ],
+      "starting_gold": 320,
+      "subtitle": "불씨를 지키는 길",
+      "theme": "ember",
+      "tower_spots": [
+        {
+          "id": "s4-spot-1",
+          "x": 140,
+          "y": 260
+        },
+        {
+          "id": "s4-spot-2",
+          "x": 310,
+          "y": 190
+        },
+        {
+          "id": "s4-spot-3",
+          "x": 430,
+          "y": 450
+        },
+        {
+          "id": "s4-spot-4",
+          "x": 570,
+          "y": 250
+        },
+        {
+          "id": "s4-spot-5",
+          "x": 700,
+          "y": 460
+        },
+        {
+          "id": "s4-spot-6",
+          "x": 850,
+          "y": 620
+        },
+        {
+          "id": "s4-spot-7",
+          "x": 970,
+          "y": 430
+        },
+        {
+          "id": "s4-spot-8",
+          "x": 1130,
+          "y": 180
+        }
+      ],
+      "version": "1.4.0",
+      "waves": [
+        {
+          "entries": [
+            {
+              "count": 8,
+              "enemy": "bloomseer",
+              "interval": 0.75,
+              "modifiers": []
+            }
+          ],
+          "id": "s4-w1",
+          "label": "1 파동",
+          "reward": 44
+        },
+        {
+          "entries": [
+            {
+              "count": 8,
+              "enemy": "shardling",
+              "interval": 0.75,
+              "modifiers": []
+            }
+          ],
+          "id": "s4-w2",
+          "label": "2 파동",
+          "reward": 47
+        },
+        {
+          "entries": [
+            {
+              "count": 9,
+              "enemy": "mireling",
+              "interval": 0.75,
+              "modifiers": []
+            },
+            {
+              "count": 4,
+              "delay": 1.5,
+              "enemy": "cloudray",
+              "interval": 1.05
+            }
+          ],
+          "id": "s4-w3",
+          "label": "3 파동",
+          "reward": 50
+        },
+        {
+          "entries": [
+            {
+              "count": 10,
+              "enemy": "thornback",
+              "interval": 0.75,
+              "modifiers": []
+            },
+            {
+              "count": 4,
+              "delay": 1.5,
+              "enemy": "bloomseer",
+              "interval": 1.05
+            }
+          ],
+          "id": "s4-w4",
+          "label": "4 파동",
+          "reward": 53
+        },
+        {
+          "entries": [
+            {
+              "count": 11,
+              "enemy": "glintfox",
+              "interval": 0.75,
+              "modifiers": []
+            },
+            {
+              "count": 4,
+              "delay": 1.5,
+              "enemy": "shardling",
+              "interval": 1.05
+            }
+          ],
+          "id": "s4-w5",
+          "label": "5 파동",
+          "reward": 56
+        },
+        {
+          "entries": [
+            {
+              "count": 11,
+              "enemy": "cloudray",
+              "interval": 0.75,
+              "modifiers": []
+            },
+            {
+              "count": 5,
+              "delay": 1.5,
+              "enemy": "mireling",
+              "interval": 1.05
+            }
+          ],
+          "id": "s4-w6",
+          "label": "6 파동",
+          "reward": 59
+        },
+        {
+          "entries": [
+            {
+              "count": 12,
+              "enemy": "bloomseer",
+              "interval": 0.75,
+              "modifiers": []
+            },
+            {
+              "count": 5,
+              "delay": 1.5,
+              "enemy": "thornback",
+              "interval": 1.05
+            }
+          ],
+          "id": "s4-w7",
+          "label": "7 파동",
+          "reward": 62
+        },
+        {
+          "entries": [
+            {
+              "count": 13,
+              "enemy": "shardling",
+              "interval": 0.75,
+              "modifiers": []
+            },
+            {
+              "count": 5,
+              "delay": 1.5,
+              "enemy": "glintfox",
+              "interval": 1.05
+            }
+          ],
+          "id": "s4-w8",
+          "label": "8 파동",
+          "reward": 65
+        },
+        {
+          "entries": [
+            {
+              "count": 14,
+              "enemy": "mireling",
+              "interval": 0.75,
+              "modifiers": []
+            },
+            {
+              "count": 6,
+              "delay": 1.5,
+              "enemy": "cloudray",
+              "interval": 1.05
+            }
+          ],
+          "id": "s4-w9",
+          "label": "9 파동",
+          "reward": 68
+        },
+        {
+          "entries": [
+            {
+              "count": 14,
+              "enemy": "thornback",
+              "interval": 0.75,
+              "modifiers": []
+            },
+            {
+              "count": 6,
+              "delay": 1.5,
+              "enemy": "bloomseer",
+              "interval": 1.05
+            }
+          ],
+          "id": "s4-w10",
+          "label": "10 파동",
+          "reward": 71
+        }
+      ]
+    },
+    {
+      "id": "stage-5",
+      "lives": 20,
+      "mode": "campaign",
+      "name": "별뿌리 성소",
+      "number": 5,
+      "path": [
+        {
+          "x": -30,
+          "y": 250
+        },
+        {
+          "x": 210,
+          "y": 250
+        },
+        {
+          "x": 210,
+          "y": 430
+        },
+        {
+          "x": 520,
+          "y": 430
+        },
+        {
+          "x": 520,
+          "y": 190
+        },
+        {
+          "x": 900,
+          "y": 190
+        },
+        {
+          "x": 900,
+          "y": 390
+        },
+        {
+          "x": 1310,
+          "y": 390
+        }
+      ],
+      "starting_gold": 330,
+      "subtitle": "공허왕의 첫 강림",
+      "theme": "void",
+      "tower_spots": [
+        {
+          "id": "s5-spot-1",
+          "x": 120,
+          "y": 160
+        },
+        {
+          "id": "s5-spot-2",
+          "x": 310,
+          "y": 340
+        },
+        {
+          "id": "s5-spot-3",
+          "x": 400,
+          "y": 520
+        },
+        {
+          "id": "s5-spot-4",
+          "x": 610,
+          "y": 300
+        },
+        {
+          "id": "s5-spot-5",
+          "x": 780,
+          "y": 100
+        },
+        {
+          "id": "s5-spot-6",
+          "x": 820,
+          "y": 300
+        },
+        {
+          "id": "s5-spot-7",
+          "x": 1030,
+          "y": 480
+        },
+        {
+          "id": "s5-spot-8",
+          "x": 1130,
+          "y": 300
+        }
+      ],
+      "version": "1.5.0",
+      "waves": [
+        {
+          "entries": [
+            {
+              "count": 8,
+              "enemy": "shardling",
+              "interval": 0.725,
+              "modifiers": []
+            }
+          ],
+          "id": "s5-w1",
+          "label": "1 파동",
+          "reward": 48
+        },
+        {
+          "entries": [
+            {
+              "count": 9,
+              "enemy": "ironroot",
+              "interval": 0.725,
+              "modifiers": []
+            }
+          ],
+          "id": "s5-w2",
+          "label": "2 파동",
+          "reward": 51
+        },
+        {
+          "entries": [
+            {
+              "count": 10,
+              "enemy": "mireling",
+              "interval": 0.725,
+              "modifiers": []
+            },
+            {
+              "count": 4,
+              "delay": 1.5,
+              "enemy": "cloudray",
+              "interval": 1.05
+            }
+          ],
+          "id": "s5-w3",
+          "label": "3 파동",
+          "reward": 54
+        },
+        {
+          "entries": [
+            {
+              "count": 11,
+              "enemy": "thornback",
+              "interval": 0.725,
+              "modifiers": []
+            },
+            {
+              "count": 4,
+              "delay": 1.5,
+              "enemy": "bloomseer",
+              "interval": 1.05
+            }
+          ],
+          "id": "s5-w4",
+          "label": "4 파동",
+          "reward": 57
+        },
+        {
+          "entries": [
+            {
+              "count": 11,
+              "enemy": "glintfox",
+              "interval": 0.725,
+              "modifiers": []
+            },
+            {
+              "count": 5,
+              "delay": 1.5,
+              "enemy": "shardling",
+              "interval": 1.05
+            }
+          ],
+          "id": "s5-w5",
+          "label": "5 파동",
+          "reward": 60
+        },
+        {
+          "entries": [
+            {
+              "count": 12,
+              "enemy": "cloudray",
+              "interval": 0.725,
+              "modifiers": []
+            },
+            {
+              "count": 5,
+              "delay": 1.5,
+              "enemy": "ironroot",
+              "interval": 1.05
+            }
+          ],
+          "id": "s5-w6",
+          "label": "6 파동",
+          "reward": 63
+        },
+        {
+          "entries": [
+            {
+              "count": 13,
+              "enemy": "bloomseer",
+              "interval": 0.725,
+              "modifiers": []
+            },
+            {
+              "count": 5,
+              "delay": 1.5,
+              "enemy": "mireling",
+              "interval": 1.05
+            }
+          ],
+          "id": "s5-w7",
+          "label": "7 파동",
+          "reward": 66
+        },
+        {
+          "entries": [
+            {
+              "count": 14,
+              "enemy": "shardling",
+              "interval": 0.725,
+              "modifiers": []
+            },
+            {
+              "count": 6,
+              "delay": 1.5,
+              "enemy": "thornback",
+              "interval": 1.05
+            }
+          ],
+          "id": "s5-w8",
+          "label": "8 파동",
+          "reward": 69
+        },
+        {
+          "entries": [
+            {
+              "count": 14,
+              "enemy": "ironroot",
+              "interval": 0.725,
+              "modifiers": []
+            },
+            {
+              "count": 6,
+              "delay": 1.5,
+              "enemy": "glintfox",
+              "interval": 1.05
+            }
+          ],
+          "id": "s5-w9",
+          "label": "9 파동",
+          "reward": 72
+        },
+        {
+          "entries": [
+            {
+              "count": 15,
+              "enemy": "mireling",
+              "interval": 0.725,
+              "modifiers": []
+            },
+            {
+              "count": 6,
+              "delay": 1.5,
+              "enemy": "cloudray",
+              "interval": 1.05
+            }
+          ],
+          "id": "s5-w10",
+          "label": "10 파동",
+          "reward": 75
+        },
+        {
+          "entries": [
+            {
+              "count": 16,
+              "enemy": "thornback",
+              "interval": 0.725,
+              "modifiers": []
+            },
+            {
+              "count": 7,
+              "delay": 1.5,
+              "enemy": "bloomseer",
+              "interval": 1.05
+            },
+            {
+              "count": 1,
+              "delay": 2,
+              "enemy": "hollow_king",
+              "interval": 1.5
+            }
+          ],
+          "id": "s5-w11",
+          "label": "11 파동",
+          "reward": 78
+        }
+      ]
+    },
+    {
+      "id": "stage-6",
+      "lives": 20,
+      "mode": "campaign",
+      "name": "부서진 월교",
+      "number": 6,
+      "path": [
+        {
+          "x": -30,
+          "y": 150
+        },
+        {
+          "x": 250,
+          "y": 150
+        },
+        {
+          "x": 360,
+          "y": 350
+        },
+        {
+          "x": 640,
+          "y": 350
+        },
+        {
+          "x": 760,
+          "y": 560
+        },
+        {
+          "x": 990,
+          "y": 560
+        },
+        {
+          "x": 1080,
+          "y": 270
+        },
+        {
+          "x": 1310,
+          "y": 270
+        }
+      ],
+      "starting_gold": 340,
+      "subtitle": "두 세계를 잇는 마지막 다리",
+      "theme": "ember",
+      "tower_spots": [
+        {
+          "id": "s6-spot-1",
+          "x": 140,
+          "y": 260
+        },
+        {
+          "id": "s6-spot-2",
+          "x": 310,
+          "y": 190
+        },
+        {
+          "id": "s6-spot-3",
+          "x": 430,
+          "y": 450
+        },
+        {
+          "id": "s6-spot-4",
+          "x": 570,
+          "y": 250
+        },
+        {
+          "id": "s6-spot-5",
+          "x": 700,
+          "y": 460
+        },
+        {
+          "id": "s6-spot-6",
+          "x": 850,
+          "y": 620
+        },
+        {
+          "id": "s6-spot-7",
+          "x": 970,
+          "y": 430
+        },
+        {
+          "id": "s6-spot-8",
+          "x": 1130,
+          "y": 180
+        }
+      ],
+      "version": "1.6.0",
+      "waves": [
+        {
+          "entries": [
+            {
+              "count": 9,
+              "enemy": "ironroot",
+              "interval": 0.7,
+              "modifiers": [
+                "magic_resist"
+              ]
+            }
+          ],
+          "id": "s6-w1",
+          "label": "1 파동",
+          "reward": 52
+        },
+        {
+          "entries": [
+            {
+              "count": 10,
+              "enemy": "veilrunner",
+              "interval": 0.7,
+              "modifiers": []
+            }
+          ],
+          "id": "s6-w2",
+          "label": "2 파동",
+          "reward": 55
+        },
+        {
+          "entries": [
+            {
+              "count": 11,
+              "enemy": "mireling",
+              "interval": 0.7,
+              "modifiers": []
+            },
+            {
+              "count": 4,
+              "delay": 1.5,
+              "enemy": "cloudray",
+              "interval": 1.05
+            }
+          ],
+          "id": "s6-w3",
+          "label": "3 파동",
+          "reward": 58
+        },
+        {
+          "entries": [
+            {
+              "count": 11,
+              "enemy": "thornback",
+              "interval": 0.7,
+              "modifiers": []
+            },
+            {
+              "count": 5,
+              "delay": 1.5,
+              "enemy": "bloomseer",
+              "interval": 1.05
+            }
+          ],
+          "id": "s6-w4",
+          "label": "4 파동",
+          "reward": 61
+        },
+        {
+          "entries": [
+            {
+              "count": 12,
+              "enemy": "glintfox",
+              "interval": 0.7,
+              "modifiers": [
+                "magic_resist"
+              ]
+            },
+            {
+              "count": 5,
+              "delay": 1.5,
+              "enemy": "shardling",
+              "interval": 1.05
+            }
+          ],
+          "id": "s6-w5",
+          "label": "5 파동",
+          "reward": 64
+        },
+        {
+          "entries": [
+            {
+              "count": 13,
+              "enemy": "cloudray",
+              "interval": 0.7,
+              "modifiers": []
+            },
+            {
+              "count": 5,
+              "delay": 1.5,
+              "enemy": "ironroot",
+              "interval": 1.05
+            }
+          ],
+          "id": "s6-w6",
+          "label": "6 파동",
+          "reward": 67
+        },
+        {
+          "entries": [
+            {
+              "count": 14,
+              "enemy": "bloomseer",
+              "interval": 0.7,
+              "modifiers": []
+            },
+            {
+              "count": 6,
+              "delay": 1.5,
+              "enemy": "veilrunner",
+              "interval": 1.05
+            }
+          ],
+          "id": "s6-w7",
+          "label": "7 파동",
+          "reward": 70
+        },
+        {
+          "entries": [
+            {
+              "count": 14,
+              "enemy": "shardling",
+              "interval": 0.7,
+              "modifiers": []
+            },
+            {
+              "count": 6,
+              "delay": 1.5,
+              "enemy": "mireling",
+              "interval": 1.05
+            }
+          ],
+          "id": "s6-w8",
+          "label": "8 파동",
+          "reward": 73
+        },
+        {
+          "entries": [
+            {
+              "count": 15,
+              "enemy": "ironroot",
+              "interval": 0.7,
+              "modifiers": [
+                "magic_resist"
+              ]
+            },
+            {
+              "count": 6,
+              "delay": 1.5,
+              "enemy": "thornback",
+              "interval": 1.05
+            }
+          ],
+          "id": "s6-w9",
+          "label": "9 파동",
+          "reward": 76
+        },
+        {
+          "entries": [
+            {
+              "count": 16,
+              "enemy": "veilrunner",
+              "interval": 0.7,
+              "modifiers": []
+            },
+            {
+              "count": 7,
+              "delay": 1.5,
+              "enemy": "glintfox",
+              "interval": 1.05
+            }
+          ],
+          "id": "s6-w10",
+          "label": "10 파동",
+          "reward": 79
+        },
+        {
+          "entries": [
+            {
+              "count": 17,
+              "enemy": "mireling",
+              "interval": 0.7,
+              "modifiers": []
+            },
+            {
+              "count": 7,
+              "delay": 1.5,
+              "enemy": "cloudray",
+              "interval": 1.05
+            }
+          ],
+          "id": "s6-w11",
+          "label": "11 파동",
+          "reward": 82
+        }
+      ]
+    },
+    {
+      "gimmick": "winter_blessing",
+      "id": "stage-7",
+      "lives": 20,
+      "mode": "campaign",
+      "name": "서리결 골짜기",
+      "number": 7,
+      "path": [
+        {
+          "x": -30,
+          "y": 520
+        },
+        {
+          "x": 180,
+          "y": 520
+        },
+        {
+          "x": 330,
+          "y": 300
+        },
+        {
+          "x": 560,
+          "y": 300
+        },
+        {
+          "x": 680,
+          "y": 120
+        },
+        {
+          "x": 930,
+          "y": 120
+        },
+        {
+          "x": 1060,
+          "y": 450
+        },
+        {
+          "x": 1310,
+          "y": 450
+        }
+      ],
+      "starting_gold": 350,
+      "subtitle": "멈춘 겨울의 심장",
+      "theme": "frost",
+      "tower_spots": [
+        {
+          "id": "s7-spot-1",
+          "x": 120,
+          "y": 160
+        },
+        {
+          "id": "s7-spot-2",
+          "x": 310,
+          "y": 340
+        },
+        {
+          "id": "s7-spot-3",
+          "x": 400,
+          "y": 520
+        },
+        {
+          "id": "s7-spot-4",
+          "x": 610,
+          "y": 300
+        },
+        {
+          "id": "s7-spot-5",
+          "x": 780,
+          "y": 100
+        },
+        {
+          "id": "s7-spot-6",
+          "x": 820,
+          "y": 300
+        },
+        {
+          "id": "s7-spot-7",
+          "x": 1030,
+          "y": 480
+        },
+        {
+          "id": "s7-spot-8",
+          "x": 1130,
+          "y": 300
+        }
+      ],
+      "version": "1.7.0",
+      "waves": [
+        {
+          "entries": [
+            {
+              "count": 10,
+              "enemy": "veilrunner",
+              "interval": 0.675,
+              "modifiers": [
+                "magic_resist"
+              ]
+            }
+          ],
+          "id": "s7-w1",
+          "label": "1 파동",
+          "reward": 56
+        },
+        {
+          "entries": [
+            {
+              "count": 11,
+              "enemy": "rammer",
+              "interval": 0.675,
+              "modifiers": [
+                "stealth"
+              ]
+            }
+          ],
+          "id": "s7-w2",
+          "label": "2 파동",
+          "reward": 59
+        },
+        {
+          "entries": [
+            {
+              "count": 11,
+              "enemy": "mireling",
+              "interval": 0.675,
+              "modifiers": []
+            },
+            {
+              "count": 5,
+              "delay": 1.5,
+              "enemy": "cloudray",
+              "interval": 1.05
+            }
+          ],
+          "id": "s7-w3",
+          "label": "3 파동",
+          "reward": 62
+        },
+        {
+          "entries": [
+            {
+              "count": 12,
+              "enemy": "thornback",
+              "interval": 0.675,
+              "modifiers": []
+            },
+            {
+              "count": 5,
+              "delay": 1.5,
+              "enemy": "bloomseer",
+              "interval": 1.05
+            }
+          ],
+          "id": "s7-w4",
+          "label": "4 파동",
+          "reward": 65
+        },
+        {
+          "entries": [
+            {
+              "count": 13,
+              "enemy": "glintfox",
+              "interval": 0.675,
+              "modifiers": [
+                "magic_resist"
+              ]
+            },
+            {
+              "count": 5,
+              "delay": 1.5,
+              "enemy": "shardling",
+              "interval": 1.05
+            }
+          ],
+          "id": "s7-w5",
+          "label": "5 파동",
+          "reward": 68
+        },
+        {
+          "entries": [
+            {
+              "count": 14,
+              "enemy": "cloudray",
+              "interval": 0.675,
+              "modifiers": [
+                "stealth"
+              ]
+            },
+            {
+              "count": 6,
+              "delay": 1.5,
+              "enemy": "ironroot",
+              "interval": 1.05
+            }
+          ],
+          "id": "s7-w6",
+          "label": "6 파동",
+          "reward": 71
+        },
+        {
+          "entries": [
+            {
+              "count": 14,
+              "enemy": "bloomseer",
+              "interval": 0.675,
+              "modifiers": []
+            },
+            {
+              "count": 6,
+              "delay": 1.5,
+              "enemy": "veilrunner",
+              "interval": 1.05
+            }
+          ],
+          "id": "s7-w7",
+          "label": "7 파동",
+          "reward": 74
+        },
+        {
+          "entries": [
+            {
+              "count": 15,
+              "enemy": "shardling",
+              "interval": 0.675,
+              "modifiers": []
+            },
+            {
+              "count": 6,
+              "delay": 1.5,
+              "enemy": "rammer",
+              "interval": 1.05
+            }
+          ],
+          "id": "s7-w8",
+          "label": "8 파동",
+          "reward": 77
+        },
+        {
+          "entries": [
+            {
+              "count": 16,
+              "enemy": "ironroot",
+              "interval": 0.675,
+              "modifiers": [
+                "magic_resist"
+              ]
+            },
+            {
+              "count": 7,
+              "delay": 1.5,
+              "enemy": "mireling",
+              "interval": 1.05
+            }
+          ],
+          "id": "s7-w9",
+          "label": "9 파동",
+          "reward": 80
+        },
+        {
+          "entries": [
+            {
+              "count": 17,
+              "enemy": "veilrunner",
+              "interval": 0.675,
+              "modifiers": [
+                "stealth"
+              ]
+            },
+            {
+              "count": 7,
+              "delay": 1.5,
+              "enemy": "thornback",
+              "interval": 1.05
+            }
+          ],
+          "id": "s7-w10",
+          "label": "10 파동",
+          "reward": 83
+        },
+        {
+          "entries": [
+            {
+              "count": 17,
+              "enemy": "rammer",
+              "interval": 0.675,
+              "modifiers": []
+            },
+            {
+              "count": 7,
+              "delay": 1.5,
+              "enemy": "glintfox",
+              "interval": 1.05
+            }
+          ],
+          "id": "s7-w11",
+          "label": "11 파동",
+          "reward": 86
+        },
+        {
+          "entries": [
+            {
+              "count": 18,
+              "enemy": "mireling",
+              "interval": 0.675,
+              "modifiers": []
+            },
+            {
+              "count": 8,
+              "delay": 1.5,
+              "enemy": "cloudray",
+              "interval": 1.05
+            }
+          ],
+          "id": "s7-w12",
+          "label": "12 파동",
+          "reward": 89
+        }
+      ]
+    },
+    {
+      "id": "stage-8",
+      "lives": 20,
+      "mode": "campaign",
+      "name": "무명의 회랑",
+      "number": 8,
+      "path": [
+        {
+          "x": -30,
+          "y": 360
+        },
+        {
+          "x": 180,
+          "y": 360
+        },
+        {
+          "x": 310,
+          "y": 130
+        },
+        {
+          "x": 530,
+          "y": 130
+        },
+        {
+          "x": 650,
+          "y": 500
+        },
+        {
+          "x": 880,
+          "y": 500
+        },
+        {
+          "x": 1020,
+          "y": 260
+        },
+        {
+          "x": 1310,
+          "y": 260
+        }
+      ],
+      "starting_gold": 360,
+      "subtitle": "기억을 잃는 길",
+      "theme": "void",
+      "tower_spots": [
+        {
+          "id": "s8-spot-1",
+          "x": 140,
+          "y": 260
+        },
+        {
+          "id": "s8-spot-2",
+          "x": 310,
+          "y": 190
+        },
+        {
+          "id": "s8-spot-3",
+          "x": 430,
+          "y": 450
+        },
+        {
+          "id": "s8-spot-4",
+          "x": 570,
+          "y": 250
+        },
+        {
+          "id": "s8-spot-5",
+          "x": 700,
+          "y": 460
+        },
+        {
+          "id": "s8-spot-6",
+          "x": 850,
+          "y": 620
+        },
+        {
+          "id": "s8-spot-7",
+          "x": 970,
+          "y": 430
+        },
+        {
+          "id": "s8-spot-8",
+          "x": 1130,
+          "y": 180
+        }
+      ],
+      "version": "1.8.0",
+      "waves": [
+        {
+          "entries": [
+            {
+              "count": 11,
+              "enemy": "rammer",
+              "interval": 0.65,
+              "modifiers": [
+                "magic_resist"
+              ]
+            }
+          ],
+          "id": "s8-w1",
+          "label": "1 파동",
+          "reward": 60
+        },
+        {
+          "entries": [
+            {
+              "count": 11,
+              "enemy": "rimeheart",
+              "interval": 0.65,
+              "modifiers": [
+                "stealth"
+              ]
+            }
+          ],
+          "id": "s8-w2",
+          "label": "2 파동",
+          "reward": 63
+        },
+        {
+          "entries": [
+            {
+              "count": 12,
+              "enemy": "mireling",
+              "interval": 0.65,
+              "modifiers": [
+                "berserk"
+              ]
+            },
+            {
+              "count": 5,
+              "delay": 1.5,
+              "enemy": "cloudray",
+              "interval": 1.05
+            }
+          ],
+          "id": "s8-w3",
+          "label": "3 파동",
+          "reward": 66
+        },
+        {
+          "entries": [
+            {
+              "count": 13,
+              "enemy": "thornback",
+              "interval": 0.65,
+              "modifiers": []
+            },
+            {
+              "count": 5,
+              "delay": 1.5,
+              "enemy": "bloomseer",
+              "interval": 1.05
+            }
+          ],
+          "id": "s8-w4",
+          "label": "4 파동",
+          "reward": 69
+        },
+        {
+          "entries": [
+            {
+              "count": 14,
+              "enemy": "glintfox",
+              "interval": 0.65,
+              "modifiers": [
+                "magic_resist"
+              ]
+            },
+            {
+              "count": 6,
+              "delay": 1.5,
+              "enemy": "shardling",
+              "interval": 1.05
+            }
+          ],
+          "id": "s8-w5",
+          "label": "5 파동",
+          "reward": 72
+        },
+        {
+          "entries": [
+            {
+              "count": 14,
+              "enemy": "cloudray",
+              "interval": 0.65,
+              "modifiers": [
+                "stealth"
+              ]
+            },
+            {
+              "count": 6,
+              "delay": 1.5,
+              "enemy": "ironroot",
+              "interval": 1.05
+            }
+          ],
+          "id": "s8-w6",
+          "label": "6 파동",
+          "reward": 75
+        },
+        {
+          "entries": [
+            {
+              "count": 15,
+              "enemy": "bloomseer",
+              "interval": 0.65,
+              "modifiers": [
+                "berserk"
+              ]
+            },
+            {
+              "count": 6,
+              "delay": 1.5,
+              "enemy": "veilrunner",
+              "interval": 1.05
+            }
+          ],
+          "id": "s8-w7",
+          "label": "7 파동",
+          "reward": 78
+        },
+        {
+          "entries": [
+            {
+              "count": 16,
+              "enemy": "shardling",
+              "interval": 0.65,
+              "modifiers": []
+            },
+            {
+              "count": 7,
+              "delay": 1.5,
+              "enemy": "rammer",
+              "interval": 1.05
+            }
+          ],
+          "id": "s8-w8",
+          "label": "8 파동",
+          "reward": 81
+        },
+        {
+          "entries": [
+            {
+              "count": 17,
+              "enemy": "ironroot",
+              "interval": 0.65,
+              "modifiers": [
+                "magic_resist"
+              ]
+            },
+            {
+              "count": 7,
+              "delay": 1.5,
+              "enemy": "rimeheart",
+              "interval": 1.05
+            }
+          ],
+          "id": "s8-w9",
+          "label": "9 파동",
+          "reward": 84
+        },
+        {
+          "entries": [
+            {
+              "count": 17,
+              "enemy": "veilrunner",
+              "interval": 0.65,
+              "modifiers": [
+                "stealth"
+              ]
+            },
+            {
+              "count": 7,
+              "delay": 1.5,
+              "enemy": "mireling",
+              "interval": 1.05
+            }
+          ],
+          "id": "s8-w10",
+          "label": "10 파동",
+          "reward": 87
+        },
+        {
+          "entries": [
+            {
+              "count": 18,
+              "enemy": "rammer",
+              "interval": 0.65,
+              "modifiers": [
+                "berserk"
+              ]
+            },
+            {
+              "count": 8,
+              "delay": 1.5,
+              "enemy": "thornback",
+              "interval": 1.05
+            }
+          ],
+          "id": "s8-w11",
+          "label": "11 파동",
+          "reward": 90
+        },
+        {
+          "entries": [
+            {
+              "count": 19,
+              "enemy": "rimeheart",
+              "interval": 0.65,
+              "modifiers": []
+            },
+            {
+              "count": 8,
+              "delay": 1.5,
+              "enemy": "glintfox",
+              "interval": 1.05
+            }
+          ],
+          "id": "s8-w12",
+          "label": "12 파동",
+          "reward": 93
+        }
+      ]
+    },
+    {
+      "gimmick": "time_surge",
+      "id": "stage-9",
+      "lives": 20,
+      "mode": "campaign",
+      "name": "시간의 균열",
+      "number": 9,
+      "path": [
+        {
+          "x": -30,
+          "y": 250
+        },
+        {
+          "x": 210,
+          "y": 250
+        },
+        {
+          "x": 210,
+          "y": 430
+        },
+        {
+          "x": 520,
+          "y": 430
+        },
+        {
+          "x": 520,
+          "y": 190
+        },
+        {
+          "x": 900,
+          "y": 190
+        },
+        {
+          "x": 900,
+          "y": 390
+        },
+        {
+          "x": 1310,
+          "y": 390
+        }
+      ],
+      "starting_gold": 370,
+      "subtitle": "시간룡이 깨어난다",
+      "theme": "frost",
+      "tower_spots": [
+        {
+          "id": "s9-spot-1",
+          "x": 120,
+          "y": 160
+        },
+        {
+          "id": "s9-spot-2",
+          "x": 310,
+          "y": 340
+        },
+        {
+          "id": "s9-spot-3",
+          "x": 400,
+          "y": 520
+        },
+        {
+          "id": "s9-spot-4",
+          "x": 610,
+          "y": 300
+        },
+        {
+          "id": "s9-spot-5",
+          "x": 780,
+          "y": 100
+        },
+        {
+          "id": "s9-spot-6",
+          "x": 820,
+          "y": 300
+        },
+        {
+          "id": "s9-spot-7",
+          "x": 1030,
+          "y": 480
+        },
+        {
+          "id": "s9-spot-8",
+          "x": 1130,
+          "y": 300
+        }
+      ],
+      "version": "1.9.0",
+      "waves": [
+        {
+          "entries": [
+            {
+              "count": 11,
+              "enemy": "rimeheart",
+              "interval": 0.625,
+              "modifiers": [
+                "magic_resist"
+              ]
+            }
+          ],
+          "id": "s9-w1",
+          "label": "1 파동",
+          "reward": 64
+        },
+        {
+          "entries": [
+            {
+              "count": 12,
+              "enemy": "mireling",
+              "interval": 0.625,
+              "modifiers": [
+                "stealth"
+              ]
+            }
+          ],
+          "id": "s9-w2",
+          "label": "2 파동",
+          "reward": 67
+        },
+        {
+          "entries": [
+            {
+              "count": 13,
+              "enemy": "thornback",
+              "interval": 0.625,
+              "modifiers": [
+                "berserk"
+              ]
+            },
+            {
+              "count": 5,
+              "delay": 1.5,
+              "enemy": "bloomseer",
+              "interval": 1.05
+            }
+          ],
+          "id": "s9-w3",
+          "label": "3 파동",
+          "reward": 70
+        },
+        {
+          "entries": [
+            {
+              "count": 14,
+              "enemy": "glintfox",
+              "interval": 0.625,
+              "modifiers": [
+                "immune_stun"
+              ]
+            },
+            {
+              "count": 6,
+              "delay": 1.5,
+              "enemy": "shardling",
+              "interval": 1.05
+            }
+          ],
+          "id": "s9-w4",
+          "label": "4 파동",
+          "reward": 73
+        },
+        {
+          "entries": [
+            {
+              "count": 14,
+              "enemy": "cloudray",
+              "interval": 0.625,
+              "modifiers": [
+                "magic_resist"
+              ]
+            },
+            {
+              "count": 6,
+              "delay": 1.5,
+              "enemy": "ironroot",
+              "interval": 1.05
+            }
+          ],
+          "id": "s9-w5",
+          "label": "5 파동",
+          "reward": 76
+        },
+        {
+          "entries": [
+            {
+              "count": 15,
+              "enemy": "bloomseer",
+              "interval": 0.625,
+              "modifiers": [
+                "stealth"
+              ]
+            },
+            {
+              "count": 6,
+              "delay": 1.5,
+              "enemy": "veilrunner",
+              "interval": 1.05
+            }
+          ],
+          "id": "s9-w6",
+          "label": "6 파동",
+          "reward": 79
+        },
+        {
+          "entries": [
+            {
+              "count": 16,
+              "enemy": "shardling",
+              "interval": 0.625,
+              "modifiers": [
+                "berserk"
+              ]
+            },
+            {
+              "count": 7,
+              "delay": 1.5,
+              "enemy": "rammer",
+              "interval": 1.05
+            }
+          ],
+          "id": "s9-w7",
+          "label": "7 파동",
+          "reward": 82
+        },
+        {
+          "entries": [
+            {
+              "count": 17,
+              "enemy": "ironroot",
+              "interval": 0.625,
+              "modifiers": [
+                "immune_stun"
+              ]
+            },
+            {
+              "count": 7,
+              "delay": 1.5,
+              "enemy": "rimeheart",
+              "interval": 1.05
+            }
+          ],
+          "id": "s9-w8",
+          "label": "8 파동",
+          "reward": 85
+        },
+        {
+          "entries": [
+            {
+              "count": 17,
+              "enemy": "veilrunner",
+              "interval": 0.625,
+              "modifiers": [
+                "magic_resist"
+              ]
+            },
+            {
+              "count": 7,
+              "delay": 1.5,
+              "enemy": "mireling",
+              "interval": 1.05
+            }
+          ],
+          "id": "s9-w9",
+          "label": "9 파동",
+          "reward": 88
+        },
+        {
+          "entries": [
+            {
+              "count": 18,
+              "enemy": "rammer",
+              "interval": 0.625,
+              "modifiers": [
+                "stealth"
+              ]
+            },
+            {
+              "count": 8,
+              "delay": 1.5,
+              "enemy": "thornback",
+              "interval": 1.05
+            }
+          ],
+          "id": "s9-w10",
+          "label": "10 파동",
+          "reward": 91
+        },
+        {
+          "entries": [
+            {
+              "count": 19,
+              "enemy": "rimeheart",
+              "interval": 0.625,
+              "modifiers": [
+                "berserk"
+              ]
+            },
+            {
+              "count": 8,
+              "delay": 1.5,
+              "enemy": "glintfox",
+              "interval": 1.05
+            }
+          ],
+          "id": "s9-w11",
+          "label": "11 파동",
+          "reward": 94
+        },
+        {
+          "entries": [
+            {
+              "count": 20,
+              "enemy": "mireling",
+              "interval": 0.625,
+              "modifiers": [
+                "immune_stun"
+              ]
+            },
+            {
+              "count": 8,
+              "delay": 1.5,
+              "enemy": "cloudray",
+              "interval": 1.05
+            }
+          ],
+          "id": "s9-w12",
+          "label": "12 파동",
+          "reward": 97
+        },
+        {
+          "entries": [
+            {
+              "count": 20,
+              "enemy": "thornback",
+              "interval": 0.625,
+              "modifiers": [
+                "magic_resist"
+              ]
+            },
+            {
+              "count": 9,
+              "delay": 1.5,
+              "enemy": "bloomseer",
+              "interval": 1.05
+            }
+          ],
+          "id": "s9-w13",
+          "label": "13 파동",
+          "reward": 100
+        }
+      ]
+    },
+    {
+      "id": "stage-10",
+      "lives": 20,
+      "mode": "campaign",
+      "name": "새벽 없는 왕좌",
+      "number": 10,
+      "path": [
+        {
+          "x": -30,
+          "y": 150
+        },
+        {
+          "x": 250,
+          "y": 150
+        },
+        {
+          "x": 360,
+          "y": 350
+        },
+        {
+          "x": 640,
+          "y": 350
+        },
+        {
+          "x": 760,
+          "y": 560
+        },
+        {
+          "x": 990,
+          "y": 560
+        },
+        {
+          "x": 1080,
+          "y": 270
+        },
+        {
+          "x": 1310,
+          "y": 270
+        }
+      ],
+      "starting_gold": 380,
+      "subtitle": "Realm의 운명을 건 수호전",
+      "theme": "void",
+      "tower_spots": [
+        {
+          "id": "s10-spot-1",
+          "x": 140,
+          "y": 260
+        },
+        {
+          "id": "s10-spot-2",
+          "x": 310,
+          "y": 190
+        },
+        {
+          "id": "s10-spot-3",
+          "x": 430,
+          "y": 450
+        },
+        {
+          "id": "s10-spot-4",
+          "x": 570,
+          "y": 250
+        },
+        {
+          "id": "s10-spot-5",
+          "x": 700,
+          "y": 460
+        },
+        {
+          "id": "s10-spot-6",
+          "x": 850,
+          "y": 620
+        },
+        {
+          "id": "s10-spot-7",
+          "x": 970,
+          "y": 430
+        },
+        {
+          "id": "s10-spot-8",
+          "x": 1130,
+          "y": 180
+        }
+      ],
+      "version": "1.10.0",
+      "waves": [
+        {
+          "entries": [
+            {
+              "count": 12,
+              "enemy": "mireling",
+              "interval": 0.6,
+              "modifiers": [
+                "magic_resist"
+              ]
+            }
+          ],
+          "id": "s10-w1",
+          "label": "1 파동",
+          "reward": 68
+        },
+        {
+          "entries": [
+            {
+              "count": 13,
+              "enemy": "thornback",
+              "interval": 0.6,
+              "modifiers": [
+                "stealth"
+              ]
+            }
+          ],
+          "id": "s10-w2",
+          "label": "2 파동",
+          "reward": 71
+        },
+        {
+          "entries": [
+            {
+              "count": 14,
+              "enemy": "glintfox",
+              "interval": 0.6,
+              "modifiers": [
+                "berserk"
+              ]
+            },
+            {
+              "count": 6,
+              "delay": 1.5,
+              "enemy": "shardling",
+              "interval": 1.05
+            }
+          ],
+          "id": "s10-w3",
+          "label": "3 파동",
+          "reward": 74
+        },
+        {
+          "entries": [
+            {
+              "count": 14,
+              "enemy": "cloudray",
+              "interval": 0.6,
+              "modifiers": [
+                "immune_stun"
+              ]
+            },
+            {
+              "count": 6,
+              "delay": 1.5,
+              "enemy": "ironroot",
+              "interval": 1.05
+            }
+          ],
+          "id": "s10-w4",
+          "label": "4 파동",
+          "reward": 77
+        },
+        {
+          "entries": [
+            {
+              "count": 15,
+              "enemy": "bloomseer",
+              "interval": 0.6,
+              "modifiers": [
+                "magic_resist"
+              ]
+            },
+            {
+              "count": 6,
+              "delay": 1.5,
+              "enemy": "veilrunner",
+              "interval": 1.05
+            }
+          ],
+          "id": "s10-w5",
+          "label": "5 파동",
+          "reward": 80
+        },
+        {
+          "entries": [
+            {
+              "count": 16,
+              "enemy": "shardling",
+              "interval": 0.6,
+              "modifiers": [
+                "stealth"
+              ]
+            },
+            {
+              "count": 7,
+              "delay": 1.5,
+              "enemy": "rammer",
+              "interval": 1.05
+            }
+          ],
+          "id": "s10-w6",
+          "label": "6 파동",
+          "reward": 83
+        },
+        {
+          "entries": [
+            {
+              "count": 17,
+              "enemy": "ironroot",
+              "interval": 0.6,
+              "modifiers": [
+                "berserk"
+              ]
+            },
+            {
+              "count": 7,
+              "delay": 1.5,
+              "enemy": "rimeheart",
+              "interval": 1.05
+            }
+          ],
+          "id": "s10-w7",
+          "label": "7 파동",
+          "reward": 86
+        },
+        {
+          "entries": [
+            {
+              "count": 17,
+              "enemy": "veilrunner",
+              "interval": 0.6,
+              "modifiers": [
+                "immune_stun"
+              ]
+            },
+            {
+              "count": 7,
+              "delay": 1.5,
+              "enemy": "mireling",
+              "interval": 1.05
+            }
+          ],
+          "id": "s10-w8",
+          "label": "8 파동",
+          "reward": 89
+        },
+        {
+          "entries": [
+            {
+              "count": 18,
+              "enemy": "rammer",
+              "interval": 0.6,
+              "modifiers": [
+                "magic_resist"
+              ]
+            },
+            {
+              "count": 8,
+              "delay": 1.5,
+              "enemy": "thornback",
+              "interval": 1.05
+            }
+          ],
+          "id": "s10-w9",
+          "label": "9 파동",
+          "reward": 92
+        },
+        {
+          "entries": [
+            {
+              "count": 19,
+              "enemy": "rimeheart",
+              "interval": 0.6,
+              "modifiers": [
+                "stealth"
+              ]
+            },
+            {
+              "count": 8,
+              "delay": 1.5,
+              "enemy": "glintfox",
+              "interval": 1.05
+            }
+          ],
+          "id": "s10-w10",
+          "label": "10 파동",
+          "reward": 95
+        },
+        {
+          "entries": [
+            {
+              "count": 20,
+              "enemy": "mireling",
+              "interval": 0.6,
+              "modifiers": [
+                "berserk"
+              ]
+            },
+            {
+              "count": 8,
+              "delay": 1.5,
+              "enemy": "cloudray",
+              "interval": 1.05
+            }
+          ],
+          "id": "s10-w11",
+          "label": "11 파동",
+          "reward": 98
+        },
+        {
+          "entries": [
+            {
+              "count": 20,
+              "enemy": "thornback",
+              "interval": 0.6,
+              "modifiers": [
+                "immune_stun"
+              ]
+            },
+            {
+              "count": 9,
+              "delay": 1.5,
+              "enemy": "bloomseer",
+              "interval": 1.05
+            }
+          ],
+          "id": "s10-w12",
+          "label": "12 파동",
+          "reward": 101
+        },
+        {
+          "entries": [
+            {
+              "count": 21,
+              "enemy": "glintfox",
+              "interval": 0.6,
+              "modifiers": [
+                "magic_resist"
+              ]
+            },
+            {
+              "count": 9,
+              "delay": 1.5,
+              "enemy": "shardling",
+              "interval": 1.05
+            },
+            {
+              "count": 1,
+              "delay": 2,
+              "enemy": "timewyrm",
+              "interval": 1.5
+            }
+          ],
+          "id": "s10-w13",
+          "label": "13 파동",
+          "reward": 104
+        }
+      ]
+    },
+    {
+      "id": "endless-rift",
+      "lives": 25,
+      "mode": "endless",
+      "name": "끝없는 균열",
+      "number": 11,
+      "path": [
+        {
+          "x": -30,
+          "y": 360
+        },
+        {
+          "x": 180,
+          "y": 360
+        },
+        {
+          "x": 310,
+          "y": 130
+        },
+        {
+          "x": 530,
+          "y": 130
+        },
+        {
+          "x": 650,
+          "y": 500
+        },
+        {
+          "x": 880,
+          "y": 500
+        },
+        {
+          "x": 1020,
+          "y": 260
+        },
+        {
+          "x": 1310,
+          "y": 260
+        }
+      ],
+      "starting_gold": 420,
+      "subtitle": "한계 없이 밀려오는 장막",
+      "theme": "void",
+      "tower_spots": [
+        {
+          "id": "endless-spot-1",
+          "x": 140,
+          "y": 260
+        },
+        {
+          "id": "endless-spot-2",
+          "x": 310,
+          "y": 190
+        },
+        {
+          "id": "endless-spot-3",
+          "x": 430,
+          "y": 450
+        },
+        {
+          "id": "endless-spot-4",
+          "x": 570,
+          "y": 250
+        },
+        {
+          "id": "endless-spot-5",
+          "x": 700,
+          "y": 460
+        },
+        {
+          "id": "endless-spot-6",
+          "x": 850,
+          "y": 620
+        },
+        {
+          "id": "endless-spot-7",
+          "x": 970,
+          "y": 430
+        },
+        {
+          "id": "endless-spot-8",
+          "x": 1130,
+          "y": 180
+        }
+      ],
+      "version": "1.0.0",
+      "waves": [
+        {
+          "entries": [
+            {
+              "count": 13,
+              "enemy": "thornback",
+              "interval": 0.575,
+              "modifiers": [
+                "magic_resist"
+              ]
+            }
+          ],
+          "id": "s11-w1",
+          "label": "1 파동",
+          "reward": 72
+        },
+        {
+          "entries": [
+            {
+              "count": 14,
+              "enemy": "glintfox",
+              "interval": 0.575,
+              "modifiers": [
+                "stealth"
+              ]
+            }
+          ],
+          "id": "s11-w2",
+          "label": "2 파동",
+          "reward": 75
+        },
+        {
+          "entries": [
+            {
+              "count": 14,
+              "enemy": "cloudray",
+              "interval": 0.575,
+              "modifiers": [
+                "berserk"
+              ]
+            },
+            {
+              "count": 6,
+              "delay": 1.5,
+              "enemy": "ironroot",
+              "interval": 1.05
+            }
+          ],
+          "id": "s11-w3",
+          "label": "3 파동",
+          "reward": 78
+        },
+        {
+          "entries": [
+            {
+              "count": 15,
+              "enemy": "bloomseer",
+              "interval": 0.575,
+              "modifiers": [
+                "immune_stun"
+              ]
+            },
+            {
+              "count": 6,
+              "delay": 1.5,
+              "enemy": "veilrunner",
+              "interval": 1.05
+            }
+          ],
+          "id": "s11-w4",
+          "label": "4 파동",
+          "reward": 81
+        },
+        {
+          "entries": [
+            {
+              "count": 16,
+              "enemy": "shardling",
+              "interval": 0.575,
+              "modifiers": [
+                "magic_resist"
+              ]
+            },
+            {
+              "count": 7,
+              "delay": 1.5,
+              "enemy": "rammer",
+              "interval": 1.05
+            }
+          ],
+          "id": "s11-w5",
+          "label": "5 파동",
+          "reward": 84
+        },
+        {
+          "entries": [
+            {
+              "count": 17,
+              "enemy": "ironroot",
+              "interval": 0.575,
+              "modifiers": [
+                "stealth"
+              ]
+            },
+            {
+              "count": 7,
+              "delay": 1.5,
+              "enemy": "rimeheart",
+              "interval": 1.05
+            }
+          ],
+          "id": "s11-w6",
+          "label": "6 파동",
+          "reward": 87
+        },
+        {
+          "entries": [
+            {
+              "count": 17,
+              "enemy": "veilrunner",
+              "interval": 0.575,
+              "modifiers": [
+                "berserk"
+              ]
+            },
+            {
+              "count": 7,
+              "delay": 1.5,
+              "enemy": "mireling",
+              "interval": 1.05
+            }
+          ],
+          "id": "s11-w7",
+          "label": "7 파동",
+          "reward": 90
+        },
+        {
+          "entries": [
+            {
+              "count": 18,
+              "enemy": "rammer",
+              "interval": 0.575,
+              "modifiers": [
+                "immune_stun"
+              ]
+            },
+            {
+              "count": 8,
+              "delay": 1.5,
+              "enemy": "thornback",
+              "interval": 1.05
+            }
+          ],
+          "id": "s11-w8",
+          "label": "8 파동",
+          "reward": 93
+        },
+        {
+          "entries": [
+            {
+              "count": 19,
+              "enemy": "rimeheart",
+              "interval": 0.575,
+              "modifiers": [
+                "magic_resist"
+              ]
+            },
+            {
+              "count": 8,
+              "delay": 1.5,
+              "enemy": "glintfox",
+              "interval": 1.05
+            }
+          ],
+          "id": "s11-w9",
+          "label": "9 파동",
+          "reward": 96
+        },
+        {
+          "entries": [
+            {
+              "count": 20,
+              "enemy": "mireling",
+              "interval": 0.575,
+              "modifiers": [
+                "stealth"
+              ]
+            },
+            {
+              "count": 8,
+              "delay": 1.5,
+              "enemy": "cloudray",
+              "interval": 1.05
+            }
+          ],
+          "id": "s11-w10",
+          "label": "10 파동",
+          "reward": 99
+        },
+        {
+          "entries": [
+            {
+              "count": 20,
+              "enemy": "thornback",
+              "interval": 0.575,
+              "modifiers": [
+                "berserk"
+              ]
+            },
+            {
+              "count": 9,
+              "delay": 1.5,
+              "enemy": "bloomseer",
+              "interval": 1.05
+            }
+          ],
+          "id": "s11-w11",
+          "label": "11 파동",
+          "reward": 102
+        },
+        {
+          "entries": [
+            {
+              "count": 21,
+              "enemy": "glintfox",
+              "interval": 0.575,
+              "modifiers": [
+                "immune_stun"
+              ]
+            },
+            {
+              "count": 9,
+              "delay": 1.5,
+              "enemy": "shardling",
+              "interval": 1.05
+            }
+          ],
+          "id": "s11-w12",
+          "label": "12 파동",
+          "reward": 105
+        },
+        {
+          "entries": [
+            {
+              "count": 22,
+              "enemy": "cloudray",
+              "interval": 0.575,
+              "modifiers": [
+                "magic_resist"
+              ]
+            },
+            {
+              "count": 9,
+              "delay": 1.5,
+              "enemy": "ironroot",
+              "interval": 1.05
+            }
+          ],
+          "id": "s11-w13",
+          "label": "13 파동",
+          "reward": 108
+        },
+        {
+          "entries": [
+            {
+              "count": 23,
+              "enemy": "bloomseer",
+              "interval": 0.575,
+              "modifiers": [
+                "stealth"
+              ]
+            },
+            {
+              "count": 10,
+              "delay": 1.5,
+              "enemy": "veilrunner",
+              "interval": 1.05
+            }
+          ],
+          "id": "s11-w14",
+          "label": "14 파동",
+          "reward": 111
+        },
+        {
+          "entries": [
+            {
+              "count": 23,
+              "enemy": "shardling",
+              "interval": 0.575,
+              "modifiers": [
+                "berserk"
+              ]
+            },
+            {
+              "count": 10,
+              "delay": 1.5,
+              "enemy": "rammer",
+              "interval": 1.05
+            }
+          ],
+          "id": "s11-w15",
+          "label": "15 파동",
+          "reward": 114
+        }
+      ]
+    }
+  ],
+  "towers": [
+    {
+      "branches": [
+        {
+          "description": "공격 속도와 관통 강화",
+          "id": "dawn_volley",
+          "name": "여명 연사",
+          "pierce": 2,
+          "rate_multiplier": 0.58
+        },
+        {
+          "damage_multiplier": 1.75,
+          "description": "사거리와 치명 피해 강화",
+          "id": "eagle_oath",
+          "name": "독수리 맹세",
+          "range_multiplier": 1.35
+        }
+      ],
+      "color": 16762967,
+      "cost": 75,
+      "damage": 18,
+      "damage_type": "physical",
+      "fire_rate": 0.52,
+      "id": "sunspire",
+      "name": "태양첨탑",
+      "projectile_speed": 440,
+      "range": 150,
+      "role": "빠른 단일 사격"
+    },
+    {
+      "branches": [
+        {
+          "damage_multiplier": 1.55,
+          "description": "주변 적에게 연쇄 피해",
+          "id": "star_lattice",
+          "name": "별 격자",
+          "splash": 58
+        },
+        {
+          "damage_multiplier": 1.85,
+          "description": "강한 적 방어 관통",
+          "id": "null_petal",
+          "name": "무효의 꽃잎",
+          "pierce": 3
+        }
+      ],
+      "color": 13016319,
+      "cost": 105,
+      "damage": 33,
+      "damage_type": "arcane",
+      "fire_rate": 0.92,
+      "id": "runebloom",
+      "name": "룬꽃 정원",
+      "projectile_speed": 360,
+      "range": 138,
+      "role": "방어 무시 비전 공격"
+    },
+    {
+      "branches": [
+        {
+          "damage_multiplier": 1.5,
+          "description": "거대한 폭발 반경",
+          "id": "quake_drum",
+          "name": "지진북",
+          "splash": 96
+        },
+        {
+          "damage_multiplier": 1.9,
+          "description": "집중 고열탄",
+          "id": "ember_core",
+          "name": "잿불핵",
+          "splash": 44
+        }
+      ],
+      "color": 15238236,
+      "cost": 125,
+      "damage": 62,
+      "damage_type": "siege",
+      "fire_rate": 1.55,
+      "id": "stonepulse",
+      "name": "석맥 포대",
+      "projectile_speed": 290,
+      "range": 170,
+      "role": "느린 광역 포격"
+    },
+    {
+      "branches": [
+        {
+          "damage_multiplier": 1.35,
+          "description": "강력한 지상 저지와 방어",
+          "id": "shield_line",
+          "name": "방패선",
+          "slow": 0.34
+        },
+        {
+          "damage_multiplier": 1.55,
+          "description": "비행 대응과 빠른 공격",
+          "id": "skyrider_watch",
+          "name": "하늘기수 초소",
+          "range_multiplier": 1.45,
+          "rate_multiplier": 0.58
+        }
+      ],
+      "color": 6937828,
+      "cost": 95,
+      "damage": 16,
+      "damage_type": "physical",
+      "fire_rate": 0.72,
+      "id": "windward",
+      "name": "바람수호 병영",
+      "projectile_speed": 390,
+      "range": 92,
+      "role": "병사 소환·길목 저지"
+    }
+  ],
+  "version": {
+    "asset_version": "procedural-2",
+    "balance_version": "2026.08.2",
+    "checksum": "f833615895fdf95eb42e19e1cd3c530243c23657f42c2408cf92db531c08aa22",
+    "content_version": "0.3.1",
+    "id": "4dcf1390-f4e9-4709-8011-03bcfe0597be",
+    "label": "v0.3.1",
+    "stage_version": "2026.08.1",
+    "status": "published",
+    "version_no": 3
+  },
+  "waves": [
+    {
+      "entries": [
+        {
+          "count": 13,
+          "enemy": "thornback",
+          "interval": 0.575,
+          "modifiers": [
+            "magic_resist"
+          ]
+        }
+      ],
+      "id": "s11-w1",
+      "label": "1 파동",
+      "number": 1,
+      "reward": 72,
+      "stage_id": "endless-rift"
+    },
+    {
+      "entries": [
+        {
+          "count": 14,
+          "enemy": "glintfox",
+          "interval": 0.575,
+          "modifiers": [
+            "stealth"
+          ]
+        }
+      ],
+      "id": "s11-w2",
+      "label": "2 파동",
+      "number": 2,
+      "reward": 75,
+      "stage_id": "endless-rift"
+    },
+    {
+      "entries": [
+        {
+          "count": 14,
+          "enemy": "cloudray",
+          "interval": 0.575,
+          "modifiers": [
+            "berserk"
+          ]
+        },
+        {
+          "count": 6,
+          "delay": 1.5,
+          "enemy": "ironroot",
+          "interval": 1.05
+        }
+      ],
+      "id": "s11-w3",
+      "label": "3 파동",
+      "number": 3,
+      "reward": 78,
+      "stage_id": "endless-rift"
+    },
+    {
+      "entries": [
+        {
+          "count": 15,
+          "enemy": "bloomseer",
+          "interval": 0.575,
+          "modifiers": [
+            "immune_stun"
+          ]
+        },
+        {
+          "count": 6,
+          "delay": 1.5,
+          "enemy": "veilrunner",
+          "interval": 1.05
+        }
+      ],
+      "id": "s11-w4",
+      "label": "4 파동",
+      "number": 4,
+      "reward": 81,
+      "stage_id": "endless-rift"
+    },
+    {
+      "entries": [
+        {
+          "count": 16,
+          "enemy": "shardling",
+          "interval": 0.575,
+          "modifiers": [
+            "magic_resist"
+          ]
+        },
+        {
+          "count": 7,
+          "delay": 1.5,
+          "enemy": "rammer",
+          "interval": 1.05
+        }
+      ],
+      "id": "s11-w5",
+      "label": "5 파동",
+      "number": 5,
+      "reward": 84,
+      "stage_id": "endless-rift"
+    },
+    {
+      "entries": [
+        {
+          "count": 17,
+          "enemy": "ironroot",
+          "interval": 0.575,
+          "modifiers": [
+            "stealth"
+          ]
+        },
+        {
+          "count": 7,
+          "delay": 1.5,
+          "enemy": "rimeheart",
+          "interval": 1.05
+        }
+      ],
+      "id": "s11-w6",
+      "label": "6 파동",
+      "number": 6,
+      "reward": 87,
+      "stage_id": "endless-rift"
+    },
+    {
+      "entries": [
+        {
+          "count": 17,
+          "enemy": "veilrunner",
+          "interval": 0.575,
+          "modifiers": [
+            "berserk"
+          ]
+        },
+        {
+          "count": 7,
+          "delay": 1.5,
+          "enemy": "mireling",
+          "interval": 1.05
+        }
+      ],
+      "id": "s11-w7",
+      "label": "7 파동",
+      "number": 7,
+      "reward": 90,
+      "stage_id": "endless-rift"
+    },
+    {
+      "entries": [
+        {
+          "count": 18,
+          "enemy": "rammer",
+          "interval": 0.575,
+          "modifiers": [
+            "immune_stun"
+          ]
+        },
+        {
+          "count": 8,
+          "delay": 1.5,
+          "enemy": "thornback",
+          "interval": 1.05
+        }
+      ],
+      "id": "s11-w8",
+      "label": "8 파동",
+      "number": 8,
+      "reward": 93,
+      "stage_id": "endless-rift"
+    },
+    {
+      "entries": [
+        {
+          "count": 19,
+          "enemy": "rimeheart",
+          "interval": 0.575,
+          "modifiers": [
+            "magic_resist"
+          ]
+        },
+        {
+          "count": 8,
+          "delay": 1.5,
+          "enemy": "glintfox",
+          "interval": 1.05
+        }
+      ],
+      "id": "s11-w9",
+      "label": "9 파동",
+      "number": 9,
+      "reward": 96,
+      "stage_id": "endless-rift"
+    },
+    {
+      "entries": [
+        {
+          "count": 20,
+          "enemy": "mireling",
+          "interval": 0.575,
+          "modifiers": [
+            "stealth"
+          ]
+        },
+        {
+          "count": 8,
+          "delay": 1.5,
+          "enemy": "cloudray",
+          "interval": 1.05
+        }
+      ],
+      "id": "s11-w10",
+      "label": "10 파동",
+      "number": 10,
+      "reward": 99,
+      "stage_id": "endless-rift"
+    },
+    {
+      "entries": [
+        {
+          "count": 20,
+          "enemy": "thornback",
+          "interval": 0.575,
+          "modifiers": [
+            "berserk"
+          ]
+        },
+        {
+          "count": 9,
+          "delay": 1.5,
+          "enemy": "bloomseer",
+          "interval": 1.05
+        }
+      ],
+      "id": "s11-w11",
+      "label": "11 파동",
+      "number": 11,
+      "reward": 102,
+      "stage_id": "endless-rift"
+    },
+    {
+      "entries": [
+        {
+          "count": 21,
+          "enemy": "glintfox",
+          "interval": 0.575,
+          "modifiers": [
+            "immune_stun"
+          ]
+        },
+        {
+          "count": 9,
+          "delay": 1.5,
+          "enemy": "shardling",
+          "interval": 1.05
+        }
+      ],
+      "id": "s11-w12",
+      "label": "12 파동",
+      "number": 12,
+      "reward": 105,
+      "stage_id": "endless-rift"
+    },
+    {
+      "entries": [
+        {
+          "count": 22,
+          "enemy": "cloudray",
+          "interval": 0.575,
+          "modifiers": [
+            "magic_resist"
+          ]
+        },
+        {
+          "count": 9,
+          "delay": 1.5,
+          "enemy": "ironroot",
+          "interval": 1.05
+        }
+      ],
+      "id": "s11-w13",
+      "label": "13 파동",
+      "number": 13,
+      "reward": 108,
+      "stage_id": "endless-rift"
+    },
+    {
+      "entries": [
+        {
+          "count": 23,
+          "enemy": "bloomseer",
+          "interval": 0.575,
+          "modifiers": [
+            "stealth"
+          ]
+        },
+        {
+          "count": 10,
+          "delay": 1.5,
+          "enemy": "veilrunner",
+          "interval": 1.05
+        }
+      ],
+      "id": "s11-w14",
+      "label": "14 파동",
+      "number": 14,
+      "reward": 111,
+      "stage_id": "endless-rift"
+    },
+    {
+      "entries": [
+        {
+          "count": 23,
+          "enemy": "shardling",
+          "interval": 0.575,
+          "modifiers": [
+            "berserk"
+          ]
+        },
+        {
+          "count": 10,
+          "delay": 1.5,
+          "enemy": "rammer",
+          "interval": 1.05
+        }
+      ],
+      "id": "s11-w15",
+      "label": "15 파동",
+      "number": 15,
+      "reward": 114,
+      "stage_id": "endless-rift"
+    },
+    {
+      "entries": [
+        {
+          "count": 5,
+          "enemy": "thornback",
+          "interval": 0.825,
+          "modifiers": []
+        }
+      ],
+      "id": "s1-w1",
+      "label": "1 파동",
+      "number": 1,
+      "reward": 32,
+      "stage_id": "stage-1"
+    },
+    {
+      "entries": [
+        {
+          "count": 6,
+          "enemy": "glintfox",
+          "interval": 0.825,
+          "modifiers": []
+        }
+      ],
+      "id": "s1-w2",
+      "label": "2 파동",
+      "number": 2,
+      "reward": 35,
+      "stage_id": "stage-1"
+    },
+    {
+      "entries": [
+        {
+          "count": 7,
+          "enemy": "mireling",
+          "interval": 0.825,
+          "modifiers": []
+        },
+        {
+          "count": 3,
+          "delay": 1.5,
+          "enemy": "mireling",
+          "interval": 1.05
+        }
+      ],
+      "id": "s1-w3",
+      "label": "3 파동",
+      "number": 3,
+      "reward": 38,
+      "stage_id": "stage-1"
+    },
+    {
+      "entries": [
+        {
+          "count": 8,
+          "enemy": "thornback",
+          "interval": 0.825,
+          "modifiers": []
+        },
+        {
+          "count": 3,
+          "delay": 1.5,
+          "enemy": "thornback",
+          "interval": 1.05
+        }
+      ],
+      "id": "s1-w4",
+      "label": "4 파동",
+      "number": 4,
+      "reward": 41,
+      "stage_id": "stage-1"
+    },
+    {
+      "entries": [
+        {
+          "count": 8,
+          "enemy": "glintfox",
+          "interval": 0.825,
+          "modifiers": []
+        },
+        {
+          "count": 3,
+          "delay": 1.5,
+          "enemy": "glintfox",
+          "interval": 1.05
+        }
+      ],
+      "id": "s1-w5",
+      "label": "5 파동",
+      "number": 5,
+      "reward": 44,
+      "stage_id": "stage-1"
+    },
+    {
+      "entries": [
+        {
+          "count": 9,
+          "enemy": "mireling",
+          "interval": 0.825,
+          "modifiers": []
+        },
+        {
+          "count": 4,
+          "delay": 1.5,
+          "enemy": "mireling",
+          "interval": 1.05
+        }
+      ],
+      "id": "s1-w6",
+      "label": "6 파동",
+      "number": 6,
+      "reward": 47,
+      "stage_id": "stage-1"
+    },
+    {
+      "entries": [
+        {
+          "count": 10,
+          "enemy": "thornback",
+          "interval": 0.825,
+          "modifiers": []
+        },
+        {
+          "count": 4,
+          "delay": 1.5,
+          "enemy": "thornback",
+          "interval": 1.05
+        }
+      ],
+      "id": "s1-w7",
+      "label": "7 파동",
+      "number": 7,
+      "reward": 50,
+      "stage_id": "stage-1"
+    },
+    {
+      "entries": [
+        {
+          "count": 11,
+          "enemy": "glintfox",
+          "interval": 0.825,
+          "modifiers": []
+        },
+        {
+          "count": 4,
+          "delay": 1.5,
+          "enemy": "glintfox",
+          "interval": 1.05
+        }
+      ],
+      "id": "s1-w8",
+      "label": "8 파동",
+      "number": 8,
+      "reward": 53,
+      "stage_id": "stage-1"
+    },
+    {
+      "entries": [
+        {
+          "count": 11,
+          "enemy": "mireling",
+          "interval": 0.825,
+          "modifiers": []
+        },
+        {
+          "count": 5,
+          "delay": 1.5,
+          "enemy": "mireling",
+          "interval": 1.05
+        }
+      ],
+      "id": "s1-w9",
+      "label": "9 파동",
+      "number": 9,
+      "reward": 56,
+      "stage_id": "stage-1"
+    },
+    {
+      "entries": [
+        {
+          "count": 12,
+          "enemy": "mireling",
+          "interval": 0.6,
+          "modifiers": [
+            "magic_resist"
+          ]
+        }
+      ],
+      "id": "s10-w1",
+      "label": "1 파동",
+      "number": 1,
+      "reward": 68,
+      "stage_id": "stage-10"
+    },
+    {
+      "entries": [
+        {
+          "count": 13,
+          "enemy": "thornback",
+          "interval": 0.6,
+          "modifiers": [
+            "stealth"
+          ]
+        }
+      ],
+      "id": "s10-w2",
+      "label": "2 파동",
+      "number": 2,
+      "reward": 71,
+      "stage_id": "stage-10"
+    },
+    {
+      "entries": [
+        {
+          "count": 14,
+          "enemy": "glintfox",
+          "interval": 0.6,
+          "modifiers": [
+            "berserk"
+          ]
+        },
+        {
+          "count": 6,
+          "delay": 1.5,
+          "enemy": "shardling",
+          "interval": 1.05
+        }
+      ],
+      "id": "s10-w3",
+      "label": "3 파동",
+      "number": 3,
+      "reward": 74,
+      "stage_id": "stage-10"
+    },
+    {
+      "entries": [
+        {
+          "count": 14,
+          "enemy": "cloudray",
+          "interval": 0.6,
+          "modifiers": [
+            "immune_stun"
+          ]
+        },
+        {
+          "count": 6,
+          "delay": 1.5,
+          "enemy": "ironroot",
+          "interval": 1.05
+        }
+      ],
+      "id": "s10-w4",
+      "label": "4 파동",
+      "number": 4,
+      "reward": 77,
+      "stage_id": "stage-10"
+    },
+    {
+      "entries": [
+        {
+          "count": 15,
+          "enemy": "bloomseer",
+          "interval": 0.6,
+          "modifiers": [
+            "magic_resist"
+          ]
+        },
+        {
+          "count": 6,
+          "delay": 1.5,
+          "enemy": "veilrunner",
+          "interval": 1.05
+        }
+      ],
+      "id": "s10-w5",
+      "label": "5 파동",
+      "number": 5,
+      "reward": 80,
+      "stage_id": "stage-10"
+    },
+    {
+      "entries": [
+        {
+          "count": 16,
+          "enemy": "shardling",
+          "interval": 0.6,
+          "modifiers": [
+            "stealth"
+          ]
+        },
+        {
+          "count": 7,
+          "delay": 1.5,
+          "enemy": "rammer",
+          "interval": 1.05
+        }
+      ],
+      "id": "s10-w6",
+      "label": "6 파동",
+      "number": 6,
+      "reward": 83,
+      "stage_id": "stage-10"
+    },
+    {
+      "entries": [
+        {
+          "count": 17,
+          "enemy": "ironroot",
+          "interval": 0.6,
+          "modifiers": [
+            "berserk"
+          ]
+        },
+        {
+          "count": 7,
+          "delay": 1.5,
+          "enemy": "rimeheart",
+          "interval": 1.05
+        }
+      ],
+      "id": "s10-w7",
+      "label": "7 파동",
+      "number": 7,
+      "reward": 86,
+      "stage_id": "stage-10"
+    },
+    {
+      "entries": [
+        {
+          "count": 17,
+          "enemy": "veilrunner",
+          "interval": 0.6,
+          "modifiers": [
+            "immune_stun"
+          ]
+        },
+        {
+          "count": 7,
+          "delay": 1.5,
+          "enemy": "mireling",
+          "interval": 1.05
+        }
+      ],
+      "id": "s10-w8",
+      "label": "8 파동",
+      "number": 8,
+      "reward": 89,
+      "stage_id": "stage-10"
+    },
+    {
+      "entries": [
+        {
+          "count": 18,
+          "enemy": "rammer",
+          "interval": 0.6,
+          "modifiers": [
+            "magic_resist"
+          ]
+        },
+        {
+          "count": 8,
+          "delay": 1.5,
+          "enemy": "thornback",
+          "interval": 1.05
+        }
+      ],
+      "id": "s10-w9",
+      "label": "9 파동",
+      "number": 9,
+      "reward": 92,
+      "stage_id": "stage-10"
+    },
+    {
+      "entries": [
+        {
+          "count": 19,
+          "enemy": "rimeheart",
+          "interval": 0.6,
+          "modifiers": [
+            "stealth"
+          ]
+        },
+        {
+          "count": 8,
+          "delay": 1.5,
+          "enemy": "glintfox",
+          "interval": 1.05
+        }
+      ],
+      "id": "s10-w10",
+      "label": "10 파동",
+      "number": 10,
+      "reward": 95,
+      "stage_id": "stage-10"
+    },
+    {
+      "entries": [
+        {
+          "count": 20,
+          "enemy": "mireling",
+          "interval": 0.6,
+          "modifiers": [
+            "berserk"
+          ]
+        },
+        {
+          "count": 8,
+          "delay": 1.5,
+          "enemy": "cloudray",
+          "interval": 1.05
+        }
+      ],
+      "id": "s10-w11",
+      "label": "11 파동",
+      "number": 11,
+      "reward": 98,
+      "stage_id": "stage-10"
+    },
+    {
+      "entries": [
+        {
+          "count": 20,
+          "enemy": "thornback",
+          "interval": 0.6,
+          "modifiers": [
+            "immune_stun"
+          ]
+        },
+        {
+          "count": 9,
+          "delay": 1.5,
+          "enemy": "bloomseer",
+          "interval": 1.05
+        }
+      ],
+      "id": "s10-w12",
+      "label": "12 파동",
+      "number": 12,
+      "reward": 101,
+      "stage_id": "stage-10"
+    },
+    {
+      "entries": [
+        {
+          "count": 21,
+          "enemy": "glintfox",
+          "interval": 0.6,
+          "modifiers": [
+            "magic_resist"
+          ]
+        },
+        {
+          "count": 9,
+          "delay": 1.5,
+          "enemy": "shardling",
+          "interval": 1.05
+        },
+        {
+          "count": 1,
+          "delay": 2,
+          "enemy": "timewyrm",
+          "interval": 1.5
+        }
+      ],
+      "id": "s10-w13",
+      "label": "13 파동",
+      "number": 13,
+      "reward": 104,
+      "stage_id": "stage-10"
+    },
+    {
+      "entries": [
+        {
+          "count": 6,
+          "enemy": "glintfox",
+          "interval": 0.8,
+          "modifiers": []
+        }
+      ],
+      "id": "s2-w1",
+      "label": "1 파동",
+      "number": 1,
+      "reward": 36,
+      "stage_id": "stage-2"
+    },
+    {
+      "entries": [
+        {
+          "count": 7,
+          "enemy": "cloudray",
+          "interval": 0.8,
+          "modifiers": []
+        }
+      ],
+      "id": "s2-w2",
+      "label": "2 파동",
+      "number": 2,
+      "reward": 39,
+      "stage_id": "stage-2"
+    },
+    {
+      "entries": [
+        {
+          "count": 8,
+          "enemy": "mireling",
+          "interval": 0.8,
+          "modifiers": []
+        },
+        {
+          "count": 3,
+          "delay": 1.5,
+          "enemy": "cloudray",
+          "interval": 1.05
+        }
+      ],
+      "id": "s2-w3",
+      "label": "3 파동",
+      "number": 3,
+      "reward": 42,
+      "stage_id": "stage-2"
+    },
+    {
+      "entries": [
+        {
+          "count": 8,
+          "enemy": "thornback",
+          "interval": 0.8,
+          "modifiers": []
+        },
+        {
+          "count": 3,
+          "delay": 1.5,
+          "enemy": "mireling",
+          "interval": 1.05
+        }
+      ],
+      "id": "s2-w4",
+      "label": "4 파동",
+      "number": 4,
+      "reward": 45,
+      "stage_id": "stage-2"
+    },
+    {
+      "entries": [
+        {
+          "count": 9,
+          "enemy": "glintfox",
+          "interval": 0.8,
+          "modifiers": []
+        },
+        {
+          "count": 4,
+          "delay": 1.5,
+          "enemy": "thornback",
+          "interval": 1.05
+        }
+      ],
+      "id": "s2-w5",
+      "label": "5 파동",
+      "number": 5,
+      "reward": 48,
+      "stage_id": "stage-2"
+    },
+    {
+      "entries": [
+        {
+          "count": 10,
+          "enemy": "cloudray",
+          "interval": 0.8,
+          "modifiers": []
+        },
+        {
+          "count": 4,
+          "delay": 1.5,
+          "enemy": "glintfox",
+          "interval": 1.05
+        }
+      ],
+      "id": "s2-w6",
+      "label": "6 파동",
+      "number": 6,
+      "reward": 51,
+      "stage_id": "stage-2"
+    },
+    {
+      "entries": [
+        {
+          "count": 11,
+          "enemy": "mireling",
+          "interval": 0.8,
+          "modifiers": []
+        },
+        {
+          "count": 4,
+          "delay": 1.5,
+          "enemy": "cloudray",
+          "interval": 1.05
+        }
+      ],
+      "id": "s2-w7",
+      "label": "7 파동",
+      "number": 7,
+      "reward": 54,
+      "stage_id": "stage-2"
+    },
+    {
+      "entries": [
+        {
+          "count": 11,
+          "enemy": "thornback",
+          "interval": 0.8,
+          "modifiers": []
+        },
+        {
+          "count": 5,
+          "delay": 1.5,
+          "enemy": "mireling",
+          "interval": 1.05
+        }
+      ],
+      "id": "s2-w8",
+      "label": "8 파동",
+      "number": 8,
+      "reward": 57,
+      "stage_id": "stage-2"
+    },
+    {
+      "entries": [
+        {
+          "count": 12,
+          "enemy": "glintfox",
+          "interval": 0.8,
+          "modifiers": []
+        },
+        {
+          "count": 5,
+          "delay": 1.5,
+          "enemy": "thornback",
+          "interval": 1.05
+        }
+      ],
+      "id": "s2-w9",
+      "label": "9 파동",
+      "number": 9,
+      "reward": 60,
+      "stage_id": "stage-2"
+    },
+    {
+      "entries": [
+        {
+          "count": 7,
+          "enemy": "cloudray",
+          "interval": 0.775,
+          "modifiers": []
+        }
+      ],
+      "id": "s3-w1",
+      "label": "1 파동",
+      "number": 1,
+      "reward": 40,
+      "stage_id": "stage-3"
+    },
+    {
+      "entries": [
+        {
+          "count": 8,
+          "enemy": "bloomseer",
+          "interval": 0.775,
+          "modifiers": []
+        }
+      ],
+      "id": "s3-w2",
+      "label": "2 파동",
+      "number": 2,
+      "reward": 43,
+      "stage_id": "stage-3"
+    },
+    {
+      "entries": [
+        {
+          "count": 8,
+          "enemy": "mireling",
+          "interval": 0.775,
+          "modifiers": []
+        },
+        {
+          "count": 3,
+          "delay": 1.5,
+          "enemy": "cloudray",
+          "interval": 1.05
+        }
+      ],
+      "id": "s3-w3",
+      "label": "3 파동",
+      "number": 3,
+      "reward": 46,
+      "stage_id": "stage-3"
+    },
+    {
+      "entries": [
+        {
+          "count": 9,
+          "enemy": "thornback",
+          "interval": 0.775,
+          "modifiers": []
+        },
+        {
+          "count": 4,
+          "delay": 1.5,
+          "enemy": "bloomseer",
+          "interval": 1.05
+        }
+      ],
+      "id": "s3-w4",
+      "label": "4 파동",
+      "number": 4,
+      "reward": 49,
+      "stage_id": "stage-3"
+    },
+    {
+      "entries": [
+        {
+          "count": 10,
+          "enemy": "glintfox",
+          "interval": 0.775,
+          "modifiers": []
+        },
+        {
+          "count": 4,
+          "delay": 1.5,
+          "enemy": "mireling",
+          "interval": 1.05
+        }
+      ],
+      "id": "s3-w5",
+      "label": "5 파동",
+      "number": 5,
+      "reward": 52,
+      "stage_id": "stage-3"
+    },
+    {
+      "entries": [
+        {
+          "count": 11,
+          "enemy": "cloudray",
+          "interval": 0.775,
+          "modifiers": []
+        },
+        {
+          "count": 4,
+          "delay": 1.5,
+          "enemy": "thornback",
+          "interval": 1.05
+        }
+      ],
+      "id": "s3-w6",
+      "label": "6 파동",
+      "number": 6,
+      "reward": 55,
+      "stage_id": "stage-3"
+    },
+    {
+      "entries": [
+        {
+          "count": 11,
+          "enemy": "bloomseer",
+          "interval": 0.775,
+          "modifiers": []
+        },
+        {
+          "count": 5,
+          "delay": 1.5,
+          "enemy": "glintfox",
+          "interval": 1.05
+        }
+      ],
+      "id": "s3-w7",
+      "label": "7 파동",
+      "number": 7,
+      "reward": 58,
+      "stage_id": "stage-3"
+    },
+    {
+      "entries": [
+        {
+          "count": 12,
+          "enemy": "mireling",
+          "interval": 0.775,
+          "modifiers": []
+        },
+        {
+          "count": 5,
+          "delay": 1.5,
+          "enemy": "cloudray",
+          "interval": 1.05
+        }
+      ],
+      "id": "s3-w8",
+      "label": "8 파동",
+      "number": 8,
+      "reward": 61,
+      "stage_id": "stage-3"
+    },
+    {
+      "entries": [
+        {
+          "count": 13,
+          "enemy": "thornback",
+          "interval": 0.775,
+          "modifiers": []
+        },
+        {
+          "count": 5,
+          "delay": 1.5,
+          "enemy": "bloomseer",
+          "interval": 1.05
+        }
+      ],
+      "id": "s3-w9",
+      "label": "9 파동",
+      "number": 9,
+      "reward": 64,
+      "stage_id": "stage-3"
+    },
+    {
+      "entries": [
+        {
+          "count": 14,
+          "enemy": "glintfox",
+          "interval": 0.775,
+          "modifiers": []
+        },
+        {
+          "count": 6,
+          "delay": 1.5,
+          "enemy": "mireling",
+          "interval": 1.05
+        }
+      ],
+      "id": "s3-w10",
+      "label": "10 파동",
+      "number": 10,
+      "reward": 67,
+      "stage_id": "stage-3"
+    },
+    {
+      "entries": [
+        {
+          "count": 8,
+          "enemy": "bloomseer",
+          "interval": 0.75,
+          "modifiers": []
+        }
+      ],
+      "id": "s4-w1",
+      "label": "1 파동",
+      "number": 1,
+      "reward": 44,
+      "stage_id": "stage-4"
+    },
+    {
+      "entries": [
+        {
+          "count": 8,
+          "enemy": "shardling",
+          "interval": 0.75,
+          "modifiers": []
+        }
+      ],
+      "id": "s4-w2",
+      "label": "2 파동",
+      "number": 2,
+      "reward": 47,
+      "stage_id": "stage-4"
+    },
+    {
+      "entries": [
+        {
+          "count": 9,
+          "enemy": "mireling",
+          "interval": 0.75,
+          "modifiers": []
+        },
+        {
+          "count": 4,
+          "delay": 1.5,
+          "enemy": "cloudray",
+          "interval": 1.05
+        }
+      ],
+      "id": "s4-w3",
+      "label": "3 파동",
+      "number": 3,
+      "reward": 50,
+      "stage_id": "stage-4"
+    },
+    {
+      "entries": [
+        {
+          "count": 10,
+          "enemy": "thornback",
+          "interval": 0.75,
+          "modifiers": []
+        },
+        {
+          "count": 4,
+          "delay": 1.5,
+          "enemy": "bloomseer",
+          "interval": 1.05
+        }
+      ],
+      "id": "s4-w4",
+      "label": "4 파동",
+      "number": 4,
+      "reward": 53,
+      "stage_id": "stage-4"
+    },
+    {
+      "entries": [
+        {
+          "count": 11,
+          "enemy": "glintfox",
+          "interval": 0.75,
+          "modifiers": []
+        },
+        {
+          "count": 4,
+          "delay": 1.5,
+          "enemy": "shardling",
+          "interval": 1.05
+        }
+      ],
+      "id": "s4-w5",
+      "label": "5 파동",
+      "number": 5,
+      "reward": 56,
+      "stage_id": "stage-4"
+    },
+    {
+      "entries": [
+        {
+          "count": 11,
+          "enemy": "cloudray",
+          "interval": 0.75,
+          "modifiers": []
+        },
+        {
+          "count": 5,
+          "delay": 1.5,
+          "enemy": "mireling",
+          "interval": 1.05
+        }
+      ],
+      "id": "s4-w6",
+      "label": "6 파동",
+      "number": 6,
+      "reward": 59,
+      "stage_id": "stage-4"
+    },
+    {
+      "entries": [
+        {
+          "count": 12,
+          "enemy": "bloomseer",
+          "interval": 0.75,
+          "modifiers": []
+        },
+        {
+          "count": 5,
+          "delay": 1.5,
+          "enemy": "thornback",
+          "interval": 1.05
+        }
+      ],
+      "id": "s4-w7",
+      "label": "7 파동",
+      "number": 7,
+      "reward": 62,
+      "stage_id": "stage-4"
+    },
+    {
+      "entries": [
+        {
+          "count": 13,
+          "enemy": "shardling",
+          "interval": 0.75,
+          "modifiers": []
+        },
+        {
+          "count": 5,
+          "delay": 1.5,
+          "enemy": "glintfox",
+          "interval": 1.05
+        }
+      ],
+      "id": "s4-w8",
+      "label": "8 파동",
+      "number": 8,
+      "reward": 65,
+      "stage_id": "stage-4"
+    },
+    {
+      "entries": [
+        {
+          "count": 14,
+          "enemy": "mireling",
+          "interval": 0.75,
+          "modifiers": []
+        },
+        {
+          "count": 6,
+          "delay": 1.5,
+          "enemy": "cloudray",
+          "interval": 1.05
+        }
+      ],
+      "id": "s4-w9",
+      "label": "9 파동",
+      "number": 9,
+      "reward": 68,
+      "stage_id": "stage-4"
+    },
+    {
+      "entries": [
+        {
+          "count": 14,
+          "enemy": "thornback",
+          "interval": 0.75,
+          "modifiers": []
+        },
+        {
+          "count": 6,
+          "delay": 1.5,
+          "enemy": "bloomseer",
+          "interval": 1.05
+        }
+      ],
+      "id": "s4-w10",
+      "label": "10 파동",
+      "number": 10,
+      "reward": 71,
+      "stage_id": "stage-4"
+    },
+    {
+      "entries": [
+        {
+          "count": 8,
+          "enemy": "shardling",
+          "interval": 0.725,
+          "modifiers": []
+        }
+      ],
+      "id": "s5-w1",
+      "label": "1 파동",
+      "number": 1,
+      "reward": 48,
+      "stage_id": "stage-5"
+    },
+    {
+      "entries": [
+        {
+          "count": 9,
+          "enemy": "ironroot",
+          "interval": 0.725,
+          "modifiers": []
+        }
+      ],
+      "id": "s5-w2",
+      "label": "2 파동",
+      "number": 2,
+      "reward": 51,
+      "stage_id": "stage-5"
+    },
+    {
+      "entries": [
+        {
+          "count": 10,
+          "enemy": "mireling",
+          "interval": 0.725,
+          "modifiers": []
+        },
+        {
+          "count": 4,
+          "delay": 1.5,
+          "enemy": "cloudray",
+          "interval": 1.05
+        }
+      ],
+      "id": "s5-w3",
+      "label": "3 파동",
+      "number": 3,
+      "reward": 54,
+      "stage_id": "stage-5"
+    },
+    {
+      "entries": [
+        {
+          "count": 11,
+          "enemy": "thornback",
+          "interval": 0.725,
+          "modifiers": []
+        },
+        {
+          "count": 4,
+          "delay": 1.5,
+          "enemy": "bloomseer",
+          "interval": 1.05
+        }
+      ],
+      "id": "s5-w4",
+      "label": "4 파동",
+      "number": 4,
+      "reward": 57,
+      "stage_id": "stage-5"
+    },
+    {
+      "entries": [
+        {
+          "count": 11,
+          "enemy": "glintfox",
+          "interval": 0.725,
+          "modifiers": []
+        },
+        {
+          "count": 5,
+          "delay": 1.5,
+          "enemy": "shardling",
+          "interval": 1.05
+        }
+      ],
+      "id": "s5-w5",
+      "label": "5 파동",
+      "number": 5,
+      "reward": 60,
+      "stage_id": "stage-5"
+    },
+    {
+      "entries": [
+        {
+          "count": 12,
+          "enemy": "cloudray",
+          "interval": 0.725,
+          "modifiers": []
+        },
+        {
+          "count": 5,
+          "delay": 1.5,
+          "enemy": "ironroot",
+          "interval": 1.05
+        }
+      ],
+      "id": "s5-w6",
+      "label": "6 파동",
+      "number": 6,
+      "reward": 63,
+      "stage_id": "stage-5"
+    },
+    {
+      "entries": [
+        {
+          "count": 13,
+          "enemy": "bloomseer",
+          "interval": 0.725,
+          "modifiers": []
+        },
+        {
+          "count": 5,
+          "delay": 1.5,
+          "enemy": "mireling",
+          "interval": 1.05
+        }
+      ],
+      "id": "s5-w7",
+      "label": "7 파동",
+      "number": 7,
+      "reward": 66,
+      "stage_id": "stage-5"
+    },
+    {
+      "entries": [
+        {
+          "count": 14,
+          "enemy": "shardling",
+          "interval": 0.725,
+          "modifiers": []
+        },
+        {
+          "count": 6,
+          "delay": 1.5,
+          "enemy": "thornback",
+          "interval": 1.05
+        }
+      ],
+      "id": "s5-w8",
+      "label": "8 파동",
+      "number": 8,
+      "reward": 69,
+      "stage_id": "stage-5"
+    },
+    {
+      "entries": [
+        {
+          "count": 14,
+          "enemy": "ironroot",
+          "interval": 0.725,
+          "modifiers": []
+        },
+        {
+          "count": 6,
+          "delay": 1.5,
+          "enemy": "glintfox",
+          "interval": 1.05
+        }
+      ],
+      "id": "s5-w9",
+      "label": "9 파동",
+      "number": 9,
+      "reward": 72,
+      "stage_id": "stage-5"
+    },
+    {
+      "entries": [
+        {
+          "count": 15,
+          "enemy": "mireling",
+          "interval": 0.725,
+          "modifiers": []
+        },
+        {
+          "count": 6,
+          "delay": 1.5,
+          "enemy": "cloudray",
+          "interval": 1.05
+        }
+      ],
+      "id": "s5-w10",
+      "label": "10 파동",
+      "number": 10,
+      "reward": 75,
+      "stage_id": "stage-5"
+    },
+    {
+      "entries": [
+        {
+          "count": 16,
+          "enemy": "thornback",
+          "interval": 0.725,
+          "modifiers": []
+        },
+        {
+          "count": 7,
+          "delay": 1.5,
+          "enemy": "bloomseer",
+          "interval": 1.05
+        },
+        {
+          "count": 1,
+          "delay": 2,
+          "enemy": "hollow_king",
+          "interval": 1.5
+        }
+      ],
+      "id": "s5-w11",
+      "label": "11 파동",
+      "number": 11,
+      "reward": 78,
+      "stage_id": "stage-5"
+    },
+    {
+      "entries": [
+        {
+          "count": 9,
+          "enemy": "ironroot",
+          "interval": 0.7,
+          "modifiers": [
+            "magic_resist"
+          ]
+        }
+      ],
+      "id": "s6-w1",
+      "label": "1 파동",
+      "number": 1,
+      "reward": 52,
+      "stage_id": "stage-6"
+    },
+    {
+      "entries": [
+        {
+          "count": 10,
+          "enemy": "veilrunner",
+          "interval": 0.7,
+          "modifiers": []
+        }
+      ],
+      "id": "s6-w2",
+      "label": "2 파동",
+      "number": 2,
+      "reward": 55,
+      "stage_id": "stage-6"
+    },
+    {
+      "entries": [
+        {
+          "count": 11,
+          "enemy": "mireling",
+          "interval": 0.7,
+          "modifiers": []
+        },
+        {
+          "count": 4,
+          "delay": 1.5,
+          "enemy": "cloudray",
+          "interval": 1.05
+        }
+      ],
+      "id": "s6-w3",
+      "label": "3 파동",
+      "number": 3,
+      "reward": 58,
+      "stage_id": "stage-6"
+    },
+    {
+      "entries": [
+        {
+          "count": 11,
+          "enemy": "thornback",
+          "interval": 0.7,
+          "modifiers": []
+        },
+        {
+          "count": 5,
+          "delay": 1.5,
+          "enemy": "bloomseer",
+          "interval": 1.05
+        }
+      ],
+      "id": "s6-w4",
+      "label": "4 파동",
+      "number": 4,
+      "reward": 61,
+      "stage_id": "stage-6"
+    },
+    {
+      "entries": [
+        {
+          "count": 12,
+          "enemy": "glintfox",
+          "interval": 0.7,
+          "modifiers": [
+            "magic_resist"
+          ]
+        },
+        {
+          "count": 5,
+          "delay": 1.5,
+          "enemy": "shardling",
+          "interval": 1.05
+        }
+      ],
+      "id": "s6-w5",
+      "label": "5 파동",
+      "number": 5,
+      "reward": 64,
+      "stage_id": "stage-6"
+    },
+    {
+      "entries": [
+        {
+          "count": 13,
+          "enemy": "cloudray",
+          "interval": 0.7,
+          "modifiers": []
+        },
+        {
+          "count": 5,
+          "delay": 1.5,
+          "enemy": "ironroot",
+          "interval": 1.05
+        }
+      ],
+      "id": "s6-w6",
+      "label": "6 파동",
+      "number": 6,
+      "reward": 67,
+      "stage_id": "stage-6"
+    },
+    {
+      "entries": [
+        {
+          "count": 14,
+          "enemy": "bloomseer",
+          "interval": 0.7,
+          "modifiers": []
+        },
+        {
+          "count": 6,
+          "delay": 1.5,
+          "enemy": "veilrunner",
+          "interval": 1.05
+        }
+      ],
+      "id": "s6-w7",
+      "label": "7 파동",
+      "number": 7,
+      "reward": 70,
+      "stage_id": "stage-6"
+    },
+    {
+      "entries": [
+        {
+          "count": 14,
+          "enemy": "shardling",
+          "interval": 0.7,
+          "modifiers": []
+        },
+        {
+          "count": 6,
+          "delay": 1.5,
+          "enemy": "mireling",
+          "interval": 1.05
+        }
+      ],
+      "id": "s6-w8",
+      "label": "8 파동",
+      "number": 8,
+      "reward": 73,
+      "stage_id": "stage-6"
+    },
+    {
+      "entries": [
+        {
+          "count": 15,
+          "enemy": "ironroot",
+          "interval": 0.7,
+          "modifiers": [
+            "magic_resist"
+          ]
+        },
+        {
+          "count": 6,
+          "delay": 1.5,
+          "enemy": "thornback",
+          "interval": 1.05
+        }
+      ],
+      "id": "s6-w9",
+      "label": "9 파동",
+      "number": 9,
+      "reward": 76,
+      "stage_id": "stage-6"
+    },
+    {
+      "entries": [
+        {
+          "count": 16,
+          "enemy": "veilrunner",
+          "interval": 0.7,
+          "modifiers": []
+        },
+        {
+          "count": 7,
+          "delay": 1.5,
+          "enemy": "glintfox",
+          "interval": 1.05
+        }
+      ],
+      "id": "s6-w10",
+      "label": "10 파동",
+      "number": 10,
+      "reward": 79,
+      "stage_id": "stage-6"
+    },
+    {
+      "entries": [
+        {
+          "count": 17,
+          "enemy": "mireling",
+          "interval": 0.7,
+          "modifiers": []
+        },
+        {
+          "count": 7,
+          "delay": 1.5,
+          "enemy": "cloudray",
+          "interval": 1.05
+        }
+      ],
+      "id": "s6-w11",
+      "label": "11 파동",
+      "number": 11,
+      "reward": 82,
+      "stage_id": "stage-6"
+    },
+    {
+      "entries": [
+        {
+          "count": 10,
+          "enemy": "veilrunner",
+          "interval": 0.675,
+          "modifiers": [
+            "magic_resist"
+          ]
+        }
+      ],
+      "id": "s7-w1",
+      "label": "1 파동",
+      "number": 1,
+      "reward": 56,
+      "stage_id": "stage-7"
+    },
+    {
+      "entries": [
+        {
+          "count": 11,
+          "enemy": "rammer",
+          "interval": 0.675,
+          "modifiers": [
+            "stealth"
+          ]
+        }
+      ],
+      "id": "s7-w2",
+      "label": "2 파동",
+      "number": 2,
+      "reward": 59,
+      "stage_id": "stage-7"
+    },
+    {
+      "entries": [
+        {
+          "count": 11,
+          "enemy": "mireling",
+          "interval": 0.675,
+          "modifiers": []
+        },
+        {
+          "count": 5,
+          "delay": 1.5,
+          "enemy": "cloudray",
+          "interval": 1.05
+        }
+      ],
+      "id": "s7-w3",
+      "label": "3 파동",
+      "number": 3,
+      "reward": 62,
+      "stage_id": "stage-7"
+    },
+    {
+      "entries": [
+        {
+          "count": 12,
+          "enemy": "thornback",
+          "interval": 0.675,
+          "modifiers": []
+        },
+        {
+          "count": 5,
+          "delay": 1.5,
+          "enemy": "bloomseer",
+          "interval": 1.05
+        }
+      ],
+      "id": "s7-w4",
+      "label": "4 파동",
+      "number": 4,
+      "reward": 65,
+      "stage_id": "stage-7"
+    },
+    {
+      "entries": [
+        {
+          "count": 13,
+          "enemy": "glintfox",
+          "interval": 0.675,
+          "modifiers": [
+            "magic_resist"
+          ]
+        },
+        {
+          "count": 5,
+          "delay": 1.5,
+          "enemy": "shardling",
+          "interval": 1.05
+        }
+      ],
+      "id": "s7-w5",
+      "label": "5 파동",
+      "number": 5,
+      "reward": 68,
+      "stage_id": "stage-7"
+    },
+    {
+      "entries": [
+        {
+          "count": 14,
+          "enemy": "cloudray",
+          "interval": 0.675,
+          "modifiers": [
+            "stealth"
+          ]
+        },
+        {
+          "count": 6,
+          "delay": 1.5,
+          "enemy": "ironroot",
+          "interval": 1.05
+        }
+      ],
+      "id": "s7-w6",
+      "label": "6 파동",
+      "number": 6,
+      "reward": 71,
+      "stage_id": "stage-7"
+    },
+    {
+      "entries": [
+        {
+          "count": 14,
+          "enemy": "bloomseer",
+          "interval": 0.675,
+          "modifiers": []
+        },
+        {
+          "count": 6,
+          "delay": 1.5,
+          "enemy": "veilrunner",
+          "interval": 1.05
+        }
+      ],
+      "id": "s7-w7",
+      "label": "7 파동",
+      "number": 7,
+      "reward": 74,
+      "stage_id": "stage-7"
+    },
+    {
+      "entries": [
+        {
+          "count": 15,
+          "enemy": "shardling",
+          "interval": 0.675,
+          "modifiers": []
+        },
+        {
+          "count": 6,
+          "delay": 1.5,
+          "enemy": "rammer",
+          "interval": 1.05
+        }
+      ],
+      "id": "s7-w8",
+      "label": "8 파동",
+      "number": 8,
+      "reward": 77,
+      "stage_id": "stage-7"
+    },
+    {
+      "entries": [
+        {
+          "count": 16,
+          "enemy": "ironroot",
+          "interval": 0.675,
+          "modifiers": [
+            "magic_resist"
+          ]
+        },
+        {
+          "count": 7,
+          "delay": 1.5,
+          "enemy": "mireling",
+          "interval": 1.05
+        }
+      ],
+      "id": "s7-w9",
+      "label": "9 파동",
+      "number": 9,
+      "reward": 80,
+      "stage_id": "stage-7"
+    },
+    {
+      "entries": [
+        {
+          "count": 17,
+          "enemy": "veilrunner",
+          "interval": 0.675,
+          "modifiers": [
+            "stealth"
+          ]
+        },
+        {
+          "count": 7,
+          "delay": 1.5,
+          "enemy": "thornback",
+          "interval": 1.05
+        }
+      ],
+      "id": "s7-w10",
+      "label": "10 파동",
+      "number": 10,
+      "reward": 83,
+      "stage_id": "stage-7"
+    },
+    {
+      "entries": [
+        {
+          "count": 17,
+          "enemy": "rammer",
+          "interval": 0.675,
+          "modifiers": []
+        },
+        {
+          "count": 7,
+          "delay": 1.5,
+          "enemy": "glintfox",
+          "interval": 1.05
+        }
+      ],
+      "id": "s7-w11",
+      "label": "11 파동",
+      "number": 11,
+      "reward": 86,
+      "stage_id": "stage-7"
+    },
+    {
+      "entries": [
+        {
+          "count": 18,
+          "enemy": "mireling",
+          "interval": 0.675,
+          "modifiers": []
+        },
+        {
+          "count": 8,
+          "delay": 1.5,
+          "enemy": "cloudray",
+          "interval": 1.05
+        }
+      ],
+      "id": "s7-w12",
+      "label": "12 파동",
+      "number": 12,
+      "reward": 89,
+      "stage_id": "stage-7"
+    },
+    {
+      "entries": [
+        {
+          "count": 11,
+          "enemy": "rammer",
+          "interval": 0.65,
+          "modifiers": [
+            "magic_resist"
+          ]
+        }
+      ],
+      "id": "s8-w1",
+      "label": "1 파동",
+      "number": 1,
+      "reward": 60,
+      "stage_id": "stage-8"
+    },
+    {
+      "entries": [
+        {
+          "count": 11,
+          "enemy": "rimeheart",
+          "interval": 0.65,
+          "modifiers": [
+            "stealth"
+          ]
+        }
+      ],
+      "id": "s8-w2",
+      "label": "2 파동",
+      "number": 2,
+      "reward": 63,
+      "stage_id": "stage-8"
+    },
+    {
+      "entries": [
+        {
+          "count": 12,
+          "enemy": "mireling",
+          "interval": 0.65,
+          "modifiers": [
+            "berserk"
+          ]
+        },
+        {
+          "count": 5,
+          "delay": 1.5,
+          "enemy": "cloudray",
+          "interval": 1.05
+        }
+      ],
+      "id": "s8-w3",
+      "label": "3 파동",
+      "number": 3,
+      "reward": 66,
+      "stage_id": "stage-8"
+    },
+    {
+      "entries": [
+        {
+          "count": 13,
+          "enemy": "thornback",
+          "interval": 0.65,
+          "modifiers": []
+        },
+        {
+          "count": 5,
+          "delay": 1.5,
+          "enemy": "bloomseer",
+          "interval": 1.05
+        }
+      ],
+      "id": "s8-w4",
+      "label": "4 파동",
+      "number": 4,
+      "reward": 69,
+      "stage_id": "stage-8"
+    },
+    {
+      "entries": [
+        {
+          "count": 14,
+          "enemy": "glintfox",
+          "interval": 0.65,
+          "modifiers": [
+            "magic_resist"
+          ]
+        },
+        {
+          "count": 6,
+          "delay": 1.5,
+          "enemy": "shardling",
+          "interval": 1.05
+        }
+      ],
+      "id": "s8-w5",
+      "label": "5 파동",
+      "number": 5,
+      "reward": 72,
+      "stage_id": "stage-8"
+    },
+    {
+      "entries": [
+        {
+          "count": 14,
+          "enemy": "cloudray",
+          "interval": 0.65,
+          "modifiers": [
+            "stealth"
+          ]
+        },
+        {
+          "count": 6,
+          "delay": 1.5,
+          "enemy": "ironroot",
+          "interval": 1.05
+        }
+      ],
+      "id": "s8-w6",
+      "label": "6 파동",
+      "number": 6,
+      "reward": 75,
+      "stage_id": "stage-8"
+    },
+    {
+      "entries": [
+        {
+          "count": 15,
+          "enemy": "bloomseer",
+          "interval": 0.65,
+          "modifiers": [
+            "berserk"
+          ]
+        },
+        {
+          "count": 6,
+          "delay": 1.5,
+          "enemy": "veilrunner",
+          "interval": 1.05
+        }
+      ],
+      "id": "s8-w7",
+      "label": "7 파동",
+      "number": 7,
+      "reward": 78,
+      "stage_id": "stage-8"
+    },
+    {
+      "entries": [
+        {
+          "count": 16,
+          "enemy": "shardling",
+          "interval": 0.65,
+          "modifiers": []
+        },
+        {
+          "count": 7,
+          "delay": 1.5,
+          "enemy": "rammer",
+          "interval": 1.05
+        }
+      ],
+      "id": "s8-w8",
+      "label": "8 파동",
+      "number": 8,
+      "reward": 81,
+      "stage_id": "stage-8"
+    },
+    {
+      "entries": [
+        {
+          "count": 17,
+          "enemy": "ironroot",
+          "interval": 0.65,
+          "modifiers": [
+            "magic_resist"
+          ]
+        },
+        {
+          "count": 7,
+          "delay": 1.5,
+          "enemy": "rimeheart",
+          "interval": 1.05
+        }
+      ],
+      "id": "s8-w9",
+      "label": "9 파동",
+      "number": 9,
+      "reward": 84,
+      "stage_id": "stage-8"
+    },
+    {
+      "entries": [
+        {
+          "count": 17,
+          "enemy": "veilrunner",
+          "interval": 0.65,
+          "modifiers": [
+            "stealth"
+          ]
+        },
+        {
+          "count": 7,
+          "delay": 1.5,
+          "enemy": "mireling",
+          "interval": 1.05
+        }
+      ],
+      "id": "s8-w10",
+      "label": "10 파동",
+      "number": 10,
+      "reward": 87,
+      "stage_id": "stage-8"
+    },
+    {
+      "entries": [
+        {
+          "count": 18,
+          "enemy": "rammer",
+          "interval": 0.65,
+          "modifiers": [
+            "berserk"
+          ]
+        },
+        {
+          "count": 8,
+          "delay": 1.5,
+          "enemy": "thornback",
+          "interval": 1.05
+        }
+      ],
+      "id": "s8-w11",
+      "label": "11 파동",
+      "number": 11,
+      "reward": 90,
+      "stage_id": "stage-8"
+    },
+    {
+      "entries": [
+        {
+          "count": 19,
+          "enemy": "rimeheart",
+          "interval": 0.65,
+          "modifiers": []
+        },
+        {
+          "count": 8,
+          "delay": 1.5,
+          "enemy": "glintfox",
+          "interval": 1.05
+        }
+      ],
+      "id": "s8-w12",
+      "label": "12 파동",
+      "number": 12,
+      "reward": 93,
+      "stage_id": "stage-8"
+    },
+    {
+      "entries": [
+        {
+          "count": 11,
+          "enemy": "rimeheart",
+          "interval": 0.625,
+          "modifiers": [
+            "magic_resist"
+          ]
+        }
+      ],
+      "id": "s9-w1",
+      "label": "1 파동",
+      "number": 1,
+      "reward": 64,
+      "stage_id": "stage-9"
+    },
+    {
+      "entries": [
+        {
+          "count": 12,
+          "enemy": "mireling",
+          "interval": 0.625,
+          "modifiers": [
+            "stealth"
+          ]
+        }
+      ],
+      "id": "s9-w2",
+      "label": "2 파동",
+      "number": 2,
+      "reward": 67,
+      "stage_id": "stage-9"
+    },
+    {
+      "entries": [
+        {
+          "count": 13,
+          "enemy": "thornback",
+          "interval": 0.625,
+          "modifiers": [
+            "berserk"
+          ]
+        },
+        {
+          "count": 5,
+          "delay": 1.5,
+          "enemy": "bloomseer",
+          "interval": 1.05
+        }
+      ],
+      "id": "s9-w3",
+      "label": "3 파동",
+      "number": 3,
+      "reward": 70,
+      "stage_id": "stage-9"
+    },
+    {
+      "entries": [
+        {
+          "count": 14,
+          "enemy": "glintfox",
+          "interval": 0.625,
+          "modifiers": [
+            "immune_stun"
+          ]
+        },
+        {
+          "count": 6,
+          "delay": 1.5,
+          "enemy": "shardling",
+          "interval": 1.05
+        }
+      ],
+      "id": "s9-w4",
+      "label": "4 파동",
+      "number": 4,
+      "reward": 73,
+      "stage_id": "stage-9"
+    },
+    {
+      "entries": [
+        {
+          "count": 14,
+          "enemy": "cloudray",
+          "interval": 0.625,
+          "modifiers": [
+            "magic_resist"
+          ]
+        },
+        {
+          "count": 6,
+          "delay": 1.5,
+          "enemy": "ironroot",
+          "interval": 1.05
+        }
+      ],
+      "id": "s9-w5",
+      "label": "5 파동",
+      "number": 5,
+      "reward": 76,
+      "stage_id": "stage-9"
+    },
+    {
+      "entries": [
+        {
+          "count": 15,
+          "enemy": "bloomseer",
+          "interval": 0.625,
+          "modifiers": [
+            "stealth"
+          ]
+        },
+        {
+          "count": 6,
+          "delay": 1.5,
+          "enemy": "veilrunner",
+          "interval": 1.05
+        }
+      ],
+      "id": "s9-w6",
+      "label": "6 파동",
+      "number": 6,
+      "reward": 79,
+      "stage_id": "stage-9"
+    },
+    {
+      "entries": [
+        {
+          "count": 16,
+          "enemy": "shardling",
+          "interval": 0.625,
+          "modifiers": [
+            "berserk"
+          ]
+        },
+        {
+          "count": 7,
+          "delay": 1.5,
+          "enemy": "rammer",
+          "interval": 1.05
+        }
+      ],
+      "id": "s9-w7",
+      "label": "7 파동",
+      "number": 7,
+      "reward": 82,
+      "stage_id": "stage-9"
+    },
+    {
+      "entries": [
+        {
+          "count": 17,
+          "enemy": "ironroot",
+          "interval": 0.625,
+          "modifiers": [
+            "immune_stun"
+          ]
+        },
+        {
+          "count": 7,
+          "delay": 1.5,
+          "enemy": "rimeheart",
+          "interval": 1.05
+        }
+      ],
+      "id": "s9-w8",
+      "label": "8 파동",
+      "number": 8,
+      "reward": 85,
+      "stage_id": "stage-9"
+    },
+    {
+      "entries": [
+        {
+          "count": 17,
+          "enemy": "veilrunner",
+          "interval": 0.625,
+          "modifiers": [
+            "magic_resist"
+          ]
+        },
+        {
+          "count": 7,
+          "delay": 1.5,
+          "enemy": "mireling",
+          "interval": 1.05
+        }
+      ],
+      "id": "s9-w9",
+      "label": "9 파동",
+      "number": 9,
+      "reward": 88,
+      "stage_id": "stage-9"
+    },
+    {
+      "entries": [
+        {
+          "count": 18,
+          "enemy": "rammer",
+          "interval": 0.625,
+          "modifiers": [
+            "stealth"
+          ]
+        },
+        {
+          "count": 8,
+          "delay": 1.5,
+          "enemy": "thornback",
+          "interval": 1.05
+        }
+      ],
+      "id": "s9-w10",
+      "label": "10 파동",
+      "number": 10,
+      "reward": 91,
+      "stage_id": "stage-9"
+    },
+    {
+      "entries": [
+        {
+          "count": 19,
+          "enemy": "rimeheart",
+          "interval": 0.625,
+          "modifiers": [
+            "berserk"
+          ]
+        },
+        {
+          "count": 8,
+          "delay": 1.5,
+          "enemy": "glintfox",
+          "interval": 1.05
+        }
+      ],
+      "id": "s9-w11",
+      "label": "11 파동",
+      "number": 11,
+      "reward": 94,
+      "stage_id": "stage-9"
+    },
+    {
+      "entries": [
+        {
+          "count": 20,
+          "enemy": "mireling",
+          "interval": 0.625,
+          "modifiers": [
+            "immune_stun"
+          ]
+        },
+        {
+          "count": 8,
+          "delay": 1.5,
+          "enemy": "cloudray",
+          "interval": 1.05
+        }
+      ],
+      "id": "s9-w12",
+      "label": "12 파동",
+      "number": 12,
+      "reward": 97,
+      "stage_id": "stage-9"
+    },
+    {
+      "entries": [
+        {
+          "count": 20,
+          "enemy": "thornback",
+          "interval": 0.625,
+          "modifiers": [
+            "magic_resist"
+          ]
+        },
+        {
+          "count": 9,
+          "delay": 1.5,
+          "enemy": "bloomseer",
+          "interval": 1.05
+        }
+      ],
+      "id": "s9-w13",
+      "label": "13 파동",
+      "number": 13,
+      "reward": 100,
+      "stage_id": "stage-9"
+    }
+  ]
+}

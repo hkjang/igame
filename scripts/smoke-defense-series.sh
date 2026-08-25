@@ -849,6 +849,7 @@ run_ai_depletion_defeat() {
   local config_file="${TEMP_DIR}/${slug}.json"
   local version_id="${VERSION_IDS[${slug}]}"
   local stage_id hero_id content_version policy_version starting_health starting_resource minimum_duration_ms
+  local minimum_milestone_ms milestone_sleep_seconds
   stage_id="$(jq --raw-output '[.content.stages[] | select(.number == 1)][0].id' "${config_file}")"
   hero_id="$(jq --raw-output '.content.heroes[0].id' "${config_file}")"
   content_version="$(jq --raw-output '.version.content_version' "${config_file}")"
@@ -856,6 +857,12 @@ run_ai_depletion_defeat() {
   starting_health="$(jq --arg stage "${stage_id}" '[.content.stages[] | select(.id == $stage)][0].starting_health' "${config_file}")"
   starting_resource="$(jq --arg stage "${stage_id}" '[.content.stages[] | select(.id == $stage)][0].starting_resource' "${config_file}")"
   minimum_duration_ms="$(jq '.content.balance.min_wave_duration_ms * 2 | ceil' "${config_file}")"
+  # The server compares receipt times, so a bare one-second pause can land just
+  # under the milestone floor on a loaded host and fail an honest fixture.
+  minimum_milestone_ms="$(jq '.content.balance.min_wave_duration_ms / 5 | ceil' "${config_file}")"
+  ((minimum_milestone_ms < 250)) && minimum_milestone_ms=250
+  ((minimum_milestone_ms > 1000)) && minimum_milestone_ms=1000
+  milestone_sleep_seconds=$(((minimum_milestone_ms + 999) / 1000 + 1))
 
   local resource_state
   resource_state="$(jq --compact-output '.content.balance.resource_state_limits | to_entries | map({key:.key,value:{start:.value,spent:0,remaining:.value}}) | from_entries' "${config_file}")"
@@ -914,7 +921,7 @@ run_ai_depletion_defeat() {
       sequence=$((sequence + 1))
     fi
 
-    sleep 1
+    sleep "${milestone_sleep_seconds}"
     cumulative_spawned="$(jq --compact-output --arg stage "${stage_id}" --argjson wave "${wave}" '
       [.content.waves[] | select(.stage_id == $stage and .number <= $wave) | .entries[]]
       | reduce .[] as $entry ({}; .[$entry.enemy] = ((.[$entry.enemy] // 0) + $entry.count))
@@ -984,7 +991,7 @@ run_ai_depletion_defeat() {
   }
   jq --exit-status '.trust.remaining == 0 and .compute.remaining > 0 and .token.remaining > 0 and .latency.remaining > 0' <<<"${resource_state}" >/dev/null
 
-  sleep 1
+  sleep "${milestone_sleep_seconds}"
   battle_complete="$(jq --null-input --compact-output --arg stage "${stage_id}" --arg hero "${hero_id}" --arg content "${content_version}" --arg policy "${policy_version}" --argjson duration "${minimum_duration_ms}" --argjson health "${remaining_health}" --argjson resource "${remaining_resource}" --argjson earned "${earned_resource}" --argjson spent "${education_spent}" --argjson kills "${cumulative_kills}" --argjson escaped "${cumulative_escaped_count}" --argjson spawned "${cumulative_spawned_count}" --argjson defeated_hist "${cumulative_defeated}" --argjson escaped_hist "${cumulative_escaped}" --argjson spawned_hist "${cumulative_spawned}" --argjson state "${resource_state}" \
     '{stage_id:$stage,difficulty:"normal",duration_ms:$duration,health:$health,resource:$resource,earned_resource:$earned,spent_resource:$spent,sold_resource:0,kills:$kills,escaped:$escaped,spawned:$spawned,waves_completed:2,victory:false,hero_id:$hero,hero_level:1,content_version:$content,policy_version:$policy,defeated_by_enemy:$defeated_hist,escaped_by_enemy:$escaped_hist,spawned_by_enemy:$spawned_hist,resource_state:$state}')"
   post_telemetry "${slug}" "${session_id}" "${session_token}" defense.battle.complete "${sequence}" "${battle_complete}" >/dev/null

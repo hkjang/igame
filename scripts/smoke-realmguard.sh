@@ -215,7 +215,19 @@ invalid_defeat_body="$(jq --null-input --compact-output \
   --argjson duration_ms "${invalid_duration_ms}" \
   '{game_id:"realmguard",session_id:$session_id,session_token:$session_token,stage_id:"stage-1",mode:"campaign",difficulty:"normal",duration_ms:$duration_ms,remaining_lives:20,remaining_gold:$initial_gold,earned_gold:0,spent_gold:0,sold_gold:0,kills:0,escaped:0,spawned:0,waves_completed:0,hero_id:"aerin",hero_level:1,content_version:$content_version,stage_version:$stage_version,balance_version:$balance_version,asset_version:$asset_version,victory:false}')"
 request POST /api/v1/realmguard/results 422 "${invalid_defeat_body}" \
-  | jq --exit-status '.error.code == "invalid_defeat"' >/dev/null
+  | jq --exit-status '.error.code == "missing_ledger"' >/dev/null
+
+# A ledger the server cannot reproduce is refused before any battle numbers are
+# considered: a forged content digest means the browser and the server were not
+# playing the same rules.
+forged_ledger_body="$(jq --compact-output --argjson body "${invalid_defeat_body}" --null-input \
+  '$body + {ledger:{rules_version:"realmguard-kernel-1",config_digest:"0000000000000000",ticks:120,commands:[]}}')"
+request POST /api/v1/realmguard/results 409 "${forged_ledger_body}" \
+  | jq --exit-status '.error.code == "content_projection_mismatch"' >/dev/null
+stale_rules_body="$(jq --compact-output --argjson body "${invalid_defeat_body}" --null-input \
+  '$body + {ledger:{rules_version:"realmguard-kernel-0",config_digest:"0000000000000000",ticks:120,commands:[]}}')"
+request POST /api/v1/realmguard/results 409 "${stale_rules_body}" \
+  | jq --exit-status '.error.code == "ledger_rules_mismatch"' >/dev/null
 
 # Optional RealmGuard events share a 128-event budget, while required battle
 # milestone classes keep independent capacity. Fill only the optional class,
@@ -237,74 +249,40 @@ post_telemetry "${limit_session_id}" "${limit_session_token}" realmguard.battle.
 post_telemetry "${limit_session_id}" "${limit_session_token}" realmguard.battle.ready 130 "${limit_ready_data}" 429 \
   | jq --exit-status '.error.code == "telemetry_limit"' >/dev/null
 
-# This is a reachable no-tower stage-1 defeat: waves 1-2 finish with every
-# enemy escaping, then stage life reaches zero during wave 3. The canonical
-# first three waves contain only one-life-damage enemies. Cumulative enemy
-# histograms are derived from the published config instead of hard-coded IDs.
-jq --exit-status '
-  [.stages[] | select(.id == "stage-1")][0].waves[0:3] as $waves
-  | ([ $waves[].entries[].enemy ] | all(. as $id | ([ $enemies[] | select(.id == $id)][0].life_damage == 1)))
-' --argjson enemies "$(jq --compact-output '[.enemies[],.bosses[]]' <<<"${config_json}")" <<<"${config_json}" >/dev/null
-
-stage_lives="$(jq '([.stages[] | select(.id == "stage-1")][0].lives | floor)' <<<"${config_json}")"
-wave1_spawned_by_enemy="$(jq --compact-output '
-  [.stages[] | select(.id == "stage-1")][0].waves[0].entries
-  | reduce .[] as $entry ({}; .[$entry.enemy] = ((.[$entry.enemy] // 0) + $entry.count))
-' <<<"${config_json}")"
-wave2_spawned_by_enemy="$(jq --compact-output '
-  [.stages[] | select(.id == "stage-1")][0].waves[0:2]
-  | [.[].entries[]]
-  | reduce .[] as $entry ({}; .[$entry.enemy] = ((.[$entry.enemy] // 0) + $entry.count))
-' <<<"${config_json}")"
-spawned_by_enemy="$(jq --compact-output '
-  [.stages[] | select(.id == "stage-1")][0].waves[0:3]
-  | [.[].entries[]]
-  | reduce .[] as $entry ({}; .[$entry.enemy] = ((.[$entry.enemy] // 0) + $entry.count))
-' <<<"${config_json}")"
-escaped_by_enemy="$(jq --compact-output '
-  [.stages[] | select(.id == "stage-1")][0] as $stage
-  | [$stage.waves[0:3][].entries[]] as $entries
-  | reduce $entries[] as $entry (
-      {remaining:$stage.lives,hist:{}};
-      if .remaining <= 0 then .
-      else ([.remaining,$entry.count] | min) as $take
-        | .hist[$entry.enemy] = ((.hist[$entry.enemy] // 0) + $take)
-        | .remaining -= $take
-      end
-    )
-  | select(.remaining == 0)
-  | .hist
-  | with_entries(select(.value > 0))
-' <<<"${config_json}")"
-if [[ -z "${escaped_by_enemy}" ]]; then
-  printf '%s\n' 'The published first three waves cannot produce a reachable stage-1 defeat.' >&2
+# The server replays this battle from the player's recorded inputs, so the smoke
+# posts a committed kernel-generated ledger with the telemetry that battle
+# streamed. Fabricated numbers cannot satisfy a replay, so the fixture is
+# produced by the same kernel the browser runs.
+smoke_fixture_path="${REPO_DIR}/scripts/testdata/realmguard-smoke.json"
+if [[ ! -r "${smoke_fixture_path}" ]]; then
+  printf 'Missing RealmGuard smoke battle fixture: %s\n' "${smoke_fixture_path}" >&2
   exit 1
 fi
+fixture_json="$(cat "${smoke_fixture_path}")"
+jq --exit-status \
+  --arg content_version "$(jq --raw-output '.version.content_version' <<<"${config_json}")" \
+  --arg stage_version "$(jq --raw-output '[.stages[] | select(.id == "stage-1")][0].version' <<<"${config_json}")" \
+  --arg balance_version "$(jq --raw-output '.version.balance_version' <<<"${config_json}")" \
+  --arg asset_version "$(jq --raw-output '.version.asset_version' <<<"${config_json}")" \
+  '.content_version == $content_version and .stage_version == $stage_version
+   and .balance_version == $balance_version and .asset_version == $asset_version' \
+  <<<"${fixture_json}" >/dev/null || {
+  printf '%s\n' 'The committed RealmGuard smoke battle was recorded against different published content. Regenerate it with UPDATE_KERNEL_VECTORS=1 npx vitest run src/games/realmguard/kernel.' >&2
+  exit 1
+}
 
-session_body="$(jq --null-input --compact-output --arg version_id "${realmguard_version_id}" --arg client_version "${EXPECTED_VERSION}" '{metadata:{client:"release-smoke",client_version:$client_version,scenario:"reachable-stage-1-defeat",realmguard_version_id:$version_id}}')"
+# Opening a session abandons the previous active one for the same game, so the
+# battle session is the last RealmGuard session this smoke opens. A replayed
+# battle only verifies if the session had the wall time to play it, and this
+# smoke waits that out rather than pretending the battle was instant.
+session_body="$(jq --null-input --compact-output --arg version_id "${realmguard_version_id}" --arg client_version "${EXPECTED_VERSION}" '{metadata:{client:"release-smoke",client_version:$client_version,scenario:"replayed-stage-1-defeat",realmguard_version_id:$version_id}}')"
 session_json="$(request POST /api/v1/games/realmguard/sessions 201 "${session_body}")"
 jq --exit-status --arg version_id "${realmguard_version_id}" '.session.realmguard_version_id == $version_id' <<<"${session_json}" >/dev/null
 session_id="$(jq --raw-output '.session.id' <<<"${session_json}")"
 session_token="$(jq --raw-output '.session.session_token' <<<"${session_json}")"
-initial_gold="$(jq '([.stages[] | select(.id == "stage-1")][0].starting_gold * .balance.difficulties.normal.gold | round)' <<<"${config_json}")"
-wave1_reward="$(jq '([.stages[] | select(.id == "stage-1")][0].waves[0].reward | floor)' <<<"${config_json}")"
-wave2_reward="$(jq '([.stages[] | select(.id == "stage-1")][0].waves[1].reward | floor)' <<<"${config_json}")"
-wave_rewards="$((wave1_reward + wave2_reward))"
-wave1_spawned="$(jq 'add' <<<"$(jq --compact-output '[.[]]' <<<"${wave1_spawned_by_enemy}")")"
-wave2_spawned="$(jq 'add' <<<"$(jq --compact-output '[.[]]' <<<"${wave2_spawned_by_enemy}")")"
-spawned="$(jq 'add' <<<"$(jq --compact-output '[.[]]' <<<"${spawned_by_enemy}")")"
-remaining_gold="$((initial_gold + wave_rewards))"
-minimum_duration_ms="$(jq '(.balance.min_wave_duration_ms * 3 | ceil)' <<<"${config_json}")"
-min_wave_duration_ms="$(jq '(.balance.min_wave_duration_ms | ceil)' <<<"${config_json}")"
-minimum_milestone_ms="$((min_wave_duration_ms / 5))"
-if ((minimum_milestone_ms < 250)); then minimum_milestone_ms=250; fi
-if ((minimum_milestone_ms > 1000)); then minimum_milestone_ms=1000; fi
-milestone_sleep_seconds="$(((minimum_milestone_ms + 999) / 1000))"
-total_sleep_seconds="$(((minimum_duration_ms + 999) / 1000))"
-active_wave_sleep_seconds="$((total_sleep_seconds - (2 * milestone_sleep_seconds)))"
-if ((active_wave_sleep_seconds < 1)); then active_wave_sleep_seconds=1; fi
+battle_started_ms="$(date +%s%3N)"
 
-ready_data='{"stage_id":"stage-1","difficulty":"normal","hero_id":"aerin"}'
+ready_data="$(jq --compact-output '.telemetry[0].data' <<<"${fixture_json}")"
 ready_event_id="$(new_uuid)"
 ready_payload="$(telemetry_payload "${session_id}" "${session_token}" realmguard.battle.ready 1 "${ready_event_id}" "${ready_data}")"
 request POST /api/v1/telemetry 202 "${ready_payload}" \
@@ -321,81 +299,104 @@ post_telemetry "${session_id}" "${session_token}" game.pause 2 "${oversized_data
 post_telemetry "${session_id}" "${session_token}" game.pause 3 '{}' 409 \
   | jq --exit-status '.error.code == "telemetry_sequence_conflict"' >/dev/null
 
-wave1_start_data='{"stage_id":"stage-1","wave":1,"early_call":false,"early_bonus":0}'
-post_telemetry "${session_id}" "${session_token}" realmguard.wave.start 2 "${wave1_start_data}" \
-  | jq --exit-status '.accepted == true and .duplicate == false and .sequence == 2' >/dev/null
-sleep "${milestone_sleep_seconds}"
-wave1_snapshot="$(jq --null-input --compact-output \
-  --argjson lives "$((stage_lives - wave1_spawned))" --argjson gold "$((initial_gold + wave1_reward))" \
-  --argjson reward "${wave1_reward}" --argjson escaped "${wave1_spawned}" --argjson spawned "${wave1_spawned}" \
-  --argjson histogram "${wave1_spawned_by_enemy}" \
-  '{stage_id:"stage-1",wave:1,lives:$lives,gold:$gold,earned_gold:$reward,spent_gold:0,sold_gold:0,kills:0,escaped:$escaped,spawned:$spawned,hero_level:1,defeated_by_enemy:{},escaped_by_enemy:$histogram,spawned_by_enemy:$histogram}')"
-post_telemetry "${session_id}" "${session_token}" realmguard.wave.complete 3 "${wave1_snapshot}" >/dev/null
 
-wave2_start_data='{"stage_id":"stage-1","wave":2,"early_call":false,"early_bonus":0}'
-post_telemetry "${session_id}" "${session_token}" realmguard.wave.start 4 "${wave2_start_data}" >/dev/null
-sleep "${milestone_sleep_seconds}"
-wave2_snapshot="$(jq --null-input --compact-output \
-  --argjson lives "$((stage_lives - wave2_spawned))" --argjson gold "${remaining_gold}" \
-  --argjson reward "${wave_rewards}" --argjson escaped "${wave2_spawned}" --argjson spawned "${wave2_spawned}" \
-  --argjson histogram "${wave2_spawned_by_enemy}" \
-  '{stage_id:"stage-1",wave:2,lives:$lives,gold:$gold,earned_gold:$reward,spent_gold:0,sold_gold:0,kills:0,escaped:$escaped,spawned:$spawned,hero_level:1,defeated_by_enemy:{},escaped_by_enemy:$histogram,spawned_by_enemy:$histogram}')"
-post_telemetry "${session_id}" "${session_token}" realmguard.wave.complete 5 "${wave2_snapshot}" >/dev/null
+# Replay the recorded battle into the open session.
+battle_duration_ms="$(jq '.outcome.duration_ms' <<<"${fixture_json}")"
+telemetry_count="$(jq '.telemetry | length' <<<"${fixture_json}")"
+min_wave_duration_ms="$(jq '(.balance.min_wave_duration_ms | ceil)' <<<"${config_json}")"
+duration_tolerance_ms="$(jq '(.balance.duration_tolerance_ms | ceil)' <<<"${config_json}")"
+minimum_milestone_ms="$((min_wave_duration_ms / 5))"
+if ((minimum_milestone_ms < 250)); then minimum_milestone_ms=250; fi
+if ((minimum_milestone_ms > 1000)); then minimum_milestone_ms=1000; fi
+milestone_sleep_seconds="$(((minimum_milestone_ms + 999) / 1000))"
 
-wave3_start_data='{"stage_id":"stage-1","wave":3,"early_call":false,"early_bonus":0}'
-post_telemetry "${session_id}" "${session_token}" realmguard.wave.start 6 "${wave3_start_data}" >/dev/null
+# Every milestone but the opening ready and the closing complete, in the order
+# the battle produced them. A wave start is followed by a real pause so its
+# completion cannot arrive faster than the server allows.
+sequence=2
+for ((index = 1; index < telemetry_count - 1; index++)); do
+  milestone_event="$(jq --raw-output --argjson index "${index}" '.telemetry[$index].event' <<<"${fixture_json}")"
+  milestone_data="$(jq --compact-output --argjson index "${index}" '.telemetry[$index].data' <<<"${fixture_json}")"
+  post_telemetry "${session_id}" "${session_token}" "${milestone_event}" "${sequence}" "${milestone_data}" >/dev/null
+  sequence=$((sequence + 1))
+  if [[ "${milestone_event}" == "realmguard.wave.start" ]]; then
+    sleep "${milestone_sleep_seconds}"
+  fi
+done
 
-# A defeat reaches one wave beyond waves_completed. Wait for the three reached
-# waves using the published balance so the server/session wall-time bound is
-# exercised without baking a balance constant into the release smoke.
-sleep "${active_wave_sleep_seconds}"
-battle_complete_data="$(jq --null-input --compact-output \
-  --arg content_version "$(jq --raw-output '.version.content_version' <<<"${config_json}")" \
-  --arg stage_version "$(jq --raw-output '[.stages[] | select(.id == "stage-1")][0].version' <<<"${config_json}")" \
-  --arg balance_version "$(jq --raw-output '.version.balance_version' <<<"${config_json}")" \
-  --arg asset_version "$(jq --raw-output '.version.asset_version' <<<"${config_json}")" \
-  --argjson remaining_gold "${remaining_gold}" --argjson earned_gold "${wave_rewards}" \
-  --argjson spawned "${spawned}" --argjson escaped "${stage_lives}" --argjson duration_ms "${minimum_duration_ms}" \
-  --argjson escaped_by_enemy "${escaped_by_enemy}" --argjson spawned_by_enemy "${spawned_by_enemy}" \
-  '{stage_id:"stage-1",mode:"campaign",difficulty:"normal",duration_ms:$duration_ms,lives:0,gold:$remaining_gold,earned_gold:$earned_gold,spent_gold:0,sold_gold:0,kills:0,escaped:$escaped,spawned:$spawned,waves:2,waves_completed:2,hero_id:"aerin",hero_level:1,content_version:$content_version,stage_version:$stage_version,balance_version:$balance_version,asset_version:$asset_version,victory:false,defeated_by_enemy:{},escaped_by_enemy:$escaped_by_enemy,spawned_by_enemy:$spawned_by_enemy}')"
-post_telemetry "${session_id}" "${session_token}" realmguard.battle.complete 7 "${battle_complete_data}" >/dev/null
+# A replayed battle is only accepted if the session had the wall time to play
+# it. Most of that has already passed while the rest of this smoke ran; wait out
+# whatever remains instead of assuming it.
+required_elapsed_ms="$((battle_duration_ms / 2 - duration_tolerance_ms + 20000))"
+announced_wait=false
+# Re-measure after every sleep: a container host can hand back a short sleep,
+# and arriving one second early would fail the run for no real reason.
+while :; do
+  elapsed_ms="$(( $(date +%s%3N) - battle_started_ms ))"
+  ((elapsed_ms >= required_elapsed_ms)) && break
+  remaining_ms="$((required_elapsed_ms - elapsed_ms))"
+  if [[ "${announced_wait}" == false ]]; then
+    announced_wait=true
+    printf 'Replayed battle is %dms of simulation; waiting %ds so the session has honest wall time.\n' \
+      "${battle_duration_ms}" "$(((remaining_ms + 999) / 1000))"
+  fi
+  sleep "$(awk -v milliseconds="${remaining_ms}" 'BEGIN { printf "%.3f", milliseconds / 1000 }')"
+done
 
-result_body="$(jq --null-input --compact-output \
+battle_complete_data="$(jq --compact-output '.telemetry[-1].data' <<<"${fixture_json}")"
+post_telemetry "${session_id}" "${session_token}" realmguard.battle.complete "${sequence}" "${battle_complete_data}" >/dev/null
+
+# The request still carries the legacy battle numbers; the server replaces every
+# one of them with what its own replay produced.
+result_body="$(jq --compact-output \
   --arg session_id "${session_id}" --arg session_token "${session_token}" \
-  --arg content_version "$(jq --raw-output '.version.content_version' <<<"${config_json}")" \
-  --arg stage_version "$(jq --raw-output '[.stages[] | select(.id == "stage-1")][0].version' <<<"${config_json}")" \
-  --arg balance_version "$(jq --raw-output '.version.balance_version' <<<"${config_json}")" \
-  --arg asset_version "$(jq --raw-output '.version.asset_version' <<<"${config_json}")" \
-  --argjson remaining_gold "${remaining_gold}" --argjson earned_gold "${wave_rewards}" --argjson spawned "${spawned}" \
-  --argjson escaped "${stage_lives}" --argjson duration_ms "${minimum_duration_ms}" \
-  --argjson escaped_by_enemy "${escaped_by_enemy}" --argjson spawned_by_enemy "${spawned_by_enemy}" \
-  '{game_id:"realmguard",session_id:$session_id,session_token:$session_token,stage_id:"stage-1",mode:"campaign",difficulty:"normal",duration_ms:$duration_ms,remaining_lives:0,remaining_gold:$remaining_gold,earned_gold:$earned_gold,spent_gold:0,sold_gold:0,kills:0,escaped:$escaped,spawned:$spawned,waves_completed:2,hero_id:"aerin",hero_level:1,content_version:$content_version,stage_version:$stage_version,balance_version:$balance_version,asset_version:$asset_version,victory:false,defeated_by_enemy:{},escaped_by_enemy:$escaped_by_enemy,spawned_by_enemy:$spawned_by_enemy,proof:"untrusted-client-proof",events:[{"source":"client","trusted":false}]}')"
+  '{game_id:"realmguard",session_id:$session_id,session_token:$session_token,
+    stage_id:.stage_id,mode:.mode,difficulty:.difficulty,hero_id:.hero_id,
+    content_version:.content_version,stage_version:.stage_version,
+    balance_version:.balance_version,asset_version:.asset_version,ledger:.ledger,
+    duration_ms:.outcome.duration_ms,remaining_lives:.outcome.lives,remaining_gold:.outcome.gold,
+    earned_gold:.outcome.earned_gold,spent_gold:.outcome.spent_gold,sold_gold:.outcome.sold_gold,
+    kills:.outcome.kills,escaped:.outcome.escaped,spawned:.outcome.spawned,
+    waves_completed:.outcome.waves_completed,hero_level:.outcome.hero_level,victory:.outcome.victory,
+    defeated_by_enemy:.outcome.defeated_by_enemy,escaped_by_enemy:.outcome.escaped_by_enemy,
+    spawned_by_enemy:.outcome.spawned_by_enemy,
+    proof:"untrusted-client-proof",events:[{source:"client",trusted:false}]}' <<<"${fixture_json}")"
 result_json="$(request POST /api/v1/realmguard/results 201 "${result_body}")"
-jq --exit-status '
-  .result.verified == true
-  and .result.victory == false
-  and .result.stars == 0
-  and .result.battle_hero_level == 1
-  and (.result.score | type) == "number"
-  and .result.verification_method == "server_received_telemetry_v1"
-  and .result.attestation.method == "server_received_telemetry_v1"
-  and .result.attestation.event_count == 7
-  and .result.attestation.waves_started == 3
-  and .result.attestation.waves_completed == 2
-  and (.result.attestation.digest | test("^[0-9a-f]{64}$"))
-  and .progress.total_stars == 0
+jq --exit-status \
+  --argjson expected "$(jq --compact-output '.outcome' <<<"${fixture_json}")" \
+  --argjson events "${telemetry_count}" \
+  '.result.verified == true
+   and .result.victory == false
+   and .result.stars == 0
+   and (.result.score | type) == "number"
+   and .result.battle_hero_level == $expected.hero_level
+   and .result.verification_method == "server_replay_v1"
+   and .result.attestation.method == "server_replay_v1"
+   and .result.attestation.replay.rules_version == "realmguard-kernel-1"
+   and .result.attestation.replay.ticks == $expected.ticks
+   and .result.attestation.replay.commands == 3
+   and (.result.attestation.replay.config_digest | test("^[0-9a-f]{16}$"))
+   and .result.attestation.telemetry.method == "server_received_telemetry_v1"
+   and .result.attestation.telemetry.event_count == $events
+   and .result.attestation.telemetry.waves_started == ($expected.waves_completed + 1)
+   and .result.attestation.telemetry.waves_completed == $expected.waves_completed
+   and (.result.attestation.telemetry.digest | test("^[0-9a-f]{64}$"))
+   and .progress.total_stars == 0
 ' <<<"${result_json}" >/dev/null
 request POST /api/v1/realmguard/results 200 "${result_body}" \
-  | jq --exit-status '.idempotent == true and .result.verified == true and .result.verification_method == "server_received_telemetry_v1"' >/dev/null
+  | jq --exit-status '.idempotent == true and .result.verified == true and .result.verification_method == "server_replay_v1"' >/dev/null
 
+# The same ledger with one tower command removed is a different battle, so the
+# server must refuse to close an already finished session with it.
 result_id="$(jq --raw-output '.result.id' <<<"${result_json}")"
 request GET '/api/v1/admin/audit?limit=200' 200 \
-  | jq --exit-status --arg id "${result_id}" '([.items[] | select(.action == "realmguard.result.accept" and .resource_id == $id and .detail.client_evidence_ignored == true and .detail.verification_method == "server_received_telemetry_v1")] | length) == 1' >/dev/null
+  | jq --exit-status --arg id "${result_id}" '([.items[] | select(.action == "realmguard.result.accept" and .resource_id == $id and .detail.client_evidence_ignored == true and .detail.verification_method == "server_replay_v1" and .detail.ledger_commands == 3)] | length) == 1' >/dev/null
 
-request GET '/api/v1/realmguard/rankings?group=individual&metric=score&period=daily&mode=campaign&difficulty=normal&stage_id=stage-1&hero_id=aerin' 200 \
+request GET '/api/v1/realmguard/rankings?group=individual&metric=score&period=daily&mode=campaign&difficulty=veteran&stage_id=stage-1&hero_id=aerin' 200 \
   | jq --exit-status '.group == "individual" and .metric == "score" and .period == "daily" and (.items | length) == 0' >/dev/null
 request GET /api/v1/realmguard/progress 200 \
-  | jq --exit-status '([.items[] | select(.stage_id == "stage-1" and .difficulty == "normal" and .attempts == 1 and .completed == false)] | length) == 1' >/dev/null
+  | jq --exit-status '([.items[] | select(.stage_id == "stage-1" and .difficulty == "veteran" and .attempts == 1 and .completed == false)] | length) == 1' >/dev/null
+
 
 # Exercise the configurable Designer review path without changing the active
 # published snapshot. Separation is disabled only for this single-admin smoke.

@@ -1,7 +1,10 @@
 import type { Point } from "../types";
 
+/** sqrt of the squared sum, not `Math.hypot`, so Go replays bit-identically. */
 function distance(a: Point, b: Point) {
-  return Math.hypot(b.x - a.x, b.y - a.y);
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  return Math.sqrt(dx * dx + dy * dy);
 }
 
 export function pathLength(path: Point[]) {

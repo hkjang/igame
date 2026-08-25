@@ -1,3 +1,5 @@
+import type { KernelLedger } from "./kernel/ledger";
+
 export type RealmDifficulty = "casual" | "normal" | "veteran";
 export type RealmMode = "campaign" | "endless";
 export type TargetingMode = "first" | "last" | "strong" | "weak" | "closest";
@@ -218,6 +220,8 @@ export interface BattleStats {
   balance_version: string;
   stage_version: string;
   asset_version: string;
+  /** Player input record the server replays; absent when it could not be kept. */
+  ledger?: KernelLedger;
 }
 
 export interface RealmResult extends BattleStats {

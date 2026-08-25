@@ -135,7 +135,7 @@ POST /api/v1/games/cyber-fortress/sessions HTTP/1.1
 Authorization: Bearer igk_...
 Content-Type: application/json
 
-{"metadata":{"client":"gamehub-js","client_version":"0.5.0","defense_content_version_id":"9ea33ec1-39a7-4e65-ad57-ae11a6b2790f"}}
+{"metadata":{"client":"gamehub-js","client_version":"0.6.0","defense_content_version_id":"9ea33ec1-39a7-4e65-ad57-ae11a6b2790f"}}
 ```
 
 pin이 없으면 `428 defense_version_required`, UUID가 현재 slug의 published snapshot이 아니면 `409 defense_config_stale`입니다. 성공 응답의 `session.defense_content_version_id`는 요청 UUID와 정확히 같아야 합니다. 게시 race가 발생한 client는 config를 다시 읽고 새 session을 생성합니다. 이전 UUID를 새 session에 묵시적으로 대입하지 않습니다.
@@ -144,7 +144,7 @@ pin이 없으면 `428 defense_version_required`, UUID가 현재 slug의 publishe
 
 Defense 원장 `data`는 실제 직렬화된 JSON 기준 최대 4 KiB입니다. 초과하면 `400 invalid_telemetry`이며 Studio Test/Publish도 stage별 최악 누적 `battle.complete` 표본이 같은 한도를 넘는 content pack을 `422 content_validation_failed`로 거부합니다. Class 한도는 선택 event 전체 128, battle ready/complete 각 1, wave start 101, wave complete 100, server-validated answer를 반영하는 education apply 500, tower build/upgrade/sell 합계 10,000입니다. 선택 class가 차더라도 필수 class의 예약 용량은 유지됩니다. 동일 UUID/payload 재전송은 `202 duplicate:true`, 같은 UUID의 다른 payload와 sequence 누락은 `409`, class 포화는 `429`입니다.
 
-성공 결과의 `verification_method`와 `attestation.method`는 `server_received_telemetry_v1`이고 digest는 서버가 수신한 canonical 원장에서 계산됩니다. 이는 browser event의 서버 수신·순서·시각·누적 일관성 검증이며, browser frame과 충돌 또는 실제 사용자 입력을 서버가 독립적으로 재실행하는 암호학적 replay 증명은 아닙니다.
+Defense 성공 결과의 `verification_method`와 `attestation.method`는 `server_received_telemetry_v1`이고 digest는 서버가 수신한 canonical 원장에서 계산됩니다. 이는 browser event의 서버 수신·순서·시각·누적 일관성 검증이며, 서버가 전투를 독립적으로 재실행하는 replay 증명은 아닙니다. RealmGuard가 `server_replay_v1`로 옮겨간 것과 달리 Defense Series는 AI 자원 모델과 교육 결과가 결합돼 있어 이번 릴리스에서는 이 계약을 유지합니다. `duration_ms`는 두 게임 모두 시뮬레이션 시간이며 세션 경과 시간의 최대 2배까지 허용합니다.
 
 Cyber Fortress와 AI Nexus Defense는 전투 중 published education event를 선택합니다. public config/preview에는 중립적인 `A`/`B`/`C` answer ID만 있고 `correct_answer_id`, `correct`, `explanation`은 없습니다. 정답 위치는 문제 전체에서 분산되며 browser bundle에도 mapping을 넣지 않습니다. 답 요청은 session ID/token과 answer ID를 포함하며 서버는 session owner, slug, pinned version과 event/answer 참조, 해당 wave 도달 원장을 확인합니다. 성공한 답 응답에서만 정답 여부와 해설을 반환합니다. 개인 `GET /learning`은 topic별 attempts/correct 집계를, 관리자 `learning-report`는 권한과 개인정보 설정을 적용한 참여·정답률 집계를 반환합니다. 게임 점수와 학습 점수는 별도 지표입니다.
 
@@ -167,7 +167,7 @@ POST /api/v1/games/realmguard/sessions HTTP/1.1
 Authorization: Bearer igk_...
 Content-Type: application/json
 
-{"metadata":{"client":"gamehub-js","client_version":"0.5.0","realmguard_version_id":"9ea33ec1-39a7-4e65-ad57-ae11a6b2790f"}}
+{"metadata":{"client":"gamehub-js","client_version":"0.6.0","realmguard_version_id":"9ea33ec1-39a7-4e65-ad57-ae11a6b2790f"}}
 ```
 
 성공 응답의 `session.realmguard_version_id`는 요청한 UUID와 같습니다. `GET /api/v1/realmguard/config`는 stage의 전체 path, tower spot, wave와 gimmick을 포함한 실행 설정을 반환합니다. `GET /api/v1/realmguard/version`은 게시 version의 `content_version`, `stage_version`, `balance_version`, `asset_version`과 checksum을 반환합니다. 전투 결과의 `stage_version`에는 이 전역 stage-content version이 아니라 선택한 stage 객체의 `version`을 제출합니다. 응답은 둘을 각각 `stage_version`, `stage_content_version`으로 구분합니다.
@@ -205,9 +205,11 @@ Content-Type: application/json
 
 검증 가능한 전투에는 시작 직후 `realmguard.battle.ready`, 도달한 각 wave의 순서대로 `realmguard.wave.start`, 완료한 각 wave의 `realmguard.wave.complete`, 마지막 `realmguard.battle.complete`가 필요합니다. `wave.complete`는 lives/gold/earned/spent/sold/kills/escaped/spawned/hero level과 `defeated_by_enemy`, `escaped_by_enemy`, `spawned_by_enemy` 누적 histogram을 포함합니다. `battle.complete`는 이 최종 누적값, `waves`/`waves_completed`, hero, 승패와 네 version을 결과 요청과 정확히 맞춥니다. 서버는 수신 시각, 연속 sequence, wave 순서·최소 milestone 시간, 누적값 단조성, tower build/upgrade/sell 원장, 적별 spawn 예산·보상·life damage를 확인합니다.
 
-공식 결과 요청은 session ID/token, stage/mode/difficulty, duration, remaining lives/gold, earned/spent/sold gold, kills/escaped/spawned, completed waves, 적별 누적 histogram, hero와 네 version 값을 포함합니다. 난이도별 시작금은 `round(stage.starting_gold × balance.difficulties[difficulty].gold)`이고, `hero_level`은 계정 영웅 레벨이 아니라 해당 전투에서 검증된 처치 수로 올라간 전투 레벨입니다. 각 수치의 허용 범위는 세션에 고정된 stage/wave snapshot, 서버 경과 시간과 서버가 수신한 event 원장에서 계산됩니다. 브라우저는 실제 Scene이 수집한 통계를 SDK의 `completeAuthoritatively`로 전달합니다.
+공식 결과 요청은 session ID/token, stage/mode/difficulty, hero, 네 version 값과 전투 입력 원장 `ledger`를 포함합니다. `ledger`는 `{rules_version, config_digest, ticks, commands[]}` 형태이고 각 command는 `{tick, op, …}`입니다. `op`는 `wave`, `build`, `upgrade`, `sell`, `target`, `skill`, `meteor`, `reinforce`, `hero`, `economy`, `defeat`이며, 명령은 최대 6,000개, `ticks`는 최대 288,000입니다. 함께 보내는 duration, lives/gold, kills/escaped/spawned, completed waves와 histogram은 호환을 위해 유지되지만 서버는 이를 사용하지 않고 재현 결과로 덮어씁니다.
 
-서버가 score, star, 승리, 경제 예산과 영웅 XP를 다시 계산하고 RealmGuard result, 공통 score, session 종료, progress와 unlock을 하나의 transaction으로 반영합니다. 첫 성공은 `201`이며 응답의 `verification_method`와 `attestation.method`는 `server_received_telemetry_v1`입니다. 이는 인증된 session token으로 브라우저가 자가 보고한 event를 서버가 실제 수신해 순서·시각·누적 원장 일관성을 검증했다는 뜻입니다. 서버가 모든 프레임·적 이동·충돌을 독립적으로 재실행하는 완전한 서버 시뮬레이션이나 replay 증명은 아닙니다. 요청의 호환용 `proof`와 `events`는 공식 증거로 사용하거나 저장하지 않고, 서버가 attestation digest를 포함한 암호화 receipt를 별도로 생성합니다.
+서버는 세션에 고정된 콘텐츠를 kernel 입력으로 투영해 `config_digest`를 다시 계산하고, 일치하면 원장을 처음부터 재생해 lives, gold, kills, escaped, spawned, 완료 wave, 전투 hero level, 승패와 적별 histogram을 직접 산출합니다. `duration_ms`는 시뮬레이션 시간(tick × 50ms)이며 세션 경과 시간의 최대 2배까지 허용합니다. 원장이 없으면 `422 missing_ledger`, 규칙 버전이 다르면 `409 ledger_rules_mismatch`, 투영 digest가 다르면 `409 content_projection_mismatch`, 명령 수·tick·순서가 범위를 벗어나면 `422 invalid_ledger`입니다.
+
+이어서 score, star, 승리, 경제 예산과 영웅 XP를 재계산하고 RealmGuard result, 공통 score, session 종료, progress와 unlock을 하나의 transaction으로 반영합니다. 첫 성공은 `201`이며 응답의 `verification_method`는 `server_replay_v1`입니다. 이는 서버가 게시된 콘텐츠와 플레이어 입력만으로 전투를 다시 실행해 결과를 확정했다는 뜻입니다. 수정된 client는 자신의 입력을 바꿀 수는 있어도 그 입력의 결과를 바꿀 수 없습니다. 기존 telemetry 검증은 그 전투가 실제 이 session에서 진행됐음을 확인하는 두 번째 방어선으로 유지되며 attestation에 함께 기록됩니다. 요청의 호환용 `proof`와 `events`는 공식 증거로 사용하거나 저장하지 않고, 서버가 attestation digest를 포함한 암호화 receipt를 별도로 생성합니다. 재현에 사용한 원장은 `realmguard_results.ledger`에 보존됩니다.
 
 같은 세션/token의 성공 결과 재전송은 저장된 공식 결과와 `idempotent:true`를 `200`으로 반환합니다. 다른 방식으로 이미 종료된 세션, 세션/token 또는 version 불일치는 `409`, 전투 수치 또는 필수 telemetry 불일치는 `422`입니다.
 

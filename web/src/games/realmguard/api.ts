@@ -317,7 +317,7 @@ export function resultPayload(stats: RealmResult): Record<string, unknown> {
     defeated_by_enemy: stats.defeated_by_enemy, escaped_by_enemy: stats.escaped_by_enemy, spawned_by_enemy: stats.spawned_by_enemy,
     hero_id: stats.hero_id, hero_level: stats.hero_level, content_version: stats.content_version,
     stage_version: stats.stage_version, balance_version: stats.balance_version, asset_version: stats.asset_version,
-    victory: stats.victory,
+    victory: stats.victory, ledger: stats.ledger,
   };
 }
 

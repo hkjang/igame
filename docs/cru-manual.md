@@ -12,7 +12,7 @@ igame의 모든 게임 콘텐츠는 데이터 무결성과 밸런스 안정을 �
 2. **샌드박스 테스트 (Preview & Test):** 임시 UUID로 실제 게임 런타임에서 동작 검증
 3. **승인 검토 (Approval Queue):** 팀장 및 검토자의 변경 내역 및 diff 확인
 4. **버전 고정 게시 (Publish):** 불변 해시(Content Hash)와 함께 서비스 적용
-5. **텔레메트리 검증 (Telemetry Validation):** 클라이언트가 보고한 전투 기록의 시계열 정합성 검증
+5. **결과 재현 검증 (Replay Validation):** RealmGuard는 서버가 플레이어 입력을 게시 콘텐츠로 재생해 결과를 직접 산출하고, Defense Series는 보고된 전투 기록의 시계열 정합성을 검증
 
 ---
 

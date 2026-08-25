@@ -39,6 +39,8 @@
 
 RealmGuard의 명칭·등장 개체·stage/balance 데이터와 코드 생성 그래픽은 이 프로젝트의 독자 구현이며, Kingdom Rush를 포함한 제3자 게임의 코드·서사·캐릭터·맵·시청각 자산을 포함하지 않습니다. Phaser는 MIT 라이선스의 실행 framework로만 사용하며 package metadata와 license를 이미지 `/licenses/phaser`에 함께 보관합니다.
 
+`v0.6.0`부터 RealmGuard의 공식 결과는 서버가 재현합니다. 전투 규칙 전체가 renderer와 분리된 결정론적 kernel에 있고, 화면은 그 kernel이 만든 상태를 그리기만 합니다. 브라우저는 무슨 일이 일어났는지 보고하는 대신 플레이어가 무엇을 했는지만 원장으로 제출하며, 서버는 세션에 고정된 콘텐츠로 같은 전투를 처음부터 다시 실행해 남은 생명·자원·처치·유출·완료 wave·승패를 직접 계산합니다. 수정된 client는 자신의 입력을 바꿀 수는 있어도 그 입력의 결과를 바꿀 수 없습니다.
+
 관리자는 `/admin/realmguard`의 Designer에서 checksum/`If-Match`로 콘텐츠 초안을 편집·Test·게시하고, 승인 정책을 켜면 `/reviews`에서 미리보기 후 승인·반려합니다. Manager 검토는 manager/작성자 모두 같은 비어 있지 않은 team일 때만 열립니다. 게임 세션은 화면이 읽은 published config UUID를 다시 확인해 pin하며, 공식 전투 결과는 UUID와 1-based sequence로 서버가 수신한 브라우저 자가보고 원장의 순서·시각·누적 일관성을 `server_received_telemetry_v1`으로 검증합니다. 이는 완전한 서버 게임 시뮬레이션은 아닙니다. 게시 version, 검증 경계, telemetry와 운영·백업 절차는 [RealmGuard 운영 가이드](docs/realmguard.md)를 참조하세요.
 
 ## Defense Series
@@ -53,7 +55,7 @@ Defense Series 콘텐츠 `0.4.0`은 RealmGuard의 데이터 기반 방어 메커
 
 ## 접근성과 운영
 
-`v0.5.0`은 캐릭터 식별성과 전장 다양성을 확장하면서 기존 포털 접근성, 운영 도구와 실행 성능 계약을 유지합니다. 정본 시드를 사용하던 설치만 새 immutable 콘텐츠 UUID로 전환되며, 운영자가 직접 게시한 콘텐츠는 자동으로 덮어쓰지 않습니다. 이전 UUID의 결과와 랭킹은 보존되고 새 콘텐츠 기록과 분리됩니다. 동일 전투 규칙을 유지한 RealmGuard의 캠페인·영웅·스킬 진행도는 이어지며, 지도와 wave routing이 바뀐 Defense Series `0.4.0`의 진행도는 새 UUID에서 stage 1부터 시작합니다.
+`v0.6.0`은 RealmGuard 전투 결과를 서버가 직접 재현해 확정하도록 바꾸면서 기존 포털 접근성, 운영 도구와 실행 성능 계약을 유지합니다. 게시된 콘텐츠는 그대로이므로 새 콘텐츠 UUID로 전환하지 않고 캠페인·영웅·스킬 진행도와 기존 랭킹을 모두 보존합니다. 이전 릴리스에서 `server_received_telemetry_v1`로 검증된 기록은 그대로 남고, 새 기록은 `server_replay_v1`로 표시됩니다.
 
 포털은 본문 건너뛰기 link, 화면 전환 시 focus 이동과 음성 안내, route별 브라우저 제목을 제공합니다. 어두운 화면과 밝은 화면을 모두 지원하고 기본값은 운영체제 설정을 따르며, 두 palette 모두 본문·버튼 대비가 WCAG AA를 만족하는지 테스트로 확인합니다. 게시된 공지는 `/notices`에서 전체를 검색해 볼 수 있습니다. 사용자에게 보이는 API 오류는 한국어로 표시하고, session이 만료되면 로그인 화면으로 돌려보낸 뒤 보던 위치로 복귀합니다.
 
@@ -102,7 +104,7 @@ make smoke
 
 릴리스 이미지는 `VERSION`을 기준으로 만듭니다. 결과물 `dist/igame-v<version>.tar.gz`는 별도 tar 포장 없이 `docker save igame:v<version> | gzip`의 출력입니다.
 
-서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.5.0`으로 정렬됩니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
+서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.6.0`으로 정렬됩니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
 
 ```bash
 make release

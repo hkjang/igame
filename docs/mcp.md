@@ -57,7 +57,7 @@ Defense Series의 `office-guardians`, `cyber-fortress`, `ai-nexus-defense`는 `d
 
 Defense 공식 결과와 랭킹은 MCP 일반 `score_submit`/`leaderboard_get`으로 우회할 수 없습니다. Ordered telemetry와 결과 제출은 REST `/api/v1/telemetry`, `/api/v1/defense/{slug}/results`만 사용합니다. 랭킹 조회는 전용 `defense_rankings_get` 또는 REST `/api/v1/defense/{slug}/rankings`를 사용하며 둘 다 현재 published UUID로 격리됩니다. MCP에는 교육 답안, Content Studio, 검토·게시 tool을 노출하지 않습니다.
 
-RealmGuard의 `server_received_telemetry_v1`은 서버가 인증된 세션의 브라우저 자가보고 event를 수신하고 연속 sequence·receipt time·누적 원장 일관성을 검증하는 방식입니다. 완전한 서버 게임 시뮬레이션/replay가 아니며 client `proof`/`events`를 공식 증거로 사용하지 않습니다. 개인 키 권한은 기존 발급 키도 매 요청 현재 전역·역할 정책과 교집합으로 축소되지만, session token과 RealmGuard 전용 원장 계약은 별도로 모두 충족해야 합니다.
+RealmGuard의 `server_replay_v1`은 서버가 게시된 콘텐츠와 플레이어 입력 원장만으로 전투를 다시 실행해 결과를 확정하는 방식이며, 브라우저가 자가보고한 전투 수치와 client `proof`/`events`는 공식 증거로 사용하지 않습니다. 브라우저 event 원장의 수신·순서·시각 검증은 그 전투가 실제 해당 session에서 진행됐는지 확인하는 두 번째 방어선으로 함께 기록됩니다. 개인 키 권한은 기존 발급 키도 매 요청 현재 전역·역할 정책과 교집합으로 축소되지만, session token과 RealmGuard 전용 원장 계약은 별도로 모두 충족해야 합니다.
 
 tool 호출 예:
 

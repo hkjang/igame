@@ -71,7 +71,7 @@
           "Model Context Protocol (/mcp Streamable HTTP) & AI Co-Pilot Game Lab"
         ],
         "screenshot": "https://hkjang.github.io/igame/images/02_home_portal.png",
-        "softwareVersion": "v0.5.0",
+        "softwareVersion": "v0.6.0",
         "license": "https://www.apache.org/licenses/LICENSE-2.0"
       },
       {
@@ -1036,7 +1036,7 @@
           <details class="faq-item">
             <summary class="faq-question">게임 플레이 결과 텔레메트리는 어떻게 검증되나요?</summary>
             <div class="faq-answer">
-              클라이언트가 자가보고한 전투 텔레메트리는 서버에서 시각, 순서, 누적 점수 일관성을 <code>server_received_telemetry_v1</code> 규칙으로 엄격하게 검증하여 비정상적인 치팅 기록을 사전에 차단합니다.
+              RealmGuard는 브라우저가 결과를 보고하지 않습니다. 플레이어의 조작만 입력 원장으로 제출하면 서버가 게시된 콘텐츠로 전투를 처음부터 다시 실행해 점수와 별을 <code>server_replay_v1</code>로 확정합니다. Defense Series는 같은 세션의 전투 텔레메트리를 시각·순서·누적 일관성 기준으로 검증하는 <code>server_received_telemetry_v1</code>을 사용합니다.
             </div>
           </details>
         </div>

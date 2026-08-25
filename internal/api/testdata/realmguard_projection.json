@@ -1,0 +1,52 @@
+{
+  "cases": [
+    {
+      "stage_id": "stage-1",
+      "difficulty": "normal",
+      "hero_id": "aerin",
+      "digest": "26632d36bd0a13b8"
+    },
+    {
+      "stage_id": "stage-1",
+      "difficulty": "veteran",
+      "hero_id": "aerin",
+      "digest": "31ed8cf2fbf85ccc"
+    },
+    {
+      "stage_id": "stage-4",
+      "difficulty": "casual",
+      "hero_id": "brann",
+      "digest": "a746ea88b29f8e74"
+    },
+    {
+      "stage_id": "stage-5",
+      "difficulty": "veteran",
+      "hero_id": "nyra",
+      "digest": "a79ed34560b4feb4"
+    },
+    {
+      "stage_id": "stage-7",
+      "difficulty": "normal",
+      "hero_id": "brann",
+      "digest": "17ca1b8a84b34ec5"
+    },
+    {
+      "stage_id": "stage-9",
+      "difficulty": "veteran",
+      "hero_id": "aerin",
+      "digest": "7ba34ca3d8371985"
+    },
+    {
+      "stage_id": "stage-10",
+      "difficulty": "casual",
+      "hero_id": "nyra",
+      "digest": "1a482d228ab2161d"
+    },
+    {
+      "stage_id": "endless-rift",
+      "difficulty": "veteran",
+      "hero_id": "nyra",
+      "digest": "58b4412739f319c2"
+    }
+  ]
+}

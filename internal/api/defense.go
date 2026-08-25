@@ -1527,7 +1527,7 @@ func (s *Server) submitDefenseResult(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	serverDuration := s.Now().Sub(started).Milliseconds()
-	if in.DurationMS > serverDuration+content.Balance.DurationToleranceMS || in.DurationMS < int64(in.WavesCompleted)*content.Balance.MinWaveDurationMS {
+	if in.DurationMS > (serverDuration+content.Balance.DurationToleranceMS)*realmGuardMaxSpeedup || in.DurationMS < int64(in.WavesCompleted)*content.Balance.MinWaveDurationMS {
 		s.rejectDefenseResult(w, r, tx, slug, in.SessionID, 422, "invalid_duration", "duration is inconsistent with server time or completed waves")
 		return
 	}

@@ -475,8 +475,11 @@ func validateRealmGuardTelemetryAttestation(records []realmGuardTelemetryRecord,
 	attestation.FirstReceivedAt = ready.ReceivedAt.UTC()
 	attestation.LastReceivedAt = complete.ReceivedAt.UTC()
 	attestation.ObservedDurationMS = complete.ReceivedAt.Sub(ready.ReceivedAt).Milliseconds()
-	if attestation.ObservedDurationMS+content.Balance.DurationToleranceMS+2000 < in.DurationMS {
-		return attestation, rejectRealmGuardResult(422, "telemetry_attestation_failed", "submitted active duration exceeds server-observed battle telemetry time")
+	// Battle time may run ahead of wall time because the player can double the
+	// battle speed, so the observed window is compared against the fastest a
+	// replay of this length could legitimately have been played.
+	if (attestation.ObservedDurationMS+content.Balance.DurationToleranceMS+2000)*realmGuardMaxSpeedup < in.DurationMS {
+		return attestation, rejectRealmGuardResult(422, "telemetry_attestation_failed", "replayed battle duration exceeds server-observed battle telemetry time")
 	}
 
 	requiredStarts := in.WavesCompleted

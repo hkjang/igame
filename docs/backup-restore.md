@@ -56,7 +56,7 @@ unset POSTGRES_DSN
 5. 게임 실행, 점수, 랭킹, 감사 로그의 기준 시점 일치
 6. 로그인 화면과 프로필 버전 확인
 7. RealmGuard active content/balance version, published checksum, progress와 result version tuple 일치
-8. RealmGuard result의 `server_received_telemetry_v1` attestation/digest와 연결 session의 1-based telemetry sequence·UUID가 보존됨
+8. RealmGuard result의 `server_replay_v1` attestation, 재현에 사용한 입력 원장(`realmguard_results.ledger`), telemetry digest와 연결 session의 1-based sequence·UUID가 보존됨
 9. `/games/realmguard`와 ready/wave/battle telemetry를 거친 공식 결과 제출이 외부 연결 없이 동작
 
 ## 키 분실과 회전

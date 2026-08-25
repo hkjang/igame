@@ -12,11 +12,15 @@
 
 SBOM과 checksum은 CI에서 생성·검증하고 workflow evidence artifact와 job summary에 남깁니다. 별도 release asset으로 올리거나 이미지 archive 내부에 삽입하지 않습니다. 일반 CI와 Release workflow는 Web·SDK lockfile을 `npm audit --audit-level=low`로 검사하고, 정확히 고정한 `govulncheck v1.6.0`으로 reachable Go 취약점을 검사합니다. SDK build chain은 Windows 개발 서버 경로 탐색 advisory를 피하도록 esbuild `0.27.2`를 root override로 고정합니다. Builder는 `golang:1.26.6-alpine3.23`이며, 최종 이미지는 package manager와 shell이 없는 `scratch`입니다. 최종 이미지에는 정적 `/app/igame`, CA 신뢰 번들, 오프라인 검토용 license metadata만 포함합니다. 두 workflow 모두 고정된 Anchore scan action과 Grype `v0.117.0`으로 최종 이미지를 검사해 High/Critical 발견 시 중단하며, `io.igame.build.go-version` 라벨과 추출한 `/app/igame`의 `go version -m`이 모두 `go1.26.6`인지 확인합니다. 이미지 `User`는 `10001:10001`이며 Compose는 read-only filesystem, `cap_drop: ALL`, `no-new-privileges` 계약을 유지합니다. Docker healthcheck는 shell utility 대신 `/app/igame healthcheck`를 실행합니다.
 
+`v0.6.0`의 RealmGuard 결과 검증은 서버가 전투를 재현합니다. 브라우저 kernel과 Go 검증기가 갈라지면 정상 플레이가 전부 거부되므로, 두 구현은 저장소에 커밋된 replay vector와 콘텐츠 투영 fixture로 묶여 있습니다. 규칙이나 밸런스를 바꾼 뒤에는 `UPDATE_KERNEL_VECTORS=1 npx vitest run src/games/realmguard/kernel`로 vector·투영 digest·릴리스 smoke 전투를 다시 생성하고, `go test ./internal/...`과 web test가 모두 통과하는지 확인합니다. 재생성하지 않으면 Go test가 먼저 실패합니다.
+
+RealmGuard 회귀 smoke는 실제 전투 하나를 끝까지 제출합니다. 재현된 전투는 세션이 실제로 그만한 시간을 가졌을 때만 인정되므로, smoke는 시뮬레이션 길이의 절반만큼 실제로 기다립니다. 현재 smoke 전투는 약 262초 분량이며 스크립트 전체는 2~3분이 걸립니다.
+
 Production build는 RealmGuard와 Defense Series source가 locked Phaser dependency를 실제로 import하는지, compiled asset에 네 게임 route/content가 존재하는지, `index.html`이 원격 script/stylesheet를 참조하지 않는지를 검사합니다. Web과 SDK package version은 root `VERSION`과 같아야 합니다. 최종 이미지에는 locked web package manifest/lock을 `/licenses/web`, SDK manifest/lock을 `/licenses/sdk/gamehub-js`, Phaser package metadata와 MIT license를 `/licenses/phaser`에 보관합니다. SPDX SBOM에서 정확한 Phaser·`@igame/gamehub-js` version이 식별되지 않으면 Release workflow를 중단합니다. `003_realmguard.sql`, `004_realmguard_attestation.sql`과 Defense Series schema/seed migration을 포함한 SQL migration은 Go binary에 embed됩니다. fresh DB에서 세 Defense content pack이 각각 하나의 published snapshot으로 생성되고, 기존 RealmGuard 경제 필드는 `bigint`를 유지해야 합니다.
 
-서비스 릴리스와 게임 콘텐츠는 서로 다른 수명 주기를 가집니다. `igame:v0.5.0`에는 RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`이 함께 들어갑니다. Web·SDK·이미지 버전은 root `VERSION`을 따르지만, 기존 게임 콘텐츠 버전을 서비스 버전으로 덮어쓰지 않습니다. 공식 세션은 각 게임 public config에서 읽은 immutable snapshot UUID를 사용합니다.
+서비스 릴리스와 게임 콘텐츠는 서로 다른 수명 주기를 가집니다. `igame:v0.6.0`에는 RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`이 함께 들어갑니다. Web·SDK·이미지 버전은 root `VERSION`을 따르지만, 기존 게임 콘텐츠 버전을 서비스 버전으로 덮어쓰지 않습니다. 공식 세션은 각 게임 public config에서 읽은 immutable snapshot UUID를 사용합니다.
 
-콘텐츠의 `asset_version`은 해당 immutable snapshot이 소유한 자산 metadata와 telemetry 계약을 나타냅니다. 영웅 선택 카드, HUD와 코드 생성 전장 배경 같은 서비스 공통 renderer는 서비스 버전을 따르므로, 보존된 custom snapshot은 기존 `asset_version`을 보고하면서도 `v0.5.0`의 공통 UI 개선을 사용합니다. 운영자가 snapshot 자체의 자산 계약을 바꿀 때만 새 콘텐츠 버전을 게시합니다.
+콘텐츠의 `asset_version`은 해당 immutable snapshot이 소유한 자산 metadata와 telemetry 계약을 나타냅니다. 영웅 선택 카드, HUD와 코드 생성 전장 배경 같은 서비스 공통 renderer는 서비스 버전을 따르므로, 보존된 custom snapshot은 기존 `asset_version`을 보고하면서도 `v0.6.0`의 공통 UI 개선을 사용합니다. 운영자가 snapshot 자체의 자산 계약을 바꿀 때만 새 콘텐츠 버전을 게시합니다.
 
 ## 매뉴얼 PDF 재생성
 
