@@ -68,6 +68,33 @@ describe("Defense Series practice packs", () => {
     expect(AI_NEXUS_DEFENSE.education).toEqual([]);
   });
 
+  it("ships distinct tactical maps and routes multi-lane waves across every lane", () => {
+    for (const pack of [
+      OFFICE_GUARDIANS,
+      CYBER_FORTRESS,
+      AI_NEXUS_DEFENSE,
+    ]) {
+      const fingerprints = pack.config.stages.map((stage) =>
+        (stage.paths ?? [stage.path])
+          .map((path) => path.map((point) => `${point.x}:${point.y}`).join("/"))
+          .join("|"),
+      );
+      expect(new Set(fingerprints)).toHaveLength(pack.config.stages.length);
+      expect(pack.config.stages.every((stage) => Boolean(stage.mapStyle))).toBe(true);
+      expect(pack.config.assetVersion).toBe("procedural-defense-2");
+      for (const stage of pack.config.stages) {
+        const laneCount = stage.paths?.length ?? 1;
+        const usedLanes = new Set(
+          stage.waves.flatMap((wave) =>
+            wave.entries.map((entry) => entry.pathIndex ?? 0),
+          ),
+        );
+        expect([...usedLanes].every((lane) => lane >= 0 && lane < laneCount)).toBe(true);
+        if (laneCount > 1) expect(usedLanes.size).toBe(laneCount);
+      }
+    }
+  });
+
   it("serializes AI resource headroom as a conserved ledger", () => {
     const state = buildAIResourceState(AI_NEXUS_DEFENSE, {
       compute: 800,

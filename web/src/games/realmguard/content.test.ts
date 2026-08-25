@@ -15,6 +15,7 @@ describe('RealmGuard content', () => {
     expect(DEFAULT_REALMGUARD_CONFIG.towers.flatMap((tower) => tower.branches)).toHaveLength(8);
     expect(DEFAULT_REALMGUARD_CONFIG.heroes).toHaveLength(3);
     expect(DEFAULT_REALMGUARD_CONFIG.heroes.every((hero) => hero.skill1 && hero.skill2 && hero.ultimate && hero.respawnSeconds > 0)).toBe(true);
+    expect(DEFAULT_REALMGUARD_CONFIG.heroes.map((hero) => hero.unlockStage)).toEqual([1, 3, 6]);
     expect(DEFAULT_REALMGUARD_CONFIG.towers.some((tower) => tower.role.includes('병사 소환'))).toBe(true);
     expect(DEFAULT_REALMGUARD_CONFIG.skills.map((skill) => skill.id)).toEqual(['meteor', 'reinforcement', 'freeze']);
   });

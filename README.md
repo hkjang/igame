@@ -35,7 +35,7 @@
 
 ## RealmGuard
 
-`v0.2.0`은 igame의 독자 타워 디펜스 IP인 **RealmGuard**를 포함합니다. 콘텐츠는 현재 `0.3.0`이며 타워 분기 밸런스가 재조정되었습니다. 10개 캠페인 stage와 끝없는 균열, 일반 enemy 10종과 boss 2종, 4종 tower와 8개 upgrade branch, 3명 hero, 3개 active skill을 데이터 기반으로 구성합니다. `/games/realmguard`의 게임 화면은 Phaser를 사용하지만 엔진과 모든 실행 자산은 Vite/Go 정적 bundle과 단일 Docker 이미지 안에 포함되어 폐쇄망에서 CDN 없이 실행됩니다.
+`v0.2.0`은 igame의 독자 타워 디펜스 IP인 **RealmGuard**를 포함합니다. 콘텐츠는 현재 `0.3.1`이며 재조정된 타워 분기와 캐릭터별 코드 생성 초상·전장 실루엣·공격 효과·실시간 HP/레벨 HUD를 제공합니다. 10개 캠페인 stage와 끝없는 균열, 일반 enemy 10종과 boss 2종, 4종 tower와 8개 upgrade branch, 3명 hero, 3개 active skill을 데이터 기반으로 구성합니다. `/games/realmguard`의 게임 화면은 Phaser를 사용하지만 엔진과 모든 실행 자산은 Vite/Go 정적 bundle과 단일 Docker 이미지 안에 포함되어 폐쇄망에서 CDN 없이 실행됩니다.
 
 RealmGuard의 명칭·등장 개체·stage/balance 데이터와 코드 생성 그래픽은 이 프로젝트의 독자 구현이며, Kingdom Rush를 포함한 제3자 게임의 코드·서사·캐릭터·맵·시청각 자산을 포함하지 않습니다. Phaser는 MIT 라이선스의 실행 framework로만 사용하며 package metadata와 license를 이미지 `/licenses/phaser`에 함께 보관합니다.
 
@@ -43,7 +43,7 @@ RealmGuard의 명칭·등장 개체·stage/balance 데이터와 코드 생성 �
 
 ## Defense Series
 
-`v0.3.0`은 RealmGuard의 데이터 기반 방어 메커니즘을 공통 Defense Engine으로 확장한 세 게임을 제공합니다.
+Defense Series 콘텐츠 `0.4.0`은 RealmGuard의 데이터 기반 방어 메커니즘을 공통 Defense Engine으로 확장한 세 게임과 28개의 이름 있는 전술 지도를 제공합니다. 10개 전장 geometry에 게임별 `map_style`을 결합하며, stage 선택 미니맵에서 경로와 건설 지점, lane 수를 확인할 수 있고 일부 전장은 적이 실제 두 진입로로 나뉘어 들어옵니다.
 
 - `/games/office-guardians`: 조직과 직무의 협업을 다루는 **Office Guardians**
 - `/games/cyber-fortress`: 위협 인지와 보안 대응을 학습하는 **Cyber Fortress**
@@ -53,7 +53,7 @@ RealmGuard의 명칭·등장 개체·stage/balance 데이터와 코드 생성 �
 
 ## 접근성과 운영
 
-`v0.4.0`은 게임을 추가하는 대신 포털 전반의 접근성, 운영 도구와 실행 성능을 보강합니다. schema와 환경변수는 `v0.3.0`과 같고 게임 콘텐츠 version도 그대로이므로, 기존 결과·랭킹·진행도를 보존한 채 image 교체만으로 올릴 수 있습니다.
+`v0.5.0`은 캐릭터 식별성과 전장 다양성을 확장하면서 기존 포털 접근성, 운영 도구와 실행 성능 계약을 유지합니다. 정본 시드를 사용하던 설치만 새 immutable 콘텐츠 UUID로 전환되며, 운영자가 직접 게시한 콘텐츠는 자동으로 덮어쓰지 않습니다. 이전 UUID의 결과와 랭킹은 보존되고 새 콘텐츠 기록과 분리됩니다. 동일 전투 규칙을 유지한 RealmGuard의 캠페인·영웅·스킬 진행도는 이어지며, 지도와 wave routing이 바뀐 Defense Series `0.4.0`의 진행도는 새 UUID에서 stage 1부터 시작합니다.
 
 포털은 본문 건너뛰기 link, 화면 전환 시 focus 이동과 음성 안내, route별 브라우저 제목을 제공합니다. 어두운 화면과 밝은 화면을 모두 지원하고 기본값은 운영체제 설정을 따르며, 두 palette 모두 본문·버튼 대비가 WCAG AA를 만족하는지 테스트로 확인합니다. 게시된 공지는 `/notices`에서 전체를 검색해 볼 수 있습니다. 사용자에게 보이는 API 오류는 한국어로 표시하고, session이 만료되면 로그인 화면으로 돌려보낸 뒤 보던 위치로 복귀합니다.
 
@@ -102,7 +102,7 @@ make smoke
 
 릴리스 이미지는 `VERSION`을 기준으로 만듭니다. 결과물 `dist/igame-v<version>.tar.gz`는 별도 tar 포장 없이 `docker save igame:v<version> | gzip`의 출력입니다.
 
-서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.4.2`으로 정렬됩니다. RealmGuard 콘텐츠 `0.3.0`과 Defense Series 콘텐츠 `0.3.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
+서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.5.0`으로 정렬됩니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
 
 ```bash
 make release

@@ -14,6 +14,16 @@ Defense Series는 RealmGuard에서 검증한 데이터 기반 방어 메커니�
 
 교육 기능은 slug에 하드코딩하지 않고 published content로 결정합니다. 기본 Office Guardians seed는 `events`와 `education`이 모두 비어 있어 별도 학습 결과가 없지만, Studio에서 두 section을 유효한 참조로 함께 추가해 게시하면 같은 교육 선택·learning·report 계약이 활성화됩니다. 두 section 중 하나만 설정한 pack은 Test를 통과하지 못합니다.
 
+## 콘텐츠 0.4.0 전장 지도
+
+Defense Series 콘텐츠 `0.4.0`은 28개 stage별 지도 identity와 10개 전술 geometry, 게임별 `map_style`을 제공합니다. 직선 압박, S자 우회, 순환로, 교차로, 상·하 합류와 평행 이중 진입로를 포함하며, 선택 카드의 미니맵에서 경로·건설 지점·진입점·방어 목표와 lane 수를 전투 전에 확인할 수 있습니다. Office는 서비스·클라우드·데이터센터, Cyber는 경계망·방화벽·데이터 금고, AI Nexus는 RAG·Agent·Model Router·Nexus Core의 코드 생성 배경을 사용합니다.
+
+`paths`가 둘 이상인 stage의 wave는 `path_index`로 실제 lane을 나눠 사용합니다. 엔진은 모든 lane의 진입점과 목표를 표시하고, 배럭 병사를 모든 선분 중 가장 가까운 위치에 배치하며, waypoint 개수가 아닌 전체 경로 이동 거리 비율로 선두·후미 targeting을 비교합니다. Studio와 브라우저는 lane 범위를 벗어난 `path_index`, 비정상 delay, 중복·알 수 없는 modifier를 거부합니다.
+
+마이그레이션은 정본 `0.3.0` published snapshot만 새 immutable `0.4.0` snapshot으로 전환하고 직접 게시한 운영자 콘텐츠는 유지합니다. 이전 UUID의 결과·진행도·랭킹은 보존되지만 새 UUID와 섞이지 않으므로, 정본 설치의 `0.4.0` 캠페인 진행도와 랭킹은 stage 1부터 새로 시작합니다.
+
+기존에 게시된 custom schema `0.3.x` 팩은 종전의 관대한 wave 정규화로 계속 실행됩니다. 다만 새 Draft의 Test·Publish에는 서버의 엄격한 `0.4.0` routing 규칙이 적용되므로, 해당 팩을 다시 게시하기 전 delay, lane index, parallel 값과 modifier allowlist를 먼저 정리해야 합니다.
+
 ## 실행 계약
 
 브라우저는 전투 전에 다음 순서로 실행합니다.
@@ -145,7 +155,7 @@ GET      /api/v1/admin/defense/{slug}/learning-report
 7. Studio Draft 저장, Test, preview, 승인/반려와 Publish를 시험합니다.
 8. telemetry와 learning report가 관리자 권한에서만 열리는지 확인합니다.
 
-릴리스 전에는 fresh PostgreSQL에서 `scripts/smoke-defense-series.sh`를 실행합니다. 이 smoke와 RealmGuard 회귀 smoke가 모두 통과해야 `igame:v0.4.2` archive를 만들 수 있습니다.
+릴리스 전에는 fresh PostgreSQL에서 `scripts/smoke-defense-series.sh`를 실행합니다. 이 smoke와 RealmGuard 회귀 smoke가 모두 통과해야 `igame:v0.5.0` archive를 만들 수 있습니다.
 
 ## 백업과 복구
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -245,6 +246,40 @@ type createDefenseVersionInput struct {
 	SourceVersionID *uuid.UUID `json:"source_version_id,omitempty"`
 }
 
+func defenseLifecycleMajorMinor(value string) (string, bool) {
+	value = strings.TrimPrefix(strings.TrimSpace(value), "v")
+	value = strings.SplitN(value, "-", 2)[0]
+	parts := strings.Split(value, ".")
+	if len(parts) != 3 {
+		return "", false
+	}
+	components := make([]int, len(parts))
+	for index, part := range parts {
+		component, err := strconv.Atoi(part)
+		if err != nil || component < 0 || strconv.Itoa(component) != part {
+			return "", false
+		}
+		components[index] = component
+	}
+	return fmt.Sprintf("%d.%d", components[0], components[1]), true
+}
+
+func defenseDraftLifecycle(source defenseVersionRecord) string {
+	var document struct {
+		SchemaVersion string `json:"schema_version"`
+	}
+	if json.Unmarshal(source.RawContent, &document) == nil {
+		if lifecycle, ok := defenseLifecycleMajorMinor(document.SchemaVersion); ok {
+			return lifecycle
+		}
+	}
+	if lifecycle, ok := defenseLifecycleMajorMinor(source.ContentVersion); ok {
+		return lifecycle
+	}
+	// Pre-schema custom packs were created in the original 0.3 lifecycle.
+	return "0.3"
+}
+
 func (s *Server) createDefenseVersion(w http.ResponseWriter, r *http.Request) {
 	p, _ := principalFrom(r)
 	slug, ok := defenseSlugParam(w, r)
@@ -294,8 +329,10 @@ func (s *Server) createDefenseVersion(w http.ResponseWriter, r *http.Request) {
 		s.dbError(w, r, err)
 		return
 	}
+	lifecycle := defenseDraftLifecycle(source)
+	contentVersion := fmt.Sprintf("%s.%d", lifecycle, number-1)
 	if strings.TrimSpace(in.Label) == "" {
-		in.Label = fmt.Sprintf("v0.3.%d", number-1)
+		in.Label = "v" + contentVersion
 	}
 	if in.AssetVersion == "" {
 		in.AssetVersion = source.AssetVersion
@@ -303,7 +340,6 @@ func (s *Server) createDefenseVersion(w http.ResponseWriter, r *http.Request) {
 	if in.PolicyVersion == "" {
 		in.PolicyVersion = source.PolicyVersion
 	}
-	contentVersion := fmt.Sprintf("0.3.%d", number-1)
 	metadata := defenseVersionRecord{Label: in.Label, ContentVersion: contentVersion, PolicyVersion: in.PolicyVersion, AssetVersion: in.AssetVersion, Notes: in.Notes}
 	if err = validateDefenseVersionMetadata(metadata); err != nil {
 		writeError(w, 400, "invalid_version", err.Error())

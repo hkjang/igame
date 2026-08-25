@@ -2,6 +2,12 @@
 
 RealmGuard는 igame `v0.2.0`에 포함된 데이터 기반 tower defense 게임입니다. Phaser runtime, React HUD, Go API와 PostgreSQL 콘텐츠 저장소를 같은 서비스 경계에서 운영하며 브라우저가 공급자 key나 관리 권한을 가지지 않습니다.
 
+## 콘텐츠 0.3.1 캐릭터 표현 고도화
+
+콘텐츠 `0.3.1`은 전투 수치를 바꾸지 않고 코드 생성 캐릭터 자산 규격을 `procedural-2`로 올립니다. 영웅 선택 화면은 에어린·브란·니라의 고유 초상, 체력·공격·사거리·기동 수치, 일반 기술 두 개와 궁극기, 계정 레벨과 정확한 해금 stage를 함께 보여 줍니다. 전장에서는 활·방패·마법 계열 실루엣과 공격 효과가 구분되고, 영웅 머리 위 체력바와 HUD의 현재/최대 HP, 전투 레벨, 부활 시간을 실시간으로 확인할 수 있습니다.
+
+초상과 전투 표현은 SVG/Phaser 도형을 결정론적으로 생성하며 외부 이미지 요청이나 새 런타임 자산을 추가하지 않습니다. 운영자가 자체 콘텐츠를 게시한 설치는 자동으로 덮어쓰지 않으며 기존 게시본을 유지합니다. 정본 `0.3.0`을 사용하던 설치만 동일한 전투 콘텐츠를 가진 새 immutable snapshot으로 전환됩니다. 결과와 랭킹은 새 UUID에 기록되지만 캠페인·영웅·스킬·loadout 진행도는 그대로 이어집니다.
+
 
 ## 콘텐츠 0.3.0 밸런스 재조정
 
@@ -9,7 +15,7 @@ RealmGuard는 igame `v0.2.0`에 포함된 데이터 기반 tower defense 게임�
 
 나머지 셋은 선택지를 되살리기 위한 조정입니다. `stonepulse/ember_core`가 골드당 피해에서 2위를 13% 앞서면서 광역까지 갖춰 대안이 없었고, `quake_drum`과 `star_lattice`는 같은 타워 안에서 24~69% 뒤처져 사문화되어 있었습니다. `ember_core` 2.2→1.9, `quake_drum` 1.3→1.5, `star_lattice` 1.4→1.55로 분기 간 격차가 약 200%에서 34%로 좁혀졌습니다.
 
-**결과·랭킹·진행도는 게시된 콘텐츠 UUID별로 격리됩니다.** 따라서 `0.3.0` 게시 이후의 기록은 새 스냅샷에 쌓이고, `0.2.0`에서 만들어진 기존 기록은 보존되지만 새 랭킹에 섞이지 않습니다. 서로 다른 밸런스의 점수를 한 순위표에서 비교하지 않기 위한 설계입니다.
+**결과와 랭킹은 게시된 콘텐츠 UUID별로 격리됩니다.** 따라서 `0.3.0` 게시 이후의 결과는 새 스냅샷에 쌓이고, `0.2.0`에서 만들어진 기존 결과는 보존되지만 새 랭킹에 섞이지 않습니다. 캠페인 stage·hero·skill·loadout 진행도는 콘텐츠 UUID가 바뀌어도 이어집니다. 서로 다른 밸런스의 점수를 한 순위표에서 비교하지 않으면서 사용자의 해금 상태는 유지하기 위한 설계입니다.
 
 마이그레이션은 게시본이 **손대지 않은 정본 시드일 때만** 적용됩니다. Designer로 직접 게시한 팩이 있는 설치에서는 그 콘텐츠를 그대로 두고 아무것도 바꾸지 않습니다.
 
@@ -25,9 +31,9 @@ Phaser 3은 게임 loop와 Canvas/WebGL rendering에 사용하는 MIT 라이선�
 
 | 구분 | 기본값 | 의미 |
 | --- | --- | --- |
-| Content | `0.2.0` | stage, wave, enemy, tower, hero, skill 구조 |
-| Balance | `2026.08.1` | 난이도 배율, 가격, 피해량, 성장 곡선 |
-| Asset | `procedural-1` | 코드 생성 시각 자산 규격 |
+| Content | `0.3.1` | stage, wave, enemy, tower, hero, skill 구조 |
+| Balance | `2026.08.2` | 난이도 배율, 가격, 피해량, 성장 곡선 |
+| Asset | `procedural-2` | 고유 초상·전장 실루엣·공격/체력 효과를 포함한 코드 생성 시각 자산 규격 |
 | Stage | `2026.08.1` | path, tower spot와 wave 구성 |
 
 내장 roster는 다음 범위입니다.
@@ -37,7 +43,7 @@ Phaser 3은 게임 loop와 Canvas/WebGL rendering에 사용하는 MIT 라이선�
 - Boss `공허왕 오르반`, `시간룡 세라크`; 체력 66%/33% 구간의 phase 전이에서 tower 비활성화, 하수인 소환 또는 가속 gimmick 수행
 - Tower 4종: `태양첨탑`, `룬꽃 정원`, `석맥 포대`, 병사 소환·저지 계열 `바람수호 병영`; tower마다 두 upgrade branch
 - Targeting `first`, `last`, `strong`, `weak`, `closest`
-- Hero 3명: `에어린`, `브란`, `니라`; 각각 일반 능력 2개와 ultimate 1개, 체력 소진 후 hero별 respawn 시간 적용
+- Hero 3명: `에어린`, `브란`, `니라`; 고유 초상과 전장 실루엣, 일반 능력 2개와 ultimate 1개, 실시간 HP 표시와 체력 소진 후 hero별 respawn 시간 적용
 - Active skill 3종: `별똥 낙하`, `수호대 소집`, `시간 서리`
 - 난이도 `casual`, `normal`, `veteran`; mode `campaign`, `endless`
 - Campaign 잔여 lives 18 이상은 3성, 10 이상은 2성, 그 아래 승리는 1성이며 endless와 패배는 별을 주지 않음
@@ -128,7 +134,7 @@ Balance 조정은 신규 session부터 적용하고 진행 중인 session은 시
 
 ## Backup과 복구
 
-RealmGuard의 `realmguard_content_versions`, `realmguard_user_progress`, `realmguard_user_heroes`, `realmguard_user_skills`, `realmguard_user_loadouts`, `realmguard_results`와 연결된 `game_sessions`, `scores`, achievement/audit 및 `game_telemetry` 원장을 하나의 PostgreSQL 백업 시점으로 보존합니다. Result의 `verification_method`, `attestation`, 서버 생성 암호화 proof와 telemetry의 `client_event_id`/`sequence_no`도 복구 검증 대상입니다. 별도 active-pointer table은 없고 단 하나의 `realmguard_content_versions.status='published'` row가 active version입니다. 코드 생성 graphic과 Phaser bundle은 실제 배포한 igame 서비스 이미지(현재 `igame:v0.4.2`)에 있으므로 그 이미지 archive와 checksum을 DB 복구 세트에 함께 보관합니다. RealmGuard 콘텐츠 버전 `0.3.0`과 서비스 이미지 버전을 혼동하지 않습니다. 운영자가 별도 upload 자산을 도입한 경우에만 `/app/data` snapshot도 같은 복구 시점으로 맞춥니다.
+RealmGuard의 `realmguard_content_versions`, `realmguard_user_progress`, `realmguard_user_heroes`, `realmguard_user_skills`, `realmguard_user_loadouts`, `realmguard_results`와 연결된 `game_sessions`, `scores`, achievement/audit 및 `game_telemetry` 원장을 하나의 PostgreSQL 백업 시점으로 보존합니다. Result의 `verification_method`, `attestation`, 서버 생성 암호화 proof와 telemetry의 `client_event_id`/`sequence_no`도 복구 검증 대상입니다. 별도 active-pointer table은 없고 단 하나의 `realmguard_content_versions.status='published'` row가 active version입니다. 코드 생성 graphic과 Phaser bundle은 실제 배포한 igame 서비스 이미지(현재 `igame:v0.5.0`)에 있으므로 그 이미지 archive와 checksum을 DB 복구 세트에 함께 보관합니다. RealmGuard 콘텐츠 버전 `0.3.1`과 서비스 이미지 버전을 혼동하지 않습니다. 운영자가 별도 upload 자산을 도입한 경우에만 `/app/data` snapshot도 같은 복구 시점으로 맞춥니다.
 
 복구 훈련에서는 공통 [백업과 복구](backup-restore.md) 절차에 더해 다음을 확인합니다.
 

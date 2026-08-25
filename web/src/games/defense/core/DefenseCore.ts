@@ -42,6 +42,7 @@ export function mountDefenseCore(
     stage: options.stage,
     difficulty: options.difficulty,
     hero: options.hero,
+    presentationGame: options.slug,
     accountHeroLevel: options.accountHeroLevel ?? 1,
     onHUD: options.onHUD,
     onTelemetry: (event, data) => {

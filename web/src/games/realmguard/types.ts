@@ -51,6 +51,8 @@ export interface RealmStage {
   startingGold: number;
   lives: number;
   version: string;
+  /** Visual battlefield identity. Unknown values safely use the theme fallback. */
+  mapStyle?: string;
   gimmick?: "ember_vents" | "winter_blessing" | "time_surge";
 }
 
@@ -233,6 +235,8 @@ export interface BattleHUD {
   totalWaves: number;
   kills: number;
   heroLevel: number;
+  heroHp: number;
+  heroMaxHp: number;
   heroAlive: boolean;
   heroRespawn: number;
   nextWaveIn: number;

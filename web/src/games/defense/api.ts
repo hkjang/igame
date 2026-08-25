@@ -9,7 +9,7 @@ import type {
   SkillDefinition,
   TowerDefinition,
 } from "../realmguard/types";
-import { DEFENSE_PACKS } from "./content";
+import { DEFENSE_PACKS, DEFENSE_SERIES_VERSION } from "./content";
 import type {
   AIModelProfile,
   AIResourceRules,
@@ -45,6 +45,23 @@ const colorAt = (index: number) =>
     0x65d6ff, 0x72e0a6, 0xffc866, 0xb694ff, 0xff7c91, 0x67e8db, 0xf49b67,
     0x91a7ff,
   ][index % 8];
+const DEFENSE_WAVE_MODIFIERS = new Set([
+  "armored",
+  "swift",
+  "flying",
+  "magic_resist",
+  "stealth",
+  "berserk",
+  "immune_stun",
+]);
+
+function usesStrictWaveRoutingSchema(schemaVersion: string) {
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(schemaVersion);
+  if (!match) return false;
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  return major > 0 || minor >= 4;
+}
 
 export class DefenseConfigError extends Error {
   constructor(message: string) {
@@ -58,11 +75,11 @@ function normalizeVersion(value: unknown): DefenseVersion {
   return {
     id: asString(raw.id),
     version_no: asNumber(raw.version_no),
-    label: asString(raw.label, `v${asString(raw.content_version, "0.3.0")}`),
+    label: asString(raw.label, `v${asString(raw.content_version, DEFENSE_SERIES_VERSION)}`),
     status: asString(raw.status, "published") as DefenseVersion["status"],
-    content_version: asString(raw.content_version, "0.3.0"),
+    content_version: asString(raw.content_version, DEFENSE_SERIES_VERSION),
     policy_version: asString(raw.policy_version),
-    asset_version: asString(raw.asset_version, "procedural-1"),
+    asset_version: asString(raw.asset_version, "procedural-defense-2"),
     checksum: asString(raw.checksum),
     notes: asString(raw.notes),
     created_at: asString(raw.created_at),
@@ -283,7 +300,11 @@ function normalizeBalance(
   };
 }
 
-function normalizeWave(value: unknown, index: number): RealmWave {
+function normalizeWave(
+  value: unknown,
+  index: number,
+  strictWaveRouting = false,
+): RealmWave {
   const raw = asRecord(value);
   return {
     id: asString(raw.id, `wave-${index + 1}`),
@@ -301,12 +322,16 @@ function normalizeWave(value: unknown, index: number): RealmWave {
           ),
           delay: Math.max(
             0,
-            asNumber(entry.delay, asNumber(entry.delay_ms) / 1000),
+            strictWaveRouting
+              ? asNumber(entry.delay)
+              : asNumber(entry.delay, asNumber(entry.delay_ms) / 1000),
           ),
-          pathIndex: Math.max(
-            0,
-            Math.floor(asNumber(entry.path_index ?? entry.pathIndex)),
-          ),
+          pathIndex: strictWaveRouting
+            ? Math.floor(asNumber(entry.path_index))
+            : Math.max(
+                0,
+                Math.floor(asNumber(entry.path_index ?? entry.pathIndex)),
+              ),
           parallel: asBoolean(entry.parallel),
           modifiers: asArray(entry.modifiers).filter(
             (item): item is string => typeof item === "string",
@@ -359,6 +384,9 @@ export function normalizeDefenseConfig(
   const game = asRecord(raw.game);
   const content = asRecord(raw.content);
   const version = normalizeVersion(raw.version);
+  const strictWaveRouting = usesStrictWaveRoutingSchema(
+    asString(content.schema_version),
+  );
   if (
     asString(game.slug) !== slug ||
     !version.id ||
@@ -419,7 +447,9 @@ export function normalizeDefenseConfig(
     const id = asString(stage.id, `stage-${index + 1}`);
     const waves = globalWaves
       .filter((wave) => asString(asRecord(wave).stage_id) === id)
-      .map(normalizeWave);
+      .map((wave, waveIndex) =>
+        normalizeWave(wave, waveIndex, strictWaveRouting),
+      );
     const rawPaths = asArray(stage.paths).map((lane) =>
       asArray(lane).map((point) => ({
         x: asNumber(asRecord(point).x),
@@ -465,6 +495,7 @@ export function normalizeDefenseConfig(
       ),
       lives: asNumber(stage.starting_health ?? stage.lives, 20),
       version: asString(stage.version),
+      mapStyle: asString(stage.map_style ?? stage.mapStyle) || undefined,
       gimmick: ["time_surge", "ember_vents", "winter_blessing"].includes(
         asString(stage.gimmick),
       )
@@ -595,9 +626,29 @@ export function normalizeDefenseConfig(
       entries.length <= 8 &&
       entries.every((entryValue) => {
         const entry = asRecord(entryValue);
+        const pathIndex = strictWaveRouting
+          ? entry.path_index
+          : entry.path_index ?? entry.pathIndex;
+        const modifiers = asArray(entry.modifiers);
+        const delayValid =
+          entry.delay == null || finiteIn(entry.delay, 0, 3600);
         return (
           integerIn(entry.count, 1, 500) &&
-          finiteIn(entry.interval, 0.05, 3600)
+          finiteIn(entry.interval, 0.05, 3600) &&
+          (!strictWaveRouting ||
+            (delayValid &&
+              (pathIndex == null || integerIn(pathIndex, 0, 3)) &&
+              (entry.parallel == null ||
+                typeof entry.parallel === "boolean") &&
+              (entry.modifiers == null ||
+                Array.isArray(entry.modifiers)) &&
+              modifiers.length <= 8 &&
+              modifiers.every(
+                (modifier) =>
+                  typeof modifier === "string" &&
+                  DEFENSE_WAVE_MODIFIERS.has(modifier),
+              ) &&
+              new Set(modifiers).size === modifiers.length))
         );
       }) &&
       entries.reduce<number>(
@@ -761,7 +812,13 @@ export function normalizeDefenseConfig(
         stage.waves.every(
           (wave) =>
             wave.entries.length > 0 &&
-            wave.entries.every((entry) => knownEnemyIds.has(entry.enemy)),
+            wave.entries.every(
+              (entry) =>
+                knownEnemyIds.has(entry.enemy) &&
+                (!strictWaveRouting ||
+                  ((entry.pathIndex ?? 0) >= 0 &&
+                    (entry.pathIndex ?? 0) < (stage.paths?.length ?? 1))),
+            ),
         ),
     ) ||
     !towers.length ||

@@ -9,8 +9,8 @@ readonly USERNAME="${2:-}"
 readonly PASSWORD="${3:-}"
 readonly EXPECTED_VERSION="$(tr -d '[:space:]' < "${REPO_DIR}/VERSION")"
 # Game content and the service have separate lifecycles, so the published
-# Defense pack keeps its own version the way RealmGuard content keeps 0.2.0.
-readonly EXPECTED_DEFENSE_CONTENT_VERSION="0.3.0"
+# Defense pack keeps its own version independently from the service image.
+readonly EXPECTED_DEFENSE_CONTENT_VERSION="0.4.0"
 readonly MANAGER_SAME_USERNAME="${IGAME_MANAGER_SAME_USERNAME:-}"
 readonly MANAGER_SAME_PASSWORD="${IGAME_MANAGER_SAME_PASSWORD:-}"
 readonly MANAGER_EMPTY_USERNAME="${IGAME_MANAGER_EMPTY_USERNAME:-}"
@@ -149,7 +149,7 @@ start_session_with_cookie() {
   local version_id="$3"
   local purpose="$4"
   local body
-  body="$(jq --null-input --compact-output --arg version_id "${version_id}" --arg purpose "${purpose}" --arg version "${EXPECTED_DEFENSE_CONTENT_VERSION}" \
+  body="$(jq --null-input --compact-output --arg version_id "${version_id}" --arg purpose "${purpose}" --arg version "${EXPECTED_VERSION}" \
     '{metadata:{client:"release-smoke",client_version:$version,purpose:$purpose,defense_content_version_id:$version_id}}')"
   request_with_cookie "${cookie_jar}" POST "/api/v1/games/${slug}/sessions" 201 "${body}"
 }
@@ -262,6 +262,7 @@ for slug in "${DEFENSE_SLUGS[@]}"; do
     --argjson heroes "${EXPECTED_HEROES[${slug}]}" --argjson events "${EXPECTED_EVENTS[${slug}]}" \
     --argjson education "${EXPECTED_EDUCATION[${slug}]}" '
       .game.slug == $slug and .version.content_version == $version
+      and .version.asset_version == "procedural-defense-2"
       and (.version.id | test("^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"))
       and (.version.checksum | test("^[0-9a-f]{64}$"))
       and (.content.stages | length) == $stages
@@ -272,7 +273,12 @@ for slug in "${DEFENSE_SLUGS[@]}"; do
       and (.content.heroes | length) == $heroes
       and (.content.events | length) == $events
       and (.content.education | length) == $education
-      and ([.content.stages[] | select((.path | length) >= 2 and (.tower_spots | length) >= 4)] | length) == $stages
+      and ([.content.stages[] | select((.path | length) >= 2 and ((.paths // [.path]) | length) >= 1 and (.tower_spots | length) >= 8 and (.map_style | length) > 0)] | length) == $stages
+      and ([.content.stages[] | ((.paths // [.path]) | tostring)] | unique | length) == $stages
+      and ([.content.stages[] | ((.paths // [.path]) | length)] | any(. > 1))
+      and ([.content.stages[] as $stage
+        | .content.waves[] | select(.stage_id == $stage.id) | .entries[]
+        | ((.path_index // 0) >= 0 and (.path_index // 0) < (($stage.paths // [$stage.path]) | length))] | all)
       and ([.content.stages[].id,.content.waves[].id,.content.towers[].id,.content.enemies[].id,.content.bosses[].id,.content.heroes[].id]
         | all(test("^[a-z][a-z0-9_-]{0,31}$")))
     ' "${config_file}" >/dev/null
@@ -490,9 +496,17 @@ run_verified_battle() {
   hero_id="$(jq --raw-output '.content.heroes[0].id' "${config_file}")"
   content_version="$(jq --raw-output '.version.content_version' "${config_file}")"
   policy_version="$(jq --raw-output '.version.policy_version' "${config_file}")"
-  local total_waves minimum_duration_ms starting_health starting_resource
+  local total_waves min_wave_duration_ms minimum_duration_ms minimum_milestone_ms milestone_sleep_seconds starting_health starting_resource
   total_waves="$(jq --arg stage "${stage_id}" '[.content.waves[] | select(.stage_id == $stage)] | length' "${config_file}")"
-  minimum_duration_ms="$(jq --arg stage "${stage_id}" '([.content.waves[] | select(.stage_id == $stage)] | length) * .content.balance.min_wave_duration_ms | ceil' "${config_file}")"
+  min_wave_duration_ms="$(jq '.content.balance.min_wave_duration_ms | ceil' "${config_file}")"
+  minimum_duration_ms=$((total_waves * min_wave_duration_ms))
+  minimum_milestone_ms=$((min_wave_duration_ms / 5))
+  ((minimum_milestone_ms < 250)) && minimum_milestone_ms=250
+  ((minimum_milestone_ms > 1000)) && minimum_milestone_ms=1000
+  # The server compares wall-clock receipt timestamps. Keep three whole seconds
+  # of margin so scheduler, database, and host clock resynchronization jitter
+  # cannot make the security assertion flaky.
+  milestone_sleep_seconds=$(((minimum_milestone_ms + 999) / 1000 + 3))
   starting_health="$(jq --arg stage "${stage_id}" '[.content.stages[] | select(.id == $stage)][0].starting_health' "${config_file}")"
   starting_resource="$(jq --arg stage "${stage_id}" --arg difficulty "${difficulty}" '
     (([.content.stages[] | select(.id == $stage)][0].starting_resource) * .content.balance.difficulties[$difficulty].gold) | round
@@ -636,7 +650,7 @@ run_verified_battle() {
       | .id
     ' "${config_file}")
 
-    sleep 1
+    sleep "${milestone_sleep_seconds}"
     cumulative_hist="$(jq --compact-output --arg stage "${stage_id}" --argjson wave "${wave}" '
       [.content.waves[] | select(.stage_id == $stage and .number <= $wave) | .entries[]]
       | reduce .[] as $entry ({}; .[$entry.enemy] = ((.[$entry.enemy] // 0) + $entry.count))
@@ -658,8 +672,13 @@ run_verified_battle() {
     sequence=$((sequence + 1))
   done
 
-  local required_wall_seconds elapsed remaining_sleep
-  required_wall_seconds=$(((minimum_duration_ms + 999) / 1000 - 4))
+  local duration_tolerance_ms required_wall_ms required_wall_seconds elapsed remaining_sleep
+  duration_tolerance_ms="$(jq '.content.balance.duration_tolerance_ms' "${config_file}")"
+  # Stay comfortably inside the server's upper duration bound. Using a fixed
+  # subtraction made this assertion depend on second-boundary rounding.
+  required_wall_ms=$((minimum_duration_ms - duration_tolerance_ms + 1500))
+  ((required_wall_ms < 1000)) && required_wall_ms=1000
+  required_wall_seconds=$(((required_wall_ms + 999) / 1000))
   ((required_wall_seconds < 1)) && required_wall_seconds=1
   elapsed=$(($(date +%s) - battle_started_epoch))
   remaining_sleep=$((required_wall_seconds - elapsed))
@@ -997,7 +1016,7 @@ declare -A STUDIO_POLICY_VERSIONS=()
 for slug in "${DEFENSE_SLUGS[@]}"; do
   studio_policy="smoke-policy-${EXPECTED_VERSION}-${slug}"
   create_body="$(jq --null-input --compact-output --arg label "release-smoke-${slug}" --arg policy "${studio_policy}" \
-    '{label:$label,notes:"v0.3.0 Defense Content Studio smoke",policy_version:$policy}')"
+    '{label:$label,notes:"v0.4.0 Defense Content Studio smoke",policy_version:$policy}')"
   created="$(request POST "/api/v1/admin/defense/${slug}/versions" 201 "${create_body}")"
   version_id="$(jq --raw-output '.version.id' <<<"${created}")"
   STUDIO_VERSION_IDS[${slug}]="${version_id}"

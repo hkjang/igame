@@ -4,22 +4,22 @@ export const BUILTIN_GAMES: Game[] = [
   {
     id: 'office-guardians', slug: 'office-guardians', name: 'Office Guardians', category: 'Defense Series', tags: ['Defense Series', '조직', '타워 디펜스'],
     description: '조직과 직무의 강점을 조합해 Company City의 핵심 서비스를 지키세요.', game_type: 'builtin', status: 'active',
-    ranking: true, achievement: true, version: '0.3.0', developer: 'igame', accent: '#72e0a6', icon: 'OG', thumbnail: '/assets/games/office-guardians.svg', banner: '/assets/games/office-guardians-banner.svg',
+    ranking: true, achievement: true, version: '0.4.0', developer: 'igame', accent: '#72e0a6', icon: 'OG', thumbnail: '/assets/games/office-guardians.svg', banner: '/assets/games/office-guardians-banner.svg',
   },
   {
     id: 'cyber-fortress', slug: 'cyber-fortress', name: 'Cyber Fortress', category: 'Defense Series', tags: ['Defense Series', '보안교육', '타워 디펜스'],
     description: '보안 위협의 상성을 익히고 사고 상황에서 안전한 판단을 내리세요.', game_type: 'builtin', status: 'active',
-    ranking: true, achievement: true, version: '0.3.0', developer: 'igame', accent: '#65d6ff', icon: 'CF', thumbnail: '/assets/games/cyber-fortress.svg', banner: '/assets/games/cyber-fortress-banner.svg',
+    ranking: true, achievement: true, version: '0.4.0', developer: 'igame', accent: '#65d6ff', icon: 'CF', thumbnail: '/assets/games/cyber-fortress.svg', banner: '/assets/games/cyber-fortress-banner.svg',
   },
   {
     id: 'ai-nexus-defense', slug: 'ai-nexus-defense', name: 'AI Nexus Defense', category: 'Defense Series', tags: ['Defense Series', 'AI교육', '타워 디펜스'],
     description: 'AI 플랫폼의 품질·비용·지연·신뢰를 균형 있게 방어하세요.', game_type: 'builtin', status: 'active',
-    ranking: true, achievement: true, version: '0.3.0', developer: 'igame', accent: '#b694ff', icon: 'AI', thumbnail: '/assets/games/ai-nexus-defense.svg', banner: '/assets/games/ai-nexus-defense-banner.svg',
+    ranking: true, achievement: true, version: '0.4.0', developer: 'igame', accent: '#b694ff', icon: 'AI', thumbnail: '/assets/games/ai-nexus-defense.svg', banner: '/assets/games/ai-nexus-defense-banner.svg',
   },
   {
     id: 'realmguard', slug: 'realmguard', name: 'RealmGuard', category: '전략', tags: ['전략', '타워 디펜스', '캠페인'],
     description: '영웅과 네 종류의 타워로 장막 너머 Realm을 수호하세요.', game_type: 'builtin', status: 'active',
-    ranking: true, achievement: true, version: '0.2.0', developer: 'igame', accent: '#7fe0c1', icon: 'RG',
+    ranking: true, achievement: true, version: '0.3.1', developer: 'igame', accent: '#7fe0c1', icon: 'RG',
   },
   {
     id: '2048', slug: '2048', name: '2048', category: '퍼즐', tags: ['퍼즐', '숫자', '싱글'],

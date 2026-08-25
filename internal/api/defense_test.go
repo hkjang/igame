@@ -58,6 +58,25 @@ func defenseTestValidOfficeContent(t *testing.T) (defenseDecodedContent, []byte)
 
 func defenseFloat64Pointer(value float64) *float64 { return &value }
 
+func TestDefenseDraftLifecyclePreservesSchemaMajorMinor(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		source defenseVersionRecord
+		want   string
+	}{
+		{name: "0.4 schema overrides stale metadata", source: defenseVersionRecord{ContentVersion: "0.3.9-r2", RawContent: json.RawMessage(`{"schema_version":"0.4.0"}`)}, want: "0.4"},
+		{name: "0.4 metadata fallback", source: defenseVersionRecord{ContentVersion: "0.4.6-r3", RawContent: json.RawMessage(`{}`)}, want: "0.4"},
+		{name: "0.3 custom schema", source: defenseVersionRecord{ContentVersion: "tenant-release", RawContent: json.RawMessage(`{"schema_version":"0.3.7"}`)}, want: "0.3"},
+		{name: "legacy custom fallback", source: defenseVersionRecord{ContentVersion: "tenant-release", RawContent: json.RawMessage(`{}`)}, want: "0.3"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := defenseDraftLifecycle(test.source); got != test.want {
+				t.Fatalf("defenseDraftLifecycle() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
 func TestDefenseAuthoritativeInputsAcceptSDKGameID(t *testing.T) {
 	gameID := uuid.New()
 	for name, destination := range map[string]any{
@@ -114,6 +133,55 @@ func TestDefenseContentRuntimeSafetyValidation(t *testing.T) {
 	sections, _ = json.Marshal(map[string]any{"stages": content.Stages, "waves": content.Waves, "towers": content.Towers, "enemies": content.Enemies, "bosses": content.Bosses, "heroes": content.Heroes, "skills": content.Skills, "events": content.Events, "education": content.Education, "balance": content.Balance, "campaigns": content.Campaigns, "resource_rules": content.ResourceRules, "model_profiles": content.ModelProfiles})
 	if err := validateDefenseContent("office-guardians", sections); err == nil {
 		t.Fatal("duplicate normalized stage education trigger was accepted")
+	}
+}
+
+func TestDefenseContentAcceptsMultiLaneWaveGeometry(t *testing.T) {
+	content, _ := defenseTestValidOfficeContent(t)
+	content.Stages[0].Paths = [][]defensePoint{
+		{{X: 0, Y: 0}, {X: 100, Y: 100}},
+		{{X: 0, Y: 100}, {X: 100, Y: 0}},
+	}
+	firstPath, secondPath := 0, 1
+	content.Waves[0].Entries = []defenseWaveEntry{
+		{Enemy: "enemy-1", Count: 2, Interval: 0.5, Delay: 0.75, PathIndex: &firstPath, Modifiers: []string{"armored", "stealth"}},
+		{Enemy: "enemy-2", Count: 3, Interval: 0.25, Delay: 1.5, PathIndex: &secondPath, Parallel: true, Modifiers: []string{"swift", "flying", "magic_resist", "berserk", "immune_stun"}},
+	}
+
+	raw := defenseTestContentJSON(t, content)
+	if err := validateDefenseContent("office-guardians", raw); err != nil {
+		t.Fatalf("valid multi-lane wave geometry rejected: %v", err)
+	}
+}
+
+func TestDefenseContentRejectsInvalidWaveGeometry(t *testing.T) {
+	intPointer := func(value int) *int { return &value }
+	tests := []struct {
+		name   string
+		mutate func(*defenseWaveEntry)
+	}{
+		{name: "negative path index", mutate: func(entry *defenseWaveEntry) { entry.PathIndex = intPointer(-1) }},
+		{name: "out of range path index", mutate: func(entry *defenseWaveEntry) { entry.PathIndex = intPointer(2) }},
+		{name: "negative delay", mutate: func(entry *defenseWaveEntry) { entry.Delay = -0.01 }},
+		{name: "excessive delay", mutate: func(entry *defenseWaveEntry) { entry.Delay = 3600.01 }},
+		{name: "duplicate modifier", mutate: func(entry *defenseWaveEntry) { entry.Modifiers = []string{"armored", "armored"} }},
+		{name: "unknown modifier", mutate: func(entry *defenseWaveEntry) { entry.Modifiers = []string{"regenerating"} }},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			content, _ := defenseTestValidOfficeContent(t)
+			content.Stages[0].Paths = [][]defensePoint{
+				{{X: 0, Y: 0}, {X: 100, Y: 100}},
+				{{X: 0, Y: 100}, {X: 100, Y: 0}},
+			}
+			content.Waves[0].Entries[0].PathIndex = intPointer(0)
+			test.mutate(&content.Waves[0].Entries[0])
+
+			if err := validateDefenseContent("office-guardians", defenseTestContentJSON(t, content)); err == nil {
+				t.Fatalf("invalid wave geometry was accepted: %+v", content.Waves[0].Entries[0])
+			}
+		})
 	}
 }
 
@@ -188,6 +256,11 @@ func defenseTestJSON(t *testing.T, value any) json.RawMessage {
 		t.Fatal(err)
 	}
 	return raw
+}
+
+func defenseTestContentJSON(t *testing.T, content defenseDecodedContent) json.RawMessage {
+	t.Helper()
+	return defenseTestJSON(t, map[string]any{"stages": content.Stages, "waves": content.Waves, "towers": content.Towers, "enemies": content.Enemies, "bosses": content.Bosses, "heroes": content.Heroes, "skills": content.Skills, "events": content.Events, "education": content.Education, "balance": content.Balance, "campaigns": content.Campaigns, "resource_rules": content.ResourceRules, "model_profiles": content.ModelProfiles})
 }
 
 func defenseTestRecord(t *testing.T, id int64, at time.Time, event string, data any) defenseTelemetryRecord {
@@ -586,6 +659,80 @@ func TestDefensePublishedSeedContract(t *testing.T) {
 	var sourceColumn bool
 	if err := conn.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='defense_content_versions' AND column_name='source_version_id')`).Scan(&sourceColumn); err != nil || !sourceColumn {
 		t.Fatalf("rollback source lineage column missing: exists=%v err=%v", sourceColumn, err)
+	}
+}
+
+func TestDefenseDraftCreatePreservesPublishedSourceLifecycle(t *testing.T) {
+	dsn := os.Getenv("DEFENSE_TEST_DSN")
+	if dsn == "" {
+		t.Skip("DEFENSE_TEST_DSN is not set")
+	}
+	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+
+	const slug = "office-guardians"
+	var sourceID, userID uuid.UUID
+	var sourceContentVersion string
+	if err = pool.QueryRow(ctx, `SELECT v.id,v.content_version FROM defense_content_versions v JOIN games g ON g.id=v.game_id WHERE g.slug=$1 AND v.status='published'`, slug).Scan(&sourceID, &sourceContentVersion); err != nil {
+		t.Fatal(err)
+	}
+	if lifecycle, ok := defenseLifecycleMajorMinor(sourceContentVersion); !ok || lifecycle != "0.4" {
+		t.Fatalf("published source content_version = %q, want the 0.4 lifecycle", sourceContentVersion)
+	}
+	username := "defense-lifecycle-" + uuid.NewString()
+	if err = pool.QueryRow(ctx, `INSERT INTO users(username,display_name,role,status) VALUES($1,'Defense lifecycle test','admin','active') RETURNING id`, username).Scan(&userID); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _, _ = pool.Exec(ctx, `DELETE FROM users WHERE id=$1`, userID) }()
+
+	body := fmt.Sprintf(`{"source_version_id":%q}`, sourceID.String())
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/admin/defense/"+slug+"/versions", strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	route := chi.NewRouteContext()
+	route.URLParams.Add("slug", slug)
+	request = request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, route))
+	request = request.WithContext(context.WithValue(request.Context(), principalKey, Principal{UserID: userID, Role: "admin"}))
+	response := httptest.NewRecorder()
+	New(pool, nil, slog.Default()).createDefenseVersion(response, request)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("create status = %d, want 201: %s", response.Code, response.Body.String())
+	}
+
+	var payload struct {
+		Version struct {
+			ID              uuid.UUID  `json:"id"`
+			VersionNo       int        `json:"version_no"`
+			Label           string     `json:"label"`
+			ContentVersion  string     `json:"content_version"`
+			SourceVersionID *uuid.UUID `json:"source_version_id"`
+		} `json:"version"`
+	}
+	if err = json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_, _ = pool.Exec(ctx, `DELETE FROM audit_logs WHERE resource_type='defense_content_version' AND resource_id=$1`, payload.Version.ID.String())
+		_, _ = pool.Exec(ctx, `DELETE FROM defense_content_versions WHERE id=$1`, payload.Version.ID)
+	}()
+	wantContentVersion := fmt.Sprintf("0.4.%d", payload.Version.VersionNo-1)
+	if payload.Version.ContentVersion != wantContentVersion || payload.Version.Label != "v"+wantContentVersion {
+		t.Fatalf("created label/content_version = %q/%q, want %q/%q", payload.Version.Label, payload.Version.ContentVersion, "v"+wantContentVersion, wantContentVersion)
+	}
+	if payload.Version.SourceVersionID == nil || *payload.Version.SourceVersionID != sourceID {
+		t.Fatalf("created source_version_id = %v, want %s", payload.Version.SourceVersionID, sourceID)
+	}
+
+	var persistedLabel, persistedContentVersion string
+	var persistedSourceID *uuid.UUID
+	if err = pool.QueryRow(ctx, `SELECT label,content_version,source_version_id FROM defense_content_versions WHERE id=$1`, payload.Version.ID).Scan(&persistedLabel, &persistedContentVersion, &persistedSourceID); err != nil {
+		t.Fatal(err)
+	}
+	if persistedLabel != payload.Version.Label || persistedContentVersion != payload.Version.ContentVersion || persistedSourceID == nil || *persistedSourceID != sourceID {
+		t.Fatalf("persisted lifecycle metadata differs from response: label=%q content_version=%q source=%v", persistedLabel, persistedContentVersion, persistedSourceID)
 	}
 }
 

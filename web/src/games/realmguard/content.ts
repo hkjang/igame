@@ -1,7 +1,7 @@
 import type { EnemyArchetype, HeroDefinition, Point, RealmBalance, RealmGuardConfig, RealmStage, RealmWave, SkillDefinition, TowerDefinition, WaveEntry } from './types';
 import { calculateResult, calculateStartingGold as startingGold } from './systems/RewardSystem';
 
-export const REALMGUARD_VERSION = '0.3.0';
+export const REALMGUARD_VERSION = '0.3.1';
 
 export const ENEMIES: EnemyArchetype[] = [
   { id: 'mireling', name: '습지 꼬마', color: 0x7fcf75, hp: 45, speed: 54, armor: 0, reward: 8, lifeDamage: 1, radius: 12, traits: [] },
@@ -38,9 +38,9 @@ export const TOWERS: TowerDefinition[] = [
 ];
 
 export const HEROES: HeroDefinition[] = [
-  { id: 'aerin', name: '에어린', title: '새벽 추적자', color: 0xffd36b, hp: 520, damage: 32, range: 115, speed: 150, respawnSeconds: 9, skill1: '별빛 화살', skill2: '황혼 도약', ultimate: '새벽의 비' },
-  { id: 'brann', name: '브란', title: '석문 파수꾼', color: 0xd98762, hp: 880, damage: 48, range: 48, speed: 112, respawnSeconds: 12, skill1: '방패 강타', skill2: '철벽진', ultimate: '대지의 맹세' },
-  { id: 'nyra', name: '니라', title: '서리결 마도사', color: 0x7cdcf2, hp: 430, damage: 38, range: 130, speed: 132, respawnSeconds: 10, skill1: '빙결파', skill2: '거울 서리', ultimate: '백야' },
+  { id: 'aerin', name: '에어린', title: '새벽 추적자', color: 0xffd36b, hp: 520, damage: 32, range: 115, speed: 150, respawnSeconds: 9, skill1: '별빛 화살', skill2: '황혼 도약', ultimate: '새벽의 비', unlockStage: 1 },
+  { id: 'brann', name: '브란', title: '석문 파수꾼', color: 0xd98762, hp: 880, damage: 48, range: 48, speed: 112, respawnSeconds: 12, skill1: '방패 강타', skill2: '철벽진', ultimate: '대지의 맹세', unlockStage: 3 },
+  { id: 'nyra', name: '니라', title: '서리결 마도사', color: 0x7cdcf2, hp: 430, damage: 38, range: 130, speed: 132, respawnSeconds: 10, skill1: '빙결파', skill2: '거울 서리', ultimate: '백야', unlockStage: 6 },
 ];
 
 export const SKILLS: SkillDefinition[] = [
@@ -108,7 +108,7 @@ export const DEFAULT_REALMGUARD_CONFIG: RealmGuardConfig = {
   versionId: '',
   contentVersion: REALMGUARD_VERSION,
   balanceVersion: '2026.08.1',
-  assetVersion: 'procedural-1',
+  assetVersion: 'procedural-2',
   stages: STAGES,
   enemies: ENEMIES,
   towers: TOWERS,

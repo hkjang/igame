@@ -46,6 +46,7 @@ describe('RealmGuard API adapter', () => {
     expect(config.balance.clearTimeBonusPerSecond).toBe(10);
     expect(config.balance.endlessWaveBonus).toBe(1000);
     expect(config.balance.sellRefundRate).toBe(.72);
+    expect(config.heroes.map((hero) => hero.unlockStage)).toEqual([1, 3, 6]);
   });
 
   it('maps authoritative result fields without client score or stars', () => {

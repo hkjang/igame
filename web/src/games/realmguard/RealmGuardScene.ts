@@ -15,10 +15,19 @@ import {
 import { applyResourceDelta, visibleResource } from "./systems/RewardSystem";
 import { targetComparator } from "./systems/TargetSystem";
 import {
+  closestPointOnPaths,
+  normalizedPathProgress,
+} from "./systems/PathSystem";
+import {
   canCompleteWave,
   canResolveCampaignVictory,
   expandWave,
 } from "./systems/WaveSystem";
+import {
+  resolveHeroPresentation,
+  type HeroPortraitMotif,
+  type HeroPresentationGame,
+} from "./heroPresentation";
 import type {
   BattleHUD,
   BattleStats,
@@ -50,6 +59,7 @@ interface MountOptions extends SceneCallbacks {
   difficulty: RealmDifficulty;
   hero: HeroDefinition;
   accountHeroLevel: number;
+  presentationGame?: HeroPresentationGame;
 }
 
 interface EnemyUnit {
@@ -91,6 +101,9 @@ interface TowerUnit {
 interface HeroUnit {
   definition: HeroDefinition;
   object: Phaser.GameObjects.Container;
+  health: Phaser.GameObjects.Graphics;
+  levelLabel: Phaser.GameObjects.Text;
+  motif: HeroPortraitMotif;
   target: Phaser.Math.Vector2;
   level: number;
   xp: number;
@@ -138,6 +151,7 @@ const themeColors: Record<
   frost: { ground: 0x244353, accent: 0x7ccbe1, path: 0x71858a, fog: 0x142a3b },
   void: { ground: 0x282440, accent: 0x9c72d6, path: 0x625d72, fog: 0x111225 },
 };
+type ThemePalette = (typeof themeColors)[RealmStage["theme"]];
 
 class RealmGuardBattleScene extends Phaser.Scene {
   private readonly options: MountOptions;
@@ -333,25 +347,35 @@ class RealmGuardBattleScene extends Phaser.Scene {
         .fillStyle(colors.accent, 0.18 + (index % 3) * 0.05)
         .fillCircle(x, y, 4 + (index % 8));
     }
+    this.drawWorldDecorations(graphics, colors);
     const lanes = this.options.stage.paths?.length
       ? this.options.stage.paths
       : [this.options.stage.path];
-    for (const lane of lanes) {
+    for (const [laneIndex, lane] of lanes.entries()) {
       const path = lane.map(
         (point) => new Phaser.Math.Vector2(point.x, point.y),
       );
       graphics.lineStyle(68, 0x111827, 0.3).strokePoints(path, false, false);
       graphics.lineStyle(56, colors.path, 1).strokePoints(path, false, false);
       graphics.lineStyle(3, 0xe8dbb4, 0.2).strokePoints(path, false, false);
+      this.drawRouteMarkers(graphics, lane, colors.accent);
+      const start = lane[0];
+      const entryX = Phaser.Math.Clamp(start.x, 18, WIDTH - 18);
+      const entryY = Phaser.Math.Clamp(start.y, 18, HEIGHT - 18);
+      graphics
+        .fillStyle(colors.fog, 0.82)
+        .fillCircle(entryX, entryY, 19)
+        .lineStyle(3, colors.accent, 0.85)
+        .strokeCircle(entryX, entryY, 15)
+        .fillStyle(colors.accent, 0.85)
+        .fillTriangle(entryX - 5, entryY - 7, entryX - 5, entryY + 7, entryX + 7, entryY);
+      this.drawObjective(graphics, lane.at(-1)!, colors, laneIndex);
     }
-    const gate = lanes[0].at(-1)!;
-    graphics.fillStyle(0x63d5bd, 0.24).fillCircle(gate.x - 15, gate.y, 42);
-    graphics.lineStyle(5, 0x8fffe8, 0.8).strokeCircle(gate.x - 15, gate.y, 31);
     this.add
       .text(
         20,
         675,
-        `${this.options.stage.name} · ${this.options.stage.version}`,
+        `${this.options.stage.name} · ${this.options.stage.version}${lanes.length > 1 ? ` · ${lanes.length}개 진입로` : ""}`,
         {
           fontFamily: "system-ui",
           fontSize: "17px",
@@ -361,6 +385,125 @@ class RealmGuardBattleScene extends Phaser.Scene {
         },
       )
       .setDepth(20);
+  }
+
+  private drawWorldDecorations(graphics: Phaser.GameObjects.Graphics, colors: ThemePalette) {
+    const style = this.options.stage.mapStyle ?? `realm-${this.options.stage.theme}`;
+    if (style.startsWith("office-")) {
+      for (let index = 0; index < 12; index += 1) {
+        const x = 40 + ((index * 173 + this.options.stage.number * 41) % 1160);
+        const y = 35 + ((index * 229 + this.options.stage.number * 67) % 590);
+        const width = 70 + (index % 3) * 22;
+        const height = 44 + (index % 4) * 14;
+        graphics
+          .fillStyle(0x07131d, 0.34)
+          .fillRoundedRect(x, y, width, height, 8)
+          .lineStyle(2, colors.accent, 0.13)
+          .strokeRoundedRect(x, y, width, height, 8);
+        for (let window = 0; window < 3; window += 1)
+          graphics
+            .fillStyle(colors.accent, 0.18)
+            .fillRect(x + 12 + window * 19, y + 13, 10, 6);
+      }
+      return;
+    }
+    if (style.startsWith("cyber-") || style.startsWith("ai-")) {
+      graphics.lineStyle(1, colors.accent, style.startsWith("ai-") ? 0.13 : 0.09);
+      for (let x = 0; x <= WIDTH; x += 64) graphics.lineBetween(x, 0, x, HEIGHT);
+      for (let y = 0; y <= HEIGHT; y += 64) graphics.lineBetween(0, y, WIDTH, y);
+      for (let index = 0; index < 24; index += 1) {
+        const x = (index * 227 + this.options.stage.number * 83) % WIDTH;
+        const y = (index * 151 + this.options.stage.number * 47) % HEIGHT;
+        graphics
+          .fillStyle(colors.fog, 0.62)
+          .fillCircle(x, y, 11 + (index % 3) * 4)
+          .lineStyle(2, colors.accent, 0.38)
+          .strokeCircle(x, y, 8 + (index % 3) * 4)
+          .fillStyle(colors.accent, 0.55)
+          .fillCircle(x, y, 3);
+      }
+      return;
+    }
+    for (let index = 0; index < 18; index += 1) {
+      const x = (index * 181 + this.options.stage.number * 53) % WIDTH;
+      const y = (index * 137 + this.options.stage.number * 89) % HEIGHT;
+      graphics
+        .fillStyle(colors.fog, 0.38)
+        .fillCircle(x, y, 18 + (index % 5) * 5)
+        .lineStyle(2, colors.accent, 0.16)
+        .strokeCircle(x, y, 13 + (index % 5) * 5);
+    }
+  }
+
+  private drawRouteMarkers(
+    graphics: Phaser.GameObjects.Graphics,
+    lane: RealmStage["path"],
+    color: number,
+  ) {
+    for (let index = 1; index < lane.length; index += 1) {
+      const start = lane[index - 1];
+      const end = lane[index];
+      const length = Phaser.Math.Distance.Between(start.x, start.y, end.x, end.y);
+      const angle = Phaser.Math.Angle.Between(start.x, start.y, end.x, end.y);
+      for (let offset = 76; offset < length - 28; offset += 108) {
+        const x = start.x + Math.cos(angle) * offset;
+        const y = start.y + Math.sin(angle) * offset;
+        const sideX = Math.cos(angle + Math.PI / 2) * 7;
+        const sideY = Math.sin(angle + Math.PI / 2) * 7;
+        graphics
+          .fillStyle(color, 0.28)
+          .fillTriangle(
+            x + Math.cos(angle) * 9,
+            y + Math.sin(angle) * 9,
+            x - Math.cos(angle) * 7 + sideX,
+            y - Math.sin(angle) * 7 + sideY,
+            x - Math.cos(angle) * 7 - sideX,
+            y - Math.sin(angle) * 7 - sideY,
+          );
+      }
+    }
+  }
+
+  private drawObjective(
+    graphics: Phaser.GameObjects.Graphics,
+    gate: RealmStage["path"][number],
+    colors: ThemePalette,
+    laneIndex: number,
+  ) {
+    const x = Phaser.Math.Clamp(gate.x, 24, WIDTH - 24);
+    const y = Phaser.Math.Clamp(gate.y, 24, HEIGHT - 24);
+    const style = this.options.stage.mapStyle ?? "realm";
+    graphics
+      .fillStyle(colors.accent, 0.2)
+      .fillCircle(x, y, 43 - laneIndex * 3)
+      .lineStyle(5, 0x8fffe8, 0.78)
+      .strokeCircle(x, y, 31 - laneIndex * 2);
+    if (style.startsWith("office-")) {
+      graphics
+        .fillStyle(0x0b1b28, 0.94)
+        .fillRoundedRect(x - 19, y - 24, 38, 48, 5)
+        .fillStyle(colors.accent, 0.8)
+        .fillRect(x - 11, y - 14, 8, 8)
+        .fillRect(x + 3, y - 14, 8, 8)
+        .fillRect(x - 11, y, 8, 8)
+        .fillRect(x + 3, y, 8, 8);
+    } else if (style.startsWith("cyber-")) {
+      graphics
+        .fillStyle(0x07121e, 0.95)
+        .fillRoundedRect(x - 19, y - 16, 38, 34, 7)
+        .lineStyle(4, colors.accent, 0.9)
+        .strokeRoundedRect(x - 15, y - 12, 30, 26, 5)
+        .fillStyle(colors.accent, 0.9)
+        .fillCircle(x, y + 1, 5);
+    } else if (style.startsWith("ai-")) {
+      graphics
+        .fillStyle(0x091526, 0.95)
+        .fillTriangle(x, y - 24, x - 23, y + 14, x + 23, y + 14)
+        .lineStyle(3, colors.accent, 0.9)
+        .strokeCircle(x, y, 11)
+        .fillStyle(0xffffff, 0.85)
+        .fillCircle(x, y, 4);
+    }
   }
 
   private createTowerSpots() {
@@ -400,30 +543,48 @@ class RealmGuardBattleScene extends Phaser.Scene {
   private createHero() {
     const start =
       this.options.stage.path[Math.min(2, this.options.stage.path.length - 1)];
+    const presentation = resolveHeroPresentation(
+      this.options.hero.id,
+      this.options.presentationGame ?? "realmguard",
+    );
+    const secondary = Phaser.Display.Color.HexStringToColor(
+      presentation.secondary,
+    ).color;
     const aura = this.add
       .graphics()
       .fillStyle(this.options.hero.color, 0.18)
       .fillCircle(0, 0, 30)
       .lineStyle(2, this.options.hero.color, 0.75)
       .strokeCircle(0, 0, 23);
-    const body = this.add
-      .graphics()
-      .fillStyle(this.options.hero.color)
-      .fillCircle(0, 0, 14)
-      .fillStyle(0xffffff, 0.85)
-      .fillTriangle(-7, -4, 7, -4, 0, -14);
-    const label = this.add
-      .text(0, 25, this.options.hero.name, {
+    for (let ray = 0; ray < 6; ray += 1) {
+      const angle = (ray / 6) * Math.PI * 2;
+      aura.lineBetween(
+        Math.cos(angle) * 24,
+        Math.sin(angle) * 24,
+        Math.cos(angle) * 29,
+        Math.sin(angle) * 29,
+      );
+    }
+    const body = this.drawHeroBody(presentation.motif, secondary);
+    const health = this.add.graphics();
+    const levelLabel = this.add
+      .text(0, 27, `${this.options.hero.name} · Lv.1`, {
         fontFamily: "system-ui",
-        fontSize: "16px",
+        fontSize: "15px",
         color: "#ffffff",
         backgroundColor: "#07101dcc",
         padding: { x: 5, y: 2 },
       })
       .setOrigin(0.5, 0);
     const object = this.add
-      .container(start.x, start.y - 58, [aura, body, label])
+      .container(start.x, start.y - 58, [aura, body, health, levelLabel])
       .setDepth(9);
+    this.tweens.add({
+      targets: aura,
+      angle: 360,
+      duration: 9000,
+      repeat: -1,
+    });
     const accountBonus =
       1 + Math.max(0, this.options.accountHeroLevel - 1) * 0.025;
     const maxHp = this.options.hero.hp * accountBonus;
@@ -433,6 +594,9 @@ class RealmGuardBattleScene extends Phaser.Scene {
         damage: this.options.hero.damage * accountBonus,
       },
       object,
+      health,
+      levelLabel,
+      motif: presentation.motif,
       target: new Phaser.Math.Vector2(object.x, object.y),
       level: 1,
       xp: 0,
@@ -442,6 +606,74 @@ class RealmGuardBattleScene extends Phaser.Scene {
       deadUntil: 0,
       attackCount: 0,
     };
+    this.drawHeroHealth(this.hero);
+  }
+
+  private drawHeroBody(motif: HeroPortraitMotif, secondary: number) {
+    const color = this.options.hero.color;
+    const body = this.add.graphics();
+    body.fillStyle(0x020712, 0.42).fillEllipse(3, 15, 36, 13);
+    const ranged = motif === "bow" || motif === "target";
+    const armored = ["shield", "lock", "ai-shield", "command"].includes(motif);
+    const mystic = ["staff", "research", "data", "network"].includes(motif);
+    if (ranged) {
+      body
+        .fillStyle(color, 0.9)
+        .fillTriangle(-15, 15, 0, -17, 15, 15)
+        .fillStyle(secondary, 0.95)
+        .fillCircle(0, -9, 9)
+        .lineStyle(3, 0xf8e8c4, 0.95)
+        .strokeCircle(13, 1, 13)
+        .lineBetween(13, -12, 13, 14)
+        .lineStyle(3, secondary, 0.9)
+        .lineBetween(-15, 9, -4, -1);
+    } else if (armored) {
+      body
+        .fillStyle(color, 0.95)
+        .fillRoundedRect(-15, -8, 30, 27, 7)
+        .fillStyle(secondary, 0.9)
+        .fillCircle(0, -14, 10)
+        .fillStyle(0x18202d, 0.92)
+        .fillTriangle(-19, -6, -2, -11, -7, 18)
+        .lineStyle(3, secondary, 0.95)
+        .strokeTriangle(-19, -6, -2, -11, -7, 18)
+        .lineBetween(-13, 1, -5, 1)
+        .lineBetween(-9, -3, -9, 7);
+    } else if (mystic) {
+      body
+        .fillStyle(color, 0.9)
+        .fillTriangle(-17, 18, 0, -17, 17, 18)
+        .fillStyle(0xe9f7ff, 0.92)
+        .fillCircle(0, -11, 8)
+        .lineStyle(4, secondary, 0.95)
+        .lineBetween(14, -15, 14, 18)
+        .fillStyle(secondary, 0.95)
+        .fillCircle(14, -18, 7)
+        .lineStyle(2, 0xffffff, 0.75)
+        .strokeCircle(0, 4, 7);
+    } else {
+      body
+        .fillStyle(color, 0.94)
+        .fillRoundedRect(-14, -7, 28, 26, 6)
+        .fillStyle(secondary, 0.95)
+        .fillCircle(0, -13, 9)
+        .fillStyle(0x0b1725, 0.88)
+        .fillRect(-9, -16, 18, 6)
+        .lineStyle(2, secondary, 0.9)
+        .strokeRoundedRect(-10, -3, 20, 15, 4)
+        .lineBetween(-5, 4, 5, 4);
+    }
+    return body;
+  }
+
+  private drawHeroHealth(hero: HeroUnit) {
+    const ratio = Math.max(0, hero.hp / hero.maxHp);
+    hero.health.clear();
+    hero.health
+      .fillStyle(0x030811, 0.9)
+      .fillRoundedRect(-24, -39, 48, 7, 3)
+      .fillStyle(ratio > 0.35 ? 0x65e392 : 0xff6f72, 0.95)
+      .fillRoundedRect(-22, -37, 44 * ratio, 3, 2);
   }
 
   private startWave(requestedEarly: boolean) {
@@ -675,43 +907,42 @@ class RealmGuardBattleScene extends Phaser.Scene {
         enemy.slowFactor,
         time < enemy.hasteUntil,
       );
+    const displayYOffset = this.hasTrait(enemy, "flying") ? 20 : 0;
+    const targetY = point.y - displayYOffset;
     const distance = Phaser.Math.Distance.Between(
       enemy.object.x,
       enemy.object.y,
       point.x,
-      point.y,
+      targetY,
     );
     const step = speed * (delta / 1000);
     if (distance <= step) {
       enemy.object.setPosition(
         point.x,
-        point.y - (this.hasTrait(enemy, "flying") ? 20 : 0),
+        targetY,
       );
       enemy.pathIndex += 1;
-      enemy.pathProgress = enemy.pathIndex;
+      enemy.pathProgress = normalizedPathProgress(
+        enemy.path,
+        enemy.pathIndex,
+        enemy.object,
+        displayYOffset,
+      );
     } else {
       const angle = Phaser.Math.Angle.Between(
         enemy.object.x,
         enemy.object.y,
         point.x,
-        point.y,
+        targetY,
       );
       enemy.object.x += Math.cos(angle) * step;
       enemy.object.y += Math.sin(angle) * step;
-      enemy.pathProgress =
-        enemy.pathIndex -
-        1 +
-        (1 -
-          distance /
-            Math.max(
-              1,
-              Phaser.Math.Distance.Between(
-                enemy.path[enemy.pathIndex - 1].x,
-                enemy.path[enemy.pathIndex - 1].y,
-                point.x,
-                point.y,
-              ),
-            ));
+      enemy.pathProgress = normalizedPathProgress(
+        enemy.path,
+        enemy.pathIndex,
+        enemy.object,
+        displayYOffset,
+      );
     }
   }
 
@@ -752,7 +983,7 @@ class RealmGuardBattleScene extends Phaser.Scene {
     const targets = [...this.enemies.values()].filter((enemy) => {
       const stealthRange =
         this.hasTrait(enemy, "stealth") &&
-        enemy.pathProgress < enemy.path.length - 2
+        enemy.pathProgress < 0.72
           ? stats.range * 0.62
           : stats.range;
       return (
@@ -1026,6 +1257,7 @@ class RealmGuardBattleScene extends Phaser.Scene {
       if (time < hero.deadUntil) return;
       hero.deadUntil = 0;
       hero.hp = hero.maxHp;
+      this.drawHeroHealth(hero);
       hero.object.setVisible(true).setAlpha(1);
       const start =
         this.options.stage.path[
@@ -1078,6 +1310,7 @@ class RealmGuardBattleScene extends Phaser.Scene {
     if (!target) return;
     hero.lastShot = time;
     hero.attackCount += 1;
+    this.heroAttackEffect(hero, target);
     let damage = hero.definition.damage * (1 + (hero.level - 1) * 0.12);
     if (hero.attackCount % 5 === 0) {
       damage *= 1.75;
@@ -1131,10 +1364,70 @@ class RealmGuardBattleScene extends Phaser.Scene {
     this.pulse(target.object.x, target.object.y, hero.definition.color, 24);
   }
 
+  private heroAttackEffect(hero: HeroUnit, target: EnemyUnit) {
+    const angle = Phaser.Math.Angle.Between(
+      hero.object.x,
+      hero.object.y,
+      target.object.x,
+      target.object.y,
+    );
+    if (hero.motif === "bow" || hero.motif === "target") {
+      const arrow = this.add
+        .rectangle(hero.object.x, hero.object.y, 22, 4, hero.definition.color, 0.95)
+        .setRotation(angle)
+        .setDepth(12);
+      this.tweens.add({
+        targets: arrow,
+        x: target.object.x,
+        y: target.object.y,
+        alpha: 0.25,
+        duration: 115,
+        onComplete: () => arrow.destroy(),
+      });
+      return;
+    }
+    if (["shield", "lock", "ai-shield", "command"].includes(hero.motif)) {
+      const strike = this.add
+        .arc(
+          target.object.x,
+          target.object.y,
+          22,
+          Phaser.Math.RadToDeg(angle) - 65,
+          Phaser.Math.RadToDeg(angle) + 65,
+          false,
+          hero.definition.color,
+          0.18,
+        )
+        .setStrokeStyle(5, hero.definition.color, 0.9)
+        .setDepth(12);
+      this.tweens.add({
+        targets: strike,
+        scale: 1.35,
+        alpha: 0,
+        duration: 180,
+        onComplete: () => strike.destroy(),
+      });
+      return;
+    }
+    const orb = this.add
+      .circle(hero.object.x, hero.object.y, 7, hero.definition.color, 0.95)
+      .setStrokeStyle(2, 0xffffff, 0.75)
+      .setDepth(12);
+    this.tweens.add({
+      targets: orb,
+      x: target.object.x,
+      y: target.object.y,
+      scale: 0.45,
+      duration: 155,
+      onComplete: () => orb.destroy(),
+    });
+  }
+
   private damageHero(amount: number) {
     const hero = this.hero;
     if (!hero || hero.deadUntil > 0) return;
     hero.hp = Math.max(0, hero.hp - amount);
+    this.drawHeroHealth(hero);
     this.pulse(hero.object.x, hero.object.y, 0xff6f72, 30);
     if (hero.hp > 0) return;
     hero.deadUntil =
@@ -1278,6 +1571,9 @@ class RealmGuardBattleScene extends Phaser.Scene {
       Number.POSITIVE_INFINITY;
     if (this.hero.xp >= required) {
       this.hero.level += 1;
+      this.hero.levelLabel.setText(
+        `${this.hero.definition.name} · Lv.${this.hero.level}`,
+      );
       this.pulse(this.hero.object.x, this.hero.object.y, 0xffdf72, 56);
       this.options.onTelemetry("realmguard.hero.level_up", {
         hero_id: this.hero.definition.id,
@@ -1397,14 +1693,10 @@ class RealmGuardBattleScene extends Phaser.Scene {
   }
 
   private createBarracksSoldiers(x: number, y: number) {
-    const nearest = this.options.stage.path.reduce(
-      (best, point) =>
-        Phaser.Math.Distance.Between(x, y, point.x, point.y) <
-        Phaser.Math.Distance.Between(x, y, best.x, best.y)
-          ? point
-          : best,
-      this.options.stage.path[0],
-    );
+    const lanes = this.options.stage.paths?.length
+      ? this.options.stage.paths
+      : [this.options.stage.path];
+    const nearest = closestPointOnPaths(lanes, { x, y }).point;
     return [-18, 18].map((offset) => {
       const shield = this.add
         .graphics()
@@ -1764,6 +2056,8 @@ class RealmGuardBattleScene extends Phaser.Scene {
           : this.options.stage.waves.length,
       kills: this.kills,
       heroLevel: this.hero?.level ?? 1,
+      heroHp: Math.max(0, Math.round(this.hero?.hp ?? 0)),
+      heroMaxHp: Math.max(0, Math.round(this.hero?.maxHp ?? 0)),
       heroAlive: !this.hero?.deadUntil,
       heroRespawn: this.hero?.deadUntil
         ? Math.max(

@@ -140,6 +140,7 @@ function normalizeHero(value: unknown, index: number): HeroDefinition {
     hp: number(raw.hp ?? raw.base_hp, fallback.hp), damage: number(raw.damage ?? raw.base_damage, fallback.damage), range: number(raw.range, fallback.range),
     speed: number(raw.speed, fallback.speed), respawnSeconds: number(raw.respawn_seconds, fallback.respawnSeconds),
     skill1: string(raw.skill1, fallback.skill1), skill2: string(raw.skill2, fallback.skill2), ultimate: string(raw.ultimate, fallback.ultimate),
+    unlockStage: Math.max(1, Math.floor(number(raw.unlock_stage ?? raw.unlockStage, fallback.unlockStage ?? 1))),
   };
 }
 

@@ -40,6 +40,7 @@ import type {
   RealmResult,
   RealmSceneController,
 } from "../realmguard/types";
+import { HeroSelectCard } from "../realmguard/HeroSelectCard";
 import { DEFENSE_PACKS, isDefenseSlug } from "./content";
 import {
   defenseAPI,
@@ -47,6 +48,7 @@ import {
   normalizeDefenseServerResult,
 } from "./api";
 import { mountDefenseCore } from "./core/DefenseCore";
+import { StageMapPreview } from "./StageMapPreview";
 import {
   createDefenseUUID,
   DEFENSE_OPTIONAL_TELEMETRY_LIMIT,
@@ -90,6 +92,8 @@ const INITIAL_HUD: BattleHUD = {
   totalWaves: 0,
   kills: 0,
   heroLevel: 1,
+  heroHp: 0,
+  heroMaxHp: 0,
   heroAlive: true,
   heroRespawn: 0,
   nextWaveIn: 10,
@@ -244,7 +248,7 @@ function ResourceHUD({
         position: "absolute",
         left: 10,
         top: 68,
-        width: 230,
+        width: { xs: "min(230px, calc(100% - 20px))", sm: 230 },
         p: 1.2,
         bgcolor: "rgba(7,16,29,.94)",
         zIndex: 4,
@@ -1188,7 +1192,7 @@ export function DefenseSeriesGame({
                     item.number === 1 ||
                     Boolean(saved?.unlocked);
                   return (
-                    <Grid key={item.id} size={{ xs: 6, sm: 4, md: 3 }}>
+                    <Grid key={item.id} size={{ xs: 12, sm: 6, md: 4 }}>
                       <Card
                         data-testid={`defense-stage-${item.id}`}
                         data-unlocked={unlocked}
@@ -1205,14 +1209,25 @@ export function DefenseSeriesGame({
                           disabled={!unlocked}
                           onClick={() => setStageId(item.id)}
                           sx={{
-                            minHeight: 112,
+                            minHeight: 224,
                             p: 1.4,
                             opacity: unlocked ? 1 : 0.45,
                           }}
                         >
-                          <Typography variant="body2" color="primary.main">
-                            STAGE {item.number}
-                          </Typography>
+                          <StageMapPreview
+                            stage={item}
+                            style={{ height: 104, marginBottom: 10 }}
+                          />
+                          <Stack direction="row" justifyContent="space-between" alignItems="center">
+                            <Typography variant="body2" color="primary.main">
+                              STAGE {item.number}
+                            </Typography>
+                            <Chip
+                              size="small"
+                              label={`${item.paths?.length ?? 1} LANE`}
+                              variant="outlined"
+                            />
+                          </Stack>
                           <Typography fontWeight={850} mt={0.5}>
                             {item.name}
                           </Typography>
@@ -1265,27 +1280,17 @@ export function DefenseSeriesGame({
                     {pack.config.heroes.map((item) => {
                       const unlocked = isDefenseHeroUnlocked(item, stage);
                       return (
-                        <Button
+                        <HeroSelectCard
                           key={item.id}
-                          data-testid={`defense-hero-${item.id}`}
-                          data-unlocked={unlocked}
-                          disabled={!unlocked}
-                          variant={
-                            heroId === item.id ? "contained" : "outlined"
-                          }
-                          onClick={() => setHeroId(item.id)}
-                          sx={{
-                            justifyContent: "space-between",
-                            minHeight: 48,
-                          }}
-                        >
-                          <span>{item.name}</span>
-                          <span>
-                            {unlocked
-                              ? item.title
-                              : `Stage ${item.unlockStage ?? 1} 해금`}
-                          </span>
-                        </Button>
+                          hero={item}
+                          game={slug}
+                          selected={heroId === item.id}
+                          unlocked={unlocked}
+                          level={1}
+                          unlockLabel={`Stage ${item.unlockStage ?? 1} 해금`}
+                          onSelect={setHeroId}
+                          testId={`defense-hero-${item.id}`}
+                        />
                       );
                     })}
                   </Stack>
@@ -1361,7 +1366,6 @@ export function DefenseSeriesGame({
         minHeight: { xs: 620, md: 0 },
         bgcolor: "#07101d",
         overflow: "hidden",
-        touchAction: "none",
       }}
     >
       <Box
@@ -1371,17 +1375,20 @@ export function DefenseSeriesGame({
         sx={{
           position: "absolute",
           inset: 0,
+          touchAction: "none",
           "& canvas": {
             display: "block",
             width: "100%",
             height: "100%",
             objectFit: "contain",
+            touchAction: "none",
           },
         }}
       />
       {phase === "battle" && (
         <>
           <Stack
+            data-testid="defense-battle-hud"
             direction="row"
             spacing={1}
             sx={{
@@ -1390,7 +1397,13 @@ export function DefenseSeriesGame({
               left: 10,
               right: 10,
               zIndex: 3,
+              pointerEvents: "auto",
               overflowX: "auto",
+              overflowY: "hidden",
+              touchAction: "pan-x",
+              pb: 0.5,
+              scrollbarWidth: "thin",
+              "& .MuiChip-root, & .MuiButton-root": { flexShrink: 0 },
             }}
           >
             <Chip
@@ -1406,6 +1419,22 @@ export function DefenseSeriesGame({
               label={`상태 ${hud.status}`}
             />
             <Box flex={1} />
+            <Button
+              title={
+                hud.heroAlive
+                  ? "클릭한 뒤 전장에서 이동 지점을 선택하세요."
+                  : `${hud.heroRespawn}초 후 복귀`
+              }
+              disabled={!hud.heroAlive}
+              variant="contained"
+              color="secondary"
+              onClick={() => command({ type: "move-hero" })}
+              startIcon={<PsychologyRounded />}
+              sx={{ minWidth: 190 }}
+            >
+              {hero?.name ?? pack.presentation.heroName} Lv.{hud.heroLevel} ·{" "}
+              {hud.heroHp}/{hud.heroMaxHp} HP
+            </Button>
             <Button
               variant="contained"
               onClick={() =>
@@ -1433,8 +1462,15 @@ export function DefenseSeriesGame({
             <ResourceHUD pack={pack} values={aiResources} />
           )}
           <Stack
+            data-testid="defense-skill-stack"
             spacing={1}
-            sx={{ position: "absolute", right: 10, top: 68, zIndex: 3 }}
+            sx={{
+              position: "absolute",
+              right: 10,
+              top:
+                slug === "ai-nexus-defense" ? { xs: 280, sm: 68 } : 68,
+              zIndex: 3,
+            }}
           >
             {pack.config.skills.map((skill) => (
               <Button
@@ -1463,6 +1499,7 @@ export function DefenseSeriesGame({
             ))}
           </Stack>
           <Paper
+            data-testid="defense-command-panel"
             sx={{
               position: "absolute",
               left: 10,
@@ -1577,7 +1614,10 @@ export function DefenseSeriesGame({
               sx={{
                 position: "absolute",
                 left: 10,
-                top: slug === "ai-nexus-defense" ? 292 : 68,
+                top:
+                  slug === "ai-nexus-defense"
+                    ? { xs: 430, sm: 292 }
+                    : 68,
                 zIndex: 3,
               }}
             >

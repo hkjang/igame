@@ -28,6 +28,7 @@ igame의 모든 게임 콘텐츠는 데이터 무결성과 밸런스 안정을 �
 ## 🛡️ 3. Defense Content Studio 운영 (`/admin/defense`)
 
 - **게임별 슬러그 분리:** Office Guardians, Cyber Fortress, AI Nexus Defense 각각의 규칙 세트 독립 관리
+- **전장 구조 검증:** stage별 `map_style`, `paths`, 건설 지점을 확인하고 다중 lane wave의 `path_index`가 실제 lane 범위 안인지 검증
 - **교육 시나리오 이벤트:** 게임 도중 발생하는 퀴즈, 선택지, 위협 시나리오 및 보상 배점 설정
 - **실시간 연습 모드:** 게시 전 관리자 전용 세션으로 즉시 플레이 테스트
 

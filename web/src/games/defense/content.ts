@@ -1,4 +1,4 @@
-import { BALANCE, DEFAULT_REALMGUARD_CONFIG } from "../realmguard/content";
+import { BALANCE } from "../realmguard/content";
 import type {
   EnemyArchetype,
   HeroDefinition,
@@ -15,16 +15,14 @@ import type {
   DefenseQuestion,
   DefenseSlug,
 } from "./types";
+import { defenseMapLayout, defenseMapTowerSpots } from "./maps";
 
-export const DEFENSE_SERIES_VERSION = "0.3.0";
+export const DEFENSE_SERIES_VERSION = "0.4.0";
 
 const colors = [
   0x65d6ff, 0x72e0a6, 0xffc866, 0xb694ff, 0xff7c91, 0x67e8db, 0xf49b67,
   0x91a7ff, 0xe7d86e, 0x8bd28b,
 ];
-const paths = DEFAULT_REALMGUARD_CONFIG.stages.map((stage) => stage.path);
-const spots = DEFAULT_REALMGUARD_CONFIG.stages.map((stage) => stage.towerSpots);
-
 function tower(
   id: string,
   name: string,
@@ -144,6 +142,7 @@ function makeWave(
   waveNumber: number,
   enemies: EnemyArchetype[],
   bosses: EnemyArchetype[],
+  laneCount: number,
 ): RealmWave {
   const first = enemies[(stageNumber + waveNumber) % enemies.length];
   const second = enemies[(stageNumber * 2 + waveNumber + 3) % enemies.length];
@@ -152,12 +151,15 @@ function makeWave(
       enemy: first.id,
       count: 4 + stageNumber + waveNumber,
       interval: Math.max(0.42, 0.9 - stageNumber * 0.025),
+      pathIndex: waveNumber % laneCount,
     },
     {
       enemy: second.id,
       count: 2 + Math.floor((stageNumber + waveNumber) / 3),
       interval: 1.05,
       delay: 1.4,
+      pathIndex: (waveNumber + 1) % laneCount,
+      parallel: laneCount > 1,
     },
   ];
   if (waveNumber === 7 && (stageNumber === 5 || stageNumber >= 8))
@@ -166,6 +168,7 @@ function makeWave(
       count: 1,
       interval: 1.5,
       delay: 2.2,
+      pathIndex: waveNumber % laneCount,
     });
   return {
     id: `stage-${stageNumber}-wave-${waveNumber + 1}`,
@@ -176,30 +179,32 @@ function makeWave(
 }
 
 function makeStages(
+  slug: DefenseSlug,
   names: string[],
   enemies: EnemyArchetype[],
   bosses: EnemyArchetype[],
 ): RealmStage[] {
   return names.map((name, index) => {
     const number = index + 1;
+    const id = `stage-${number}`;
+    const map = defenseMapLayout(slug, index);
     return {
-      id: `stage-${number}`,
+      id,
       number,
       name,
       subtitle: `${name} 방어 시나리오`,
       mode: "campaign",
-      theme: (["verdant", "void", "ember", "frost"] as const)[index % 4],
-      path: paths[index % paths.length],
-      towerSpots: spots[index % spots.length].map((spot, spotIndex) => ({
-        ...spot,
-        id: `stage-${number}-spot-${spotIndex + 1}`,
-      })),
+      theme: map.theme,
+      mapStyle: map.style,
+      path: map.paths[0],
+      paths: map.paths,
+      towerSpots: defenseMapTowerSpots(slug, index, id),
       waves: Array.from({ length: 8 }, (_, wave) =>
-        makeWave(number, wave, enemies, bosses),
+        makeWave(number, wave, enemies, bosses, map.paths.length),
       ),
       startingGold: 300 + index * 18,
       lives: 20,
-      version: `3.${number}.0`,
+      version: `4.${number}.0`,
       gimmick:
         index % 4 === 1
           ? "time_surge"
@@ -322,8 +327,8 @@ function createPack(input: {
       versionId: `00000000-0000-4000-8000-${input.slug === "office-guardians" ? "000000000301" : input.slug === "cyber-fortress" ? "000000000302" : "000000000303"}`,
       contentVersion: DEFENSE_SERIES_VERSION,
       balanceVersion: "2026.08.21.1",
-      assetVersion: "procedural-defense-1",
-      stages: makeStages(input.stageNames, enemies, bosses),
+      assetVersion: "procedural-defense-2",
+      stages: makeStages(input.slug, input.stageNames, enemies, bosses),
       enemies: [...enemies, ...bosses],
       towers: runtimeTowers,
       heroes,

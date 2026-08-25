@@ -66,6 +66,7 @@ type defenseStageDefinition struct {
 	StartingResource int64            `json:"starting_resource"`
 	Version          string           `json:"version"`
 	Theme            string           `json:"theme"`
+	MapStyle         string           `json:"map_style,omitempty"`
 	Gimmick          string           `json:"gimmick,omitempty"`
 	Path             []defensePoint   `json:"path"`
 	Paths            [][]defensePoint `json:"paths,omitempty"`
@@ -79,9 +80,13 @@ type defensePoint struct {
 }
 
 type defenseWaveEntry struct {
-	Enemy    string  `json:"enemy"`
-	Count    int64   `json:"count"`
-	Interval float64 `json:"interval"`
+	Enemy     string   `json:"enemy"`
+	Count     int64    `json:"count"`
+	Interval  float64  `json:"interval"`
+	Delay     float64  `json:"delay,omitempty"`
+	PathIndex *int     `json:"path_index,omitempty"`
+	Parallel  bool     `json:"parallel,omitempty"`
+	Modifiers []string `json:"modifiers,omitempty"`
 }
 
 type defenseWaveDefinition struct {
@@ -418,7 +423,7 @@ func validateDefenseContent(slug string, raw []byte) error {
 	stageIDs := map[string]defenseStageDefinition{}
 	stageNumbers := map[int]bool{}
 	for _, stage := range content.Stages {
-		if !validRealmGuardIdentifier(stage.ID) || strings.TrimSpace(stage.Name) == "" || len(stage.Name) > 120 || strings.TrimSpace(stage.Version) == "" || len(stage.Version) > 100 || stage.Number < 1 || stageNumbers[stage.Number] || stageIDs[stage.ID].ID != "" || stage.Mode != "campaign" || stage.StartingHealth < 1 || stage.StartingHealth > 1_000_000 || stage.StartingResource < 0 || stage.StartingResource > 1_000_000_000 || !slices.Contains([]string{"verdant", "ember", "frost", "void"}, stage.Theme) || !slices.Contains([]string{"", "time_surge", "ember_vents", "winter_blessing"}, stage.Gimmick) {
+		if !validRealmGuardIdentifier(stage.ID) || strings.TrimSpace(stage.Name) == "" || len(stage.Name) > 120 || strings.TrimSpace(stage.Version) == "" || len(stage.Version) > 100 || stage.Number < 1 || stageNumbers[stage.Number] || stageIDs[stage.ID].ID != "" || stage.Mode != "campaign" || stage.StartingHealth < 1 || stage.StartingHealth > 1_000_000 || stage.StartingResource < 0 || stage.StartingResource > 1_000_000_000 || !slices.Contains([]string{"verdant", "ember", "frost", "void"}, stage.Theme) || (stage.MapStyle != "" && (!validRealmGuardIdentifier(stage.MapStyle) || len(stage.MapStyle) > 80)) || !slices.Contains([]string{"", "time_surge", "ember_vents", "winter_blessing"}, stage.Gimmick) {
 			return fmt.Errorf("invalid or duplicate stage %q", stage.ID)
 		}
 		paths := stage.Paths
@@ -547,7 +552,21 @@ func validateDefenseContent(slug string, raw []byte) error {
 		wavesByStage[wave.StageID][wave.Number], waveIDs[wave.ID] = true, true
 		var waveCount int64
 		for _, entry := range wave.Entries {
-			if !enemyIDs[entry.Enemy] || entry.Count < 1 || entry.Count > 500 || entry.Interval < 0.05 || entry.Interval > 3600 || math.IsNaN(entry.Interval) || math.IsInf(entry.Interval, 0) {
+			stage := stageIDs[wave.StageID]
+			laneCount := len(stage.Paths)
+			if laneCount == 0 {
+				laneCount = 1
+			}
+			pathIndexValid := entry.PathIndex == nil || (*entry.PathIndex >= 0 && *entry.PathIndex < laneCount)
+			modifiersValid := len(entry.Modifiers) <= 8
+			seenModifiers := map[string]bool{}
+			for _, modifier := range entry.Modifiers {
+				if !slices.Contains([]string{"armored", "swift", "flying", "magic_resist", "stealth", "berserk", "immune_stun"}, modifier) || seenModifiers[modifier] {
+					modifiersValid = false
+				}
+				seenModifiers[modifier] = true
+			}
+			if !enemyIDs[entry.Enemy] || entry.Count < 1 || entry.Count > 500 || entry.Interval < 0.05 || entry.Interval > 3600 || math.IsNaN(entry.Interval) || math.IsInf(entry.Interval, 0) || entry.Delay < 0 || entry.Delay > 3600 || math.IsNaN(entry.Delay) || math.IsInf(entry.Delay, 0) || !pathIndexValid || !modifiersValid {
 				return fmt.Errorf("invalid wave entry in %s", wave.ID)
 			}
 			stageEnemyRefs[wave.StageID][entry.Enemy] = true

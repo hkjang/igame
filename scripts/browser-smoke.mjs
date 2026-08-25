@@ -51,6 +51,25 @@ async function visible(locator, label, timeout = 20_000) {
   if (!(await locator.isVisible())) throw new Error(`${label} is not visible`);
 }
 
+async function elementBox(locator, label) {
+  const box = await locator.boundingBox();
+  if (!box || box.width <= 0 || box.height <= 0) throw new Error(`${label} has no measurable layout box`);
+  return box;
+}
+
+function boxesOverlap(first, second) {
+  return first.x < second.x + second.width
+    && first.x + first.width > second.x
+    && first.y < second.y + second.height
+    && first.y + first.height > second.y;
+}
+
+function boxIsInside(inner, outer) {
+  return inner.x >= outer.x && inner.y >= outer.y
+    && inner.x + inner.width <= outer.x + outer.width
+    && inner.y + inner.height <= outer.y + outer.height;
+}
+
 async function waitForJSONArray(locator, minimumLength, label, timeout = 20_000) {
   const deadline = Date.now() + timeout;
   let lastValue = '';
@@ -162,6 +181,41 @@ try {
   await visible(canvas, 'RealmGuard Phaser canvas', 30_000);
   const canvasSize = await canvas.evaluate((element) => ({ width: element.width, height: element.height }));
   if (canvasSize.width < 1 || canvasSize.height < 1) throw new Error('RealmGuard canvas has no render surface');
+  await page.setViewportSize({ width: 375, height: 800 });
+  const realmGuardBattleHUD = page.getByTestId('realmguard-battle-hud');
+  await visible(realmGuardBattleHUD, 'RealmGuard narrow battle HUD');
+  const narrowHUD = await realmGuardBattleHUD.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+    overflowX: getComputedStyle(element).overflowX,
+    touchAction: getComputedStyle(element).touchAction,
+    ancestorTouchAction: getComputedStyle(element.parentElement).touchAction,
+  }));
+  if (narrowHUD.scrollWidth <= narrowHUD.clientWidth || !['auto', 'scroll'].includes(narrowHUD.overflowX)
+    || !narrowHUD.touchAction.includes('pan-x') || narrowHUD.ancestorTouchAction === 'none') {
+    throw new Error(`RealmGuard narrow HUD is not horizontally reachable: ${JSON.stringify(narrowHUD)}`);
+  }
+  const realmGuardScrollLeft = await realmGuardBattleHUD.evaluate((element) => {
+    element.scrollLeft = element.scrollWidth;
+    return element.scrollLeft;
+  });
+  if (realmGuardScrollLeft <= 0) throw new Error('RealmGuard narrow HUD did not accept horizontal scrolling');
+  const realmGuardPause = realmGuardBattleHUD.getByRole('button', { name: /일시정지|계속/ });
+  await realmGuardPause.scrollIntoViewIfNeeded();
+  await visible(realmGuardPause, 'RealmGuard narrow pause control');
+  const realmGuardShell = page.getByTestId('realmguard-battle-shell');
+  const realmGuardSkillPanel = page.getByTestId('realmguard-skill-panel');
+  const realmGuardCommandPanel = page.getByTestId('realmguard-command-panel');
+  const [realmShellBox, realmSkillBox, realmCommandBox] = await Promise.all([
+    elementBox(realmGuardShell, 'RealmGuard narrow battle shell'),
+    elementBox(realmGuardSkillPanel, 'RealmGuard narrow skill panel'),
+    elementBox(realmGuardCommandPanel, 'RealmGuard narrow command panel'),
+  ]);
+  if (!boxIsInside(realmSkillBox, realmShellBox) || !boxIsInside(realmCommandBox, realmShellBox)
+    || boxesOverlap(realmSkillBox, realmCommandBox)) {
+    throw new Error(`RealmGuard narrow controls overlap or leave the battle shell: ${JSON.stringify({ realmShellBox, realmSkillBox, realmCommandBox })}`);
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.waitForLoadState('networkidle');
 
   await page.goto(`${baseURL}/admin/realmguard`, { waitUntil: 'networkidle' });
@@ -207,7 +261,28 @@ try {
   await page.reload({ waitUntil: 'networkidle' });
   await visible(page.getByRole('heading', { name: 'Designer 연습 미리보기' }), 'RealmGuard preview heading');
   await visible(page.getByText('연습 전용입니다.', { exact: false }).first(), 'practice-only warning');
-  await visible(page.getByRole('button', { name: '수호전 시작' }), 'preview start button');
+  const previewStart = page.getByRole('button', { name: '수호전 시작' });
+  await visible(previewStart, 'preview start button');
+  await previewStart.click();
+  await visible(page.locator('[aria-label="RealmGuard 전장"] canvas'), 'RealmGuard preview Phaser canvas', 30_000);
+  await page.setViewportSize({ width: 375, height: 800 });
+  const practiceWarning = page.getByTestId('realmguard-practice-warning');
+  const practiceSkillPanel = page.getByTestId('realmguard-skill-panel');
+  const practiceCommandPanel = page.getByTestId('realmguard-command-panel');
+  const practiceShell = page.getByTestId('realmguard-battle-shell');
+  await visible(practiceWarning, 'RealmGuard narrow practice warning');
+  const [practiceWarningBox, practiceSkillBox, practiceCommandBox, practiceShellBox] = await Promise.all([
+    elementBox(practiceWarning, 'RealmGuard narrow practice warning'),
+    elementBox(practiceSkillPanel, 'RealmGuard narrow practice skill panel'),
+    elementBox(practiceCommandPanel, 'RealmGuard narrow practice command panel'),
+    elementBox(practiceShell, 'RealmGuard narrow practice shell'),
+  ]);
+  if (!boxIsInside(practiceWarningBox, practiceShellBox) || !boxIsInside(practiceSkillBox, practiceShellBox)
+    || !boxIsInside(practiceCommandBox, practiceShellBox) || boxesOverlap(practiceWarningBox, practiceSkillBox)
+    || boxesOverlap(practiceSkillBox, practiceCommandBox)) {
+    throw new Error(`RealmGuard practice HUD zones overlap or leave the battle shell: ${JSON.stringify({ practiceWarningBox, practiceSkillBox, practiceCommandBox, practiceShellBox })}`);
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
 
   for (const game of defenseGames) {
     const configResponse = await context.request.get(`${baseURL}/api/v1/defense/${game.slug}/config`);
@@ -249,9 +324,54 @@ try {
     }
     await visible(page.getByTestId('defense-canvas'), `${game.name} canvas host`, 30_000);
     await visible(page.locator(`[aria-label="${game.name} 전장"] canvas`), `${game.name} Phaser canvas`, 30_000);
+    if (game.slug === 'office-guardians') {
+      await page.setViewportSize({ width: 375, height: 800 });
+      const defenseBattleHUD = page.getByTestId('defense-battle-hud');
+      await visible(defenseBattleHUD, 'Defense narrow battle HUD');
+      const defenseNarrowHUD = await defenseBattleHUD.evaluate((element) => ({
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+        overflowX: getComputedStyle(element).overflowX,
+        touchAction: getComputedStyle(element).touchAction,
+        ancestorTouchAction: getComputedStyle(element.parentElement).touchAction,
+      }));
+      if (defenseNarrowHUD.scrollWidth <= defenseNarrowHUD.clientWidth
+        || !['auto', 'scroll'].includes(defenseNarrowHUD.overflowX)
+        || !defenseNarrowHUD.touchAction.includes('pan-x')
+        || defenseNarrowHUD.ancestorTouchAction === 'none') {
+        throw new Error(`Defense narrow HUD is not horizontally reachable: ${JSON.stringify(defenseNarrowHUD)}`);
+      }
+      const defenseScrollLeft = await defenseBattleHUD.evaluate((element) => {
+        element.scrollLeft = element.scrollWidth;
+        return element.scrollLeft;
+      });
+      if (defenseScrollLeft <= 0) throw new Error('Defense narrow HUD did not accept horizontal scrolling');
+      const defensePause = defenseBattleHUD.getByRole('button', { name: /일시정지|계속/ });
+      await defensePause.scrollIntoViewIfNeeded();
+      await visible(defensePause, 'Defense narrow pause control');
+      await page.setViewportSize({ width: 1440, height: 1000 });
+    }
     if (!game.education) await capture(page, '02-office-guardians-battle');
     if (game.slug === 'ai-nexus-defense') {
       await visible(page.getByTestId('defense-ai-resource-hud'), 'AI resource HUD');
+      await page.setViewportSize({ width: 375, height: 800 });
+      const defenseShell = page.getByTestId('defense-game-shell');
+      const resourceHUD = page.getByTestId('defense-ai-resource-hud');
+      const skillStack = page.getByTestId('defense-skill-stack');
+      const commandPanel = page.getByTestId('defense-command-panel');
+      await visible(skillStack, 'AI narrow skill stack');
+      await visible(commandPanel, 'AI narrow command panel');
+      const [shellBox, resourceBox, skillBox, commandBox] = await Promise.all([
+        elementBox(defenseShell, 'AI narrow game shell'),
+        elementBox(resourceHUD, 'AI narrow resource HUD'),
+        elementBox(skillStack, 'AI narrow skill stack'),
+        elementBox(commandPanel, 'AI narrow command panel'),
+      ]);
+      if (!boxIsInside(resourceBox, shellBox) || !boxIsInside(skillBox, shellBox)
+        || boxesOverlap(resourceBox, skillBox) || boxesOverlap(skillBox, commandBox)) {
+        throw new Error(`AI narrow HUD zones overlap or leave the battle shell: ${JSON.stringify({ shellBox, resourceBox, skillBox, commandBox })}`);
+      }
+      await page.setViewportSize({ width: 1440, height: 1000 });
       const rules = publishedConfig.content?.resource_rules ?? {};
       const computeStart = await page.getByTestId('defense-ai-resource-compute').getAttribute('data-start');
       const tokenStart = await page.getByTestId('defense-ai-resource-token').getAttribute('data-start');

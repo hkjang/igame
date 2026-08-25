@@ -35,6 +35,7 @@ function envelope() {
           name: "Scenario 1",
           mode: "campaign",
           theme: "void",
+          map_style: "cyber-vault",
           starting_health: 20,
           starting_resource: 250,
           version: "1.0.0",
@@ -193,6 +194,15 @@ function envelope() {
   };
 }
 
+function currentEnvelope() {
+  const raw = envelope();
+  raw.version.label = "v0.4.0";
+  raw.version.content_version = "0.4.0";
+  raw.version.asset_version = "procedural-defense-2";
+  raw.content.schema_version = "0.4.0";
+  return raw;
+}
+
 describe("Defense result normalization", () => {
   it("normalizes current object maps, legacy scores, and arrays to render-safe topic rows", () => {
     expect(
@@ -232,6 +242,7 @@ describe("Defense canonical config adapter", () => {
       { x: 640, y: 220 },
       { x: 1310, y: 420 },
     ]);
+    expect(normalized.config.stages[0].mapStyle).toBe("cyber-vault");
     expect(normalized.config.towers[0]).toMatchObject({
       effectiveAgainst: ["web_attack"],
       effectiveMultiplier: 1.8,
@@ -253,6 +264,115 @@ describe("Defense canonical config adapter", () => {
     expect(() => normalizeDefenseConfig(raw, "cyber-fortress")).toThrow(
       DefenseConfigError,
     );
+  });
+
+  it("rejects wave lanes outside the selected stage geometry", () => {
+    for (const pathIndex of [-1, 1]) {
+      const raw = currentEnvelope();
+      (
+        raw.content.waves[0].entries[0] as
+          (typeof raw.content.waves)[0]["entries"][0] & { path_index?: number }
+      ).path_index = pathIndex;
+      expect(() => normalizeDefenseConfig(raw, "cyber-fortress")).toThrow(
+        DefenseConfigError,
+      );
+    }
+  });
+
+  it("preserves valid wave routing and rejects unsafe delay, parallel, and modifier fields", () => {
+    const valid = currentEnvelope();
+    const validEntry = valid.content.waves[0].entries[0] as unknown as Record<
+      string,
+      unknown
+    >;
+    validEntry.delay = 1.5;
+    validEntry.path_index = 0;
+    validEntry.parallel = true;
+    validEntry.modifiers = ["armored", "swift", "immune_stun"];
+    expect(
+      normalizeDefenseConfig(valid, "cyber-fortress").pack.config.stages[0]
+        .waves[0].entries[0],
+    ).toMatchObject({
+      delay: 1.5,
+      pathIndex: 0,
+      parallel: true,
+      modifiers: ["armored", "swift", "immune_stun"],
+    });
+
+    const invalidMutations: Array<(entry: Record<string, unknown>) => void> = [
+      (entry) => {
+        entry.delay = -0.01;
+      },
+      (entry) => {
+        entry.delay = 3600.01;
+      },
+      (entry) => {
+        entry.delay = "1";
+      },
+      (entry) => {
+        entry.path_index = 0.5;
+      },
+      (entry) => {
+        entry.parallel = "true";
+      },
+      (entry) => {
+        entry.modifiers = ["unknown"];
+      },
+      (entry) => {
+        entry.modifiers = ["armored", "armored"];
+      },
+      (entry) => {
+        entry.modifiers = "swift";
+      },
+    ];
+    for (const mutate of invalidMutations) {
+      const raw = currentEnvelope();
+      mutate(
+        raw.content.waves[0].entries[0] as unknown as Record<string, unknown>,
+      );
+      expect(() => normalizeDefenseConfig(raw, "cyber-fortress")).toThrow(
+        DefenseConfigError,
+      );
+    }
+  });
+
+  it("keeps already-published 0.3 custom packs playable through legacy wave normalization", () => {
+    const legacy = envelope();
+    const entry = legacy.content.waves[0].entries[0] as unknown as Record<
+      string,
+      unknown
+    >;
+    entry.delay = -2;
+    entry.path_index = -1;
+    entry.parallel = "true";
+    entry.modifiers = ["regenerating", "healer"];
+    expect(
+      normalizeDefenseConfig(legacy, "cyber-fortress").pack.config.stages[0]
+        .waves[0].entries[0],
+    ).toMatchObject({
+      delay: 0,
+      pathIndex: 0,
+      parallel: false,
+      modifiers: ["regenerating", "healer"],
+    });
+  });
+
+  it("matches the 0.4 server contract for nulls and ignores legacy aliases", () => {
+    const current = currentEnvelope();
+    const entry = current.content.waves[0].entries[0] as unknown as Record<
+      string,
+      unknown
+    >;
+    entry.delay = null;
+    entry.delay_ms = 5000;
+    entry.path_index = null;
+    entry.pathIndex = 3;
+    entry.parallel = null;
+    entry.modifiers = null;
+    expect(
+      normalizeDefenseConfig(current, "cyber-fortress").pack.config.stages[0]
+        .waves[0].entries[0],
+    ).toMatchObject({ delay: 0, pathIndex: 0, parallel: false, modifiers: [] });
   });
 
   it("preserves true damage and rejects non-canonical damage enums", () => {

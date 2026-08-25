@@ -8,7 +8,7 @@ readonly BASE_URL="${1:-http://127.0.0.1:8080}"
 readonly USERNAME="${2:-}"
 readonly PASSWORD="${3:-}"
 readonly EXPECTED_VERSION="$(tr -d '[:space:]' < "${REPO_DIR}/VERSION")"
-readonly EXPECTED_REALMGUARD_CONTENT_VERSION="0.3.0"
+readonly EXPECTED_REALMGUARD_CONTENT_VERSION="0.3.1"
 
 if [[ -z "${USERNAME}" || -z "${PASSWORD}" ]]; then
   printf 'Usage: %s [base-url] <bootstrap-user> <bootstrap-password>\n' "$0" >&2
@@ -120,6 +120,7 @@ curl --fail --silent --show-error --max-time 10 "${BASE_URL}/games/realmguard" |
 config_json="$(request GET /api/v1/realmguard/config 200)"
 jq --exit-status --arg version "${EXPECTED_REALMGUARD_CONTENT_VERSION}" '
   .version.content_version == $version
+  and .version.asset_version == "procedural-2"
   and (.version.id | test("^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"))
   and (.version.checksum | test("^[0-9a-f]{64}$"))
   and ([.stages[] | select(.mode == "campaign")] | length) >= 10
@@ -280,7 +281,7 @@ if [[ -z "${escaped_by_enemy}" ]]; then
   exit 1
 fi
 
-session_body="$(jq --null-input --compact-output --arg version_id "${realmguard_version_id}" '{metadata:{client:"release-smoke",client_version:"0.3.0",scenario:"reachable-stage-1-defeat",realmguard_version_id:$version_id}}')"
+session_body="$(jq --null-input --compact-output --arg version_id "${realmguard_version_id}" --arg client_version "${EXPECTED_VERSION}" '{metadata:{client:"release-smoke",client_version:$client_version,scenario:"reachable-stage-1-defeat",realmguard_version_id:$version_id}}')"
 session_json="$(request POST /api/v1/games/realmguard/sessions 201 "${session_body}")"
 jq --exit-status --arg version_id "${realmguard_version_id}" '.session.realmguard_version_id == $version_id' <<<"${session_json}" >/dev/null
 session_id="$(jq --raw-output '.session.id' <<<"${session_json}")"
