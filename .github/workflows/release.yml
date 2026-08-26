@@ -221,6 +221,8 @@ jobs:
           IGAME_SMOKE_POSTGRES_DSN='postgres://igame:ci-only-password@127.0.0.1:5432/igame?sslmode=disable' \
             bash ./scripts/smoke-defense-series.sh \
               http://127.0.0.1:8080 ci-admin ci-only-bootstrap-password
+          bash ./scripts/smoke-authz.sh \
+            http://127.0.0.1:8080 ci-admin ci-only-bootstrap-password
           for endpoint in dashboard analytics settings games categories users seasons events tournaments achievements rewards notices banners rankings workflow/requests audit; do
             curl --fail --silent --show-error --cookie "${cookie_jar}" \
               "http://127.0.0.1:8080/api/v1/admin/${endpoint}" >/dev/null

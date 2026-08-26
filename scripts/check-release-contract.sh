@@ -337,6 +337,8 @@ if ! grep -Fq 'writeError(w, 403, "team_required", "managers require a team assi
 fi
 
 if ! grep -Fq 'scripts/smoke-realmguard.sh' "${REPO_DIR}/.github/workflows/release.yml" \
+  || ! grep -Fq 'scripts/smoke-authz.sh' "${REPO_DIR}/.github/workflows/release.yml" \
+  || ! grep -Fq 'access.denied' "${REPO_DIR}/scripts/smoke-authz.sh" \
   || ! grep -Fq 'mcr.microsoft.com/playwright:v1.55.0-noble' "${REPO_DIR}/.github/workflows/release.yml" \
   || ! grep -Fq 'node /work/scripts/browser-smoke.mjs' "${REPO_DIR}/.github/workflows/release.yml" \
   || ! grep -Fq 'IGAME_REQUIRE_DESIGNER_DRAFT=true' "${REPO_DIR}/.github/workflows/release.yml" \

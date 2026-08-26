@@ -79,6 +79,31 @@ request_with_cookie() {
   cat "${RESPONSE_FILE}"
 }
 
+
+# The server compares the times it received two milestones, so this wait has to
+# actually pass. `sleep` alone does not: a busy container host hands back short
+# sleeps, and a run of the RealmGuard smoke put 711ms between a pair that needed
+# 1000. Wait by the clock instead.
+wait_at_least_ms() {
+  local required="$1" start elapsed
+  start="$(date +%s%3N)"
+  while :; do
+    elapsed="$(( $(date +%s%3N) - start ))"
+    ((elapsed >= required)) && break
+    sleep "$(awk -v milliseconds="$((required - elapsed))" 'BEGIN { printf "%.3f", milliseconds / 1000 }')"
+  done
+}
+
+# wait_until_epoch_ms <deadline-in-ms>: hold until the wall clock passes a point.
+wait_until_epoch_ms() {
+  local deadline="$1" now
+  while :; do
+    now="$(date +%s%3N)"
+    ((now >= deadline)) && break
+    sleep "$(awk -v milliseconds="$((deadline - now))" 'BEGIN { printf "%.3f", milliseconds / 1000 }')"
+  done
+}
+
 request() {
   request_with_cookie "${ADMIN_COOKIE}" "$@"
 }
@@ -496,7 +521,7 @@ run_verified_battle() {
   hero_id="$(jq --raw-output '.content.heroes[0].id' "${config_file}")"
   content_version="$(jq --raw-output '.version.content_version' "${config_file}")"
   policy_version="$(jq --raw-output '.version.policy_version' "${config_file}")"
-  local total_waves min_wave_duration_ms minimum_duration_ms minimum_milestone_ms milestone_sleep_seconds starting_health starting_resource
+  local total_waves min_wave_duration_ms minimum_duration_ms minimum_milestone_ms starting_health starting_resource
   total_waves="$(jq --arg stage "${stage_id}" '[.content.waves[] | select(.stage_id == $stage)] | length' "${config_file}")"
   min_wave_duration_ms="$(jq '.content.balance.min_wave_duration_ms | ceil' "${config_file}")"
   minimum_duration_ms=$((total_waves * min_wave_duration_ms))
@@ -506,7 +531,6 @@ run_verified_battle() {
   # The server compares wall-clock receipt timestamps. Keep three whole seconds
   # of margin so scheduler, database, and host clock resynchronization jitter
   # cannot make the security assertion flaky.
-  milestone_sleep_seconds=$(((minimum_milestone_ms + 999) / 1000 + 3))
   starting_health="$(jq --arg stage "${stage_id}" '[.content.stages[] | select(.id == $stage)][0].starting_health' "${config_file}")"
   starting_resource="$(jq --arg stage "${stage_id}" --arg difficulty "${difficulty}" '
     (([.content.stages[] | select(.id == $stage)][0].starting_resource) * .content.balance.difficulties[$difficulty].gold) | round
@@ -650,7 +674,7 @@ run_verified_battle() {
       | .id
     ' "${config_file}")
 
-    sleep "${milestone_sleep_seconds}"
+    wait_at_least_ms "${minimum_milestone_ms}"
     cumulative_hist="$(jq --compact-output --arg stage "${stage_id}" --argjson wave "${wave}" '
       [.content.waves[] | select(.stage_id == $stage and .number <= $wave) | .entries[]]
       | reduce .[] as $entry ({}; .[$entry.enemy] = ((.[$entry.enemy] // 0) + $entry.count))
@@ -672,7 +696,7 @@ run_verified_battle() {
     sequence=$((sequence + 1))
   done
 
-  local duration_tolerance_ms required_wall_ms required_wall_seconds elapsed remaining_sleep
+  local duration_tolerance_ms required_wall_ms required_wall_seconds
   duration_tolerance_ms="$(jq '.content.balance.duration_tolerance_ms' "${config_file}")"
   # Stay comfortably inside the server's upper duration bound. Using a fixed
   # subtraction made this assertion depend on second-boundary rounding.
@@ -680,9 +704,7 @@ run_verified_battle() {
   ((required_wall_ms < 1000)) && required_wall_ms=1000
   required_wall_seconds=$(((required_wall_ms + 999) / 1000))
   ((required_wall_seconds < 1)) && required_wall_seconds=1
-  elapsed=$(($(date +%s) - battle_started_epoch))
-  remaining_sleep=$((required_wall_seconds - elapsed))
-  if ((remaining_sleep > 0)); then sleep "${remaining_sleep}"; fi
+  wait_until_epoch_ms $((battle_started_epoch * 1000 + required_wall_seconds * 1000))
 
   battle_complete="$(jq --null-input --compact-output \
     --arg stage "${stage_id}" --arg hero "${hero_id}" --arg content "${content_version}" --arg policy "${policy_version}" \
@@ -741,7 +763,7 @@ run_verified_battle() {
     local server_tolerance_ms wait_ms
     server_tolerance_ms="$(jq '.content.balance.duration_tolerance_ms' "${config_file}")"
     wait_ms=$((minimum_duration_ms - server_tolerance_ms + 1000))
-    ((wait_ms > 0)) && sleep "$(((wait_ms + 999) / 1000))"
+    ((wait_ms > 0)) && wait_at_least_ms "${wait_ms}"
     assert_unattested_result_rejected "${ADMIN_COOKIE}" "${slug}" "${no_ledger_id}" "${no_ledger_token}" \
       "${starting_resource}" "${education_earned}" "${education_spent}" "${initial_resource_state}" "${result_body}"
   fi
@@ -850,7 +872,7 @@ run_ai_depletion_defeat() {
   local config_file="${TEMP_DIR}/${slug}.json"
   local version_id="${VERSION_IDS[${slug}]}"
   local stage_id hero_id content_version policy_version starting_health starting_resource minimum_duration_ms
-  local minimum_milestone_ms milestone_sleep_seconds
+  local minimum_milestone_ms
   stage_id="$(jq --raw-output '[.content.stages[] | select(.number == 1)][0].id' "${config_file}")"
   hero_id="$(jq --raw-output '.content.heroes[0].id' "${config_file}")"
   content_version="$(jq --raw-output '.version.content_version' "${config_file}")"
@@ -863,7 +885,6 @@ run_ai_depletion_defeat() {
   minimum_milestone_ms="$(jq '.content.balance.min_wave_duration_ms / 5 | ceil' "${config_file}")"
   ((minimum_milestone_ms < 250)) && minimum_milestone_ms=250
   ((minimum_milestone_ms > 1000)) && minimum_milestone_ms=1000
-  milestone_sleep_seconds=$(((minimum_milestone_ms + 999) / 1000 + 1))
 
   local resource_state
   resource_state="$(jq --compact-output '.content.balance.resource_state_limits | to_entries | map({key:.key,value:{start:.value,spent:0,remaining:.value}}) | from_entries' "${config_file}")"
@@ -922,7 +943,7 @@ run_ai_depletion_defeat() {
       sequence=$((sequence + 1))
     fi
 
-    sleep "${milestone_sleep_seconds}"
+    wait_at_least_ms "${minimum_milestone_ms}"
     cumulative_spawned="$(jq --compact-output --arg stage "${stage_id}" --argjson wave "${wave}" '
       [.content.waves[] | select(.stage_id == $stage and .number <= $wave) | .entries[]]
       | reduce .[] as $entry ({}; .[$entry.enemy] = ((.[$entry.enemy] // 0) + $entry.count))
@@ -992,7 +1013,7 @@ run_ai_depletion_defeat() {
   }
   jq --exit-status '.trust.remaining == 0 and .compute.remaining > 0 and .token.remaining > 0 and .latency.remaining > 0' <<<"${resource_state}" >/dev/null
 
-  sleep "${milestone_sleep_seconds}"
+  wait_at_least_ms "${minimum_milestone_ms}"
   battle_complete="$(jq --null-input --compact-output --arg stage "${stage_id}" --arg hero "${hero_id}" --arg content "${content_version}" --arg policy "${policy_version}" --argjson duration "${minimum_duration_ms}" --argjson health "${remaining_health}" --argjson resource "${remaining_resource}" --argjson earned "${earned_resource}" --argjson spent "${education_spent}" --argjson kills "${cumulative_kills}" --argjson escaped "${cumulative_escaped_count}" --argjson spawned "${cumulative_spawned_count}" --argjson defeated_hist "${cumulative_defeated}" --argjson escaped_hist "${cumulative_escaped}" --argjson spawned_hist "${cumulative_spawned}" --argjson state "${resource_state}" \
     '{stage_id:$stage,difficulty:"normal",duration_ms:$duration,health:$health,resource:$resource,earned_resource:$earned,spent_resource:$spent,sold_resource:0,kills:$kills,escaped:$escaped,spawned:$spawned,waves_completed:2,victory:false,hero_id:$hero,hero_level:1,content_version:$content,policy_version:$policy,defeated_by_enemy:$defeated_hist,escaped_by_enemy:$escaped_hist,spawned_by_enemy:$spawned_hist,resource_state:$state}')"
   post_telemetry "${slug}" "${session_id}" "${session_token}" defense.battle.complete "${sequence}" "${battle_complete}" >/dev/null

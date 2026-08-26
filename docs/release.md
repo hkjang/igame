@@ -12,6 +12,9 @@
 
 SBOM과 checksum은 CI에서 생성·검증하고 workflow evidence artifact와 job summary에 남깁니다. 별도 release asset으로 올리거나 이미지 archive 내부에 삽입하지 않습니다. 일반 CI와 Release workflow는 Web·SDK lockfile을 `npm audit --audit-level=low`로 검사하고, 정확히 고정한 `govulncheck v1.6.0`으로 reachable Go 취약점을 검사합니다. SDK build chain은 Windows 개발 서버 경로 탐색 advisory를 피하도록 esbuild `0.27.2`를 root override로 고정합니다. Builder는 `golang:1.26.6-alpine3.23`이며, 최종 이미지는 package manager와 shell이 없는 `scratch`입니다. 최종 이미지에는 정적 `/app/igame`, CA 신뢰 번들, 오프라인 검토용 license metadata만 포함합니다. 두 workflow 모두 고정된 Anchore scan action과 Grype `v0.117.0`으로 최종 이미지를 검사해 High/Critical 발견 시 중단하며, `io.igame.build.go-version` 라벨과 추출한 `/app/igame`의 `go version -m`이 모두 `go1.26.6`인지 확인합니다. 이미지 `User`는 `10001:10001`이며 Compose는 read-only filesystem, `cap_drop: ALL`, `no-new-privileges` 계약을 유지합니다. Docker healthcheck는 shell utility 대신 `/app/igame healthcheck`를 실행합니다.
 
+
+인가 경계는 `scripts/smoke-authz.sh`가 따로 검사합니다. API key가 자기 범위 안에서는 응답하고 그 밖은 거부되는지, 키로 키를 관리할 수 없는지, 거부가 감사 로그에 `access.denied`로 기록되는지, 폐기한 키가 다음 요청부터 막히는지, 세션을 가진 채 외부 Origin에서 오는 쓰기가 거부되는지를 확인합니다.
+
 `v0.6.0`의 RealmGuard 결과 검증은 서버가 전투를 재현합니다. 브라우저 kernel과 Go 검증기가 갈라지면 정상 플레이가 전부 거부되므로, 두 구현은 저장소에 커밋된 replay vector와 콘텐츠 투영 fixture로 묶여 있습니다. 규칙이나 밸런스를 바꾼 뒤에는 `UPDATE_KERNEL_VECTORS=1 npx vitest run src/games/realmguard/kernel`로 vector·투영 digest·릴리스 smoke 전투를 다시 생성하고, `go test ./internal/...`과 web test가 모두 통과하는지 확인합니다. 재생성하지 않으면 Go test가 먼저 실패합니다.
 
 RealmGuard 회귀 smoke는 실제 전투 하나를 끝까지 제출합니다. 재현된 전투는 세션이 실제로 그만한 시간을 가졌을 때만 인정되므로, smoke는 시뮬레이션 길이의 절반만큼 실제로 기다립니다. 현재 smoke 전투는 약 262초 분량이며 스크립트 전체는 2~3분이 걸립니다.
