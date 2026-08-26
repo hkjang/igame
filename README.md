@@ -55,7 +55,7 @@ Defense Series 콘텐츠 `0.4.0`은 RealmGuard의 데이터 기반 방어 메커
 
 ## 접근성과 운영
 
-`v0.6.0`은 RealmGuard 전투 결과를 서버가 직접 재현해 확정하도록 바꾸면서 기존 포털 접근성, 운영 도구와 실행 성능 계약을 유지합니다. 게시된 콘텐츠는 그대로이므로 새 콘텐츠 UUID로 전환하지 않고 캠페인·영웅·스킬 진행도와 기존 랭킹을 모두 보존합니다. 이전 릴리스에서 `server_received_telemetry_v1`로 검증된 기록은 그대로 남고, 새 기록은 `server_replay_v1`로 표시됩니다.
+`v0.6.1`은 포털 화면의 표시 결함을 정리했습니다. 헤더의 서비스명이 두 테마 모두에서 보이지 않던 문제, 게임 카드 아트가 제목을 덮던 문제, 목록 아래에 화면 하나 분량의 빈 스크롤이 붙던 문제를 고치고, 비어 있는 랭킹·이벤트·공지 화면에 다음 행동을 제시합니다. 한국어 본문은 어절 단위로 줄바꿈합니다. `v0.6.0`이 도입한 RealmGuard 전투 결과의 서버 재현 확정과 기존 포털 접근성, 운영 도구, 실행 성능 계약은 그대로입니다. 게시된 콘텐츠는 그대로이므로 새 콘텐츠 UUID로 전환하지 않고 캠페인·영웅·스킬 진행도와 기존 랭킹을 모두 보존합니다. 이전 릴리스에서 `server_received_telemetry_v1`로 검증된 기록은 그대로 남고, 새 기록은 `server_replay_v1`로 표시됩니다.
 
 포털은 본문 건너뛰기 link, 화면 전환 시 focus 이동과 음성 안내, route별 브라우저 제목을 제공합니다. 어두운 화면과 밝은 화면을 모두 지원하고 기본값은 운영체제 설정을 따르며, 두 palette 모두 본문·버튼 대비가 WCAG AA를 만족하는지 테스트로 확인합니다. 게시된 공지는 `/notices`에서 전체를 검색해 볼 수 있습니다. 사용자에게 보이는 API 오류는 한국어로 표시하고, session이 만료되면 로그인 화면으로 돌려보낸 뒤 보던 위치로 복귀합니다.
 
@@ -104,7 +104,7 @@ make smoke
 
 릴리스 이미지는 `VERSION`을 기준으로 만듭니다. 결과물 `dist/igame-v<version>.tar.gz`는 별도 tar 포장 없이 `docker save igame:v<version> | gzip`의 출력입니다.
 
-서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.6.0`으로 정렬됩니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
+서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.6.1`으로 정렬됩니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
 
 ```bash
 make release

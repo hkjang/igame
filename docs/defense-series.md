@@ -155,7 +155,7 @@ GET      /api/v1/admin/defense/{slug}/learning-report
 7. Studio Draft 저장, Test, preview, 승인/반려와 Publish를 시험합니다.
 8. telemetry와 learning report가 관리자 권한에서만 열리는지 확인합니다.
 
-릴리스 전에는 fresh PostgreSQL에서 `scripts/smoke-defense-series.sh`를 실행합니다. 이 smoke와 RealmGuard 회귀 smoke가 모두 통과해야 `igame:v0.6.0` archive를 만들 수 있습니다.
+릴리스 전에는 fresh PostgreSQL에서 `scripts/smoke-defense-series.sh`를 실행합니다. 이 smoke와 RealmGuard 회귀 smoke가 모두 통과해야 `igame:v0.6.1` archive를 만들 수 있습니다.
 
 ## 백업과 복구
 
