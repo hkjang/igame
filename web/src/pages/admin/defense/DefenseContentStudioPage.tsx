@@ -628,8 +628,9 @@ export function DefenseContentStudioPage() {
             ))}
           </TextField>
           <FormControl sx={{ minWidth: 230 }}>
-            <InputLabel>편집 버전</InputLabel>
+            <InputLabel id="defense-version-label">편집 버전</InputLabel>
             <Select
+              labelId="defense-version-label"
               label="편집 버전"
               value={versionId}
               onChange={(event) => guard(() => setVersionId(event.target.value))}
@@ -811,8 +812,10 @@ export function DefenseContentStudioPage() {
                           fullWidth
                           minRows={22}
                           maxRows={34}
-                          aria-label={`${section} JSON 편집기`}
-                          inputProps={{ spellCheck: false }}
+                          inputProps={{
+                            spellCheck: false,
+                            "aria-label": `${section} JSON 편집기`,
+                          }}
                           sx={{
                             mt: 2,
                             "& textarea": {

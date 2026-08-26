@@ -12,6 +12,30 @@ try {
   throw error;
 }
 
+let AxeBuilder;
+try {
+  AxeBuilder = requireFromWorkingDirectory('@axe-core/playwright').default;
+} catch (error) {
+  console.error('@axe-core/playwright is not installed in the working directory. Install @axe-core/playwright@4.13.0, then retry.');
+  throw error;
+}
+
+/**
+ * Routes the accessibility pass walks.
+ *
+ * Every one of these has failed at least once: a combobox with a visible label
+ * that named nothing, a JSON editor whose aria-label landed on the wrapper
+ * instead of the textarea, a drawer putting anchors straight inside a <ul>, and
+ * a disabled field whose helper text — the reason it was disabled — sat at
+ * 2.67:1. None of them show up in a screenshot.
+ */
+const accessibilityRoutes = [
+  '/', '/games', '/rankings', '/events', '/notices', '/reviews', '/developer',
+  '/profile', '/profile/keys', '/profile/preferences',
+  '/admin', '/admin/games', '/admin/users', '/admin/rankings', '/admin/seasons',
+  '/admin/notices', '/admin/realmguard', '/admin/defense', '/admin/analytics', '/admin/settings',
+];
+
 const baseURL = (process.env.IGAME_BASE_URL ?? process.argv[2] ?? 'http://127.0.0.1:8080').replace(/\/$/, '');
 const username = process.env.IGAME_USERNAME ?? process.argv[3] ?? '';
 const password = process.env.IGAME_PASSWORD ?? process.argv[4] ?? '';
@@ -623,6 +647,22 @@ try {
     }
   }
 
+  // Accessibility last: it navigates away from wherever the flow ended, and a
+  // violation here is a real defect rather than a flake, so it belongs with the
+  // other things that fail the release.
+  const accessibilityFailures = [];
+  for (const route of accessibilityRoutes) {
+    await page.goto(`${baseURL}${route}`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(500);
+    const report = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    for (const violation of report.violations) {
+      if (violation.impact !== 'serious' && violation.impact !== 'critical') continue;
+      const where = violation.nodes.slice(0, 3).map((node) => node.target.join(' ')).join(' | ');
+      accessibilityFailures.push(`${route} [${violation.impact}] ${violation.id}: ${violation.help} — ${where}`);
+    }
+  }
+  if (accessibilityFailures.length > 0) throw new Error(`Accessibility violations:\n${accessibilityFailures.join('\n')}`);
+
   await page.waitForTimeout(750);
   const failures = [
     ...diagnostics.externalRequests.map((value) => `external request: ${value}`),
@@ -633,7 +673,7 @@ try {
   ];
   if (failures.length > 0) throw new Error(`Browser diagnostics failed:\n${failures.join('\n')}`);
 
-  console.log(`Browser smoke passed: login, RealmGuard, three Defense games, education choices, both content studios, preview, refresh, and zero external HTTP requests (${baseURL})`);
+  console.log(`Browser smoke passed: login, RealmGuard, three Defense games, education choices, both content studios, preview, refresh, ${accessibilityRoutes.length} routes with no serious accessibility violation, and zero external HTTP requests (${baseURL})`);
   await context.close();
 } finally {
   await browser.close();

@@ -235,7 +235,7 @@ jobs:
             --volume "${GITHUB_WORKSPACE}:/work:ro" \
             --workdir /tmp \
             mcr.microsoft.com/playwright:v1.55.0-noble \
-            bash -lc 'set -Eeuo pipefail; mkdir -p browser-smoke && cd browser-smoke && npm init -y >/dev/null && npm install --silent --no-save playwright@1.55.0 && node /work/scripts/browser-smoke.mjs'
+            bash -lc 'set -Eeuo pipefail; mkdir -p browser-smoke && cd browser-smoke && npm init -y >/dev/null && npm install --silent --no-save playwright@1.55.0 @axe-core/playwright@4.13.0 && node /work/scripts/browser-smoke.mjs'
           curl --fail --silent --show-error --request PUT --cookie "${cookie_jar}" \
             --header 'Content-Type: application/json' \
             --data '{"current_password":"ci-only-bootstrap-password","new_password":"ci-rotated-bootstrap-password"}' \

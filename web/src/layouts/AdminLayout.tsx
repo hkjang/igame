@@ -64,7 +64,9 @@ export function AdminLayout() {
       <List className="admin-scrollbar" component="nav" aria-label="관리자 메뉴" sx={{ p: 1.2, overflowY: 'auto', flex: 1 }}>
         {menu.filter((item) => !item.adminOnly || isAdmin).map((item) => <ListItemButton key={item.to} component={NavLink} to={item.to} end={item.end} onClick={() => setMobileOpen(false)} sx={(theme) => ({ mb: .35, borderRadius: 2, color: 'text.secondary', '&.active': { color: 'primary.main', bgcolor: alpha(theme.palette.primary.main, .11), boxShadow: `inset 3px 0 ${theme.palette.primary.main}` } })}><ListItemIcon sx={{ color: 'inherit', minWidth: 42 }}>{item.icon}</ListItemIcon><ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: 650 }} /></ListItemButton>)}
       </List>
-      <Divider /><List sx={{ p: 1.2 }}><ListItemButton component={RouterLink} to="/" sx={{ borderRadius: 2 }}><ListItemIcon><ChevronLeftRounded /></ListItemIcon><ListItemText primary="사용자 포털로" /></ListItemButton></List>
+      {/* component="nav": these items render as anchors, and an <a> is not a
+          child a <ul> is allowed to have. */}
+      <Divider /><List component="nav" sx={{ p: 1.2 }}><ListItemButton component={RouterLink} to="/" sx={{ borderRadius: 2 }}><ListItemIcon><ChevronLeftRounded /></ListItemIcon><ListItemText primary="사용자 포털로" /></ListItemButton></List>
     </Stack>
   );
   return (

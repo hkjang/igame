@@ -133,6 +133,15 @@ export function createAppTheme(mode: ThemeMode) {
       MuiButton: { styleOverrides: { root: { minHeight: 44, borderRadius: 10, paddingInline: 18, whiteSpace: 'nowrap' } } },
       MuiIconButton: { styleOverrides: { root: { minWidth: 44, minHeight: 44 } } },
       MuiTextField: { defaultProps: { fullWidth: true, size: 'medium' } },
+      // A disabled field's helper text is usually the reason it is disabled —
+      // "SSO에서 제공하는 정보입니다." on a name the user cannot edit — so it is
+      // the one thing on that row that still has to be readable. Greying it out
+      // with the control it explains put it at 2.67:1 against the card.
+      MuiFormHelperText: {
+        styleOverrides: {
+          root: ({ theme: currentTheme }) => ({ '&.Mui-disabled': { color: currentTheme.palette.text.secondary } }),
+        },
+      },
       MuiCard: {
         styleOverrides: {
           root: ({ theme: currentTheme }) => ({ backgroundImage: 'none', border: `1px solid ${currentTheme.palette.divider}` }),
