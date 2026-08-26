@@ -12,6 +12,7 @@ import {
   TableHead, TablePagination, TableRow, TextField, Tooltip, Typography,
 } from '@mui/material';
 import { api } from '../../api/client';
+import { optionLabel } from '../../labels';
 import { ErrorPanel } from '../../components/ErrorPanel';
 import { useAsync } from '../../hooks/useAsync';
 import { useSnackbar } from '../../state/SnackbarContext';
@@ -138,33 +139,6 @@ function jsonFieldErrors(fields: Field[], form: Row): Record<string, string> {
 type LookupOptions = Record<'categories' | 'games', Array<{ value: string; label: string }>>;
 
 /**
- * Korean for the values a select field offers.
- *
- * The console speaks Korean everywhere except the columns it took straight from
- * the database, which handed operators the schema's own vocabulary: 상태 said
- * `draft`, 유형 said `department_battle`, 점수 정렬 said `desc`. Keyed by the
- * value, because a value that appears on several resources means the same thing
- * on each; a field where it does not carries its own `optionLabels`.
- */
-const OPTION_LABELS: Record<string, string> = {
-  draft: '초안', active: '활성', maintenance: '점검 중', disabled: '사용 중지',
-  closed: '종료', cancelled: '취소', published: '게시 중',
-  valid: '정상', flagged: '검토 필요', excluded: '집계 제외',
-  embedded: '내장 실행', iframe: 'iframe 삽입', external: '외부 링크',
-  desc: '높은 점수가 상위', asc: '낮은 점수가 상위',
-  user: '일반', manager: '매니저', operator: '운영자', admin: '관리자',
-  score_attack: '점수 경쟁', time_attack: '기록 경쟁', team_battle: '팀 대항',
-  department_battle: '부서 대항', attendance: '출석', survival: '생존', bracket: '토너먼트',
-  badge: '배지', title: '칭호', avatar_frame: '아바타 프레임',
-};
-
-/** The label for one option, falling back to the raw value so nothing vanishes. */
-function optionLabel(field: Field | undefined, value: unknown): string {
-  const key = String(value);
-  return field?.optionLabels?.[key] ?? OPTION_LABELS[key] ?? key;
-}
-
-/**
  * Renders one cell.
  *
  * The field it belongs to has to come in with it: without that, a lookup column
@@ -181,7 +155,7 @@ function display(value: unknown, field?: Field, lookups?: LookupOptions): React.
     // stale reference still needs to see what it points at.
     return match ? match.label : String(value);
   }
-  if (field?.type === 'select') return optionLabel(field, value);
+  if (field?.type === 'select') return optionLabel(value, field.optionLabels);
   if (field?.type === 'tags' && Array.isArray(value)) {
     return value.length === 0 ? '—' : (
       <Stack direction="row" flexWrap="wrap" useFlexGap spacing={.5}>
@@ -347,7 +321,7 @@ export function AdminResourcePage({ resource }: { resource: string }) {
               onChange={(event) => setForm({ ...form, [field.key]: field.type === 'number' && event.target.value !== '' ? Number(event.target.value) : event.target.value })}
               helperText={jsonErrors[field.key] ?? (field.type === 'tags' ? '쉼표로 구분' : field.type === 'json' ? '유효한 JSON 형식' : field.lookup && lookupResult.error ? '목록을 불러오지 못했습니다.' : undefined)}
               slotProps={field.type === 'date' ? { inputLabel: { shrink: true } } : undefined}
-            >{field.lookup && !field.required && <MenuItem value="">미지정</MenuItem>}{field.lookup ? lookupResult.data?.[field.lookup].map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>) : field.options?.map((option) => <MenuItem key={option} value={option}>{optionLabel(field, option)}</MenuItem>)}</TextField>)}</Stack></DialogContent>
+            >{field.lookup && !field.required && <MenuItem value="">미지정</MenuItem>}{field.lookup ? lookupResult.data?.[field.lookup].map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>) : field.options?.map((option) => <MenuItem key={option} value={option}>{optionLabel(option, field.optionLabels)}</MenuItem>)}</TextField>)}</Stack></DialogContent>
         <DialogActions>
           <Button onClick={() => setOpen(false)} disabled={busy}>취소</Button>
           <Button type="submit" variant="contained" disabled={busy || Object.keys(jsonErrors).length > 0} startIcon={busy ? <CircularProgress size={18} color="inherit" /> : undefined}>{busy ? '저장 중…' : '저장'}</Button>

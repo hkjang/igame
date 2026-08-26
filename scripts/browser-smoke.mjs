@@ -413,7 +413,9 @@ try {
       if (await nextWave.isVisible().catch(() => false)) await nextWave.click();
       await visible(choice, `${game.name} education choice`, 12_000);
       await visible(page.locator('[data-testid="defense-game-shell"][data-event-paused="true"]'), `${game.name} scene paused by education prompt`);
-      await visible(page.getByTestId('defense-battle-status').filter({ hasText: 'paused' }), `${game.name} paused battle status`);
+      // On the attribute, not the chip's text: the text is Korean for the
+      // player and the attribute is the state the game is actually in.
+      await visible(page.locator('[data-battle-status="paused"]'), `${game.name} paused battle status`);
       await capture(page, game.slug === 'cyber-fortress' ? '03-cyber-fortress-education' : '04-ai-nexus-hud-education');
       if (game.slug === 'ai-nexus-defense') {
         const rules = publishedConfig.content?.resource_rules ?? {};
@@ -524,7 +526,8 @@ try {
       const rollbackSource = page.getByRole('combobox', { name: '복제할 기준 버전' });
       await visible(rollbackSource, 'rollback source selector');
       await rollbackSource.click();
-      const archivedSource = page.getByRole('option', { name: /v0\.3\.0 · archived · #1/ });
+      // 보관 is the Korean the option now carries for `archived`.
+      const archivedSource = page.getByRole('option', { name: /v0\.3\.0 · 보관 · #1/ });
       await visible(archivedSource, 'historical published Defense source');
       await archivedSource.click();
       await page.getByLabel('Policy Version').fill('browser-rollback-policy-v0.3.0');

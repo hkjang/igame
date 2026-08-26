@@ -84,6 +84,7 @@ import type {
   DefenseServerResult,
   DefenseSlug,
 } from "./types";
+import { optionLabel } from "../../labels";
 
 const INITIAL_HUD: BattleHUD = {
   status: "ready",
@@ -1425,7 +1426,7 @@ export function DefenseSeriesGame({
             <Chip label={`${hud.kills} 차단`} />
             <Chip
               data-testid="defense-battle-status"
-              label={`상태 ${hud.status}`}
+              label={`상태 ${optionLabel(hud.status)}`}
             />
             <Box flex={1} />
             <Button

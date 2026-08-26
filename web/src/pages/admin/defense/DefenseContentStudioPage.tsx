@@ -56,6 +56,7 @@ import { useAsync } from "../../../hooks/useAsync";
 import { useAuth } from "../../../state/AuthContext";
 import { useSnackbar } from "../../../state/SnackbarContext";
 import { JsonSubField } from "../JsonSubField";
+import { optionLabel } from "../../../labels";
 import {
   defenseReportMetrics,
   formatDefenseReportMetric,
@@ -635,7 +636,7 @@ export function DefenseContentStudioPage() {
             >
               {versionItems.map((item) => (
                 <MenuItem key={item.id} value={item.id}>
-                  {item.label} · {item.status}
+                  {item.label} · {optionLabel(item.status)}
                 </MenuItem>
               ))}
             </Select>
@@ -720,7 +721,7 @@ export function DefenseContentStudioPage() {
                       mt={2}
                     >
                       <Chip
-                        label={selected.status}
+                        label={optionLabel(selected.status)}
                         color={
                           selected.status === "published"
                             ? "success"
@@ -962,7 +963,7 @@ export function DefenseContentStudioPage() {
                             <Typography fontWeight={900}>
                               {item.label}
                             </Typography>
-                            <Chip size="small" label={item.status} />
+                            <Chip size="small" label={optionLabel(item.status)} />
                           </Stack>
                           <Typography
                             variant="body2"
@@ -1064,7 +1065,7 @@ export function DefenseContentStudioPage() {
               <MenuItem value="">현재 게시 버전</MenuItem>
               {versionItems.map((item) => (
                 <MenuItem key={item.id} value={item.id}>
-                  {item.label} · {item.status} · #{item.version_no}
+                  {item.label} · {optionLabel(item.status)} · #{item.version_no}
                 </MenuItem>
               ))}
             </TextField>

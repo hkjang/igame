@@ -80,7 +80,7 @@ describe('optionLabel', () => {
     for (const [resource, config] of Object.entries(configs)) {
       for (const field of config.fields) {
         for (const option of field.options ?? []) {
-          if (optionLabel(field, option) === option) untranslated.push(`${resource}.${field.key}=${option}`);
+          if (optionLabel(option, field.optionLabels) === option) untranslated.push(`${resource}.${field.key}=${option}`);
         }
       }
     }
@@ -91,12 +91,8 @@ describe('optionLabel', () => {
     const games = configs.games.fields.find((field) => field.key === 'status')!;
     const users = configs.users.fields.find((field) => field.key === 'status')!;
     // The same `active` is a game being served and a user being allowed in.
-    expect(optionLabel(games, 'active')).toBe('서비스 중');
-    expect(optionLabel(users, 'active')).toBe('활성');
-  });
-
-  it('shows a value it has no label for rather than nothing', () => {
-    expect(optionLabel(undefined, 'retired')).toBe('retired');
+    expect(optionLabel('active', games.optionLabels)).toBe('서비스 중');
+    expect(optionLabel('active', users.optionLabels)).toBe('활성');
   });
 });
 
