@@ -7,6 +7,7 @@ import { Box, Button, Card, CardContent, Chip, Container, Grid, Skeleton, Stack,
 import { Link as RouterLink } from 'react-router-dom';
 import { api } from '../api/client';
 import { GameCard } from '../components/GameCard';
+import { LevelMeter } from '../components/LevelMeter';
 import { mergeGames } from '../data/builtinGames';
 import { levelProgress } from '../data/level';
 import { useAsync } from '../hooks/useAsync';
@@ -61,9 +62,8 @@ export function HomePage() {
             <Typography color="text.secondary" mt={2} sx={{ maxWidth: 740, fontSize: '1.08rem' }}>짧은 휴식에 집중력을 리셋하고, 동료들과 건강한 기록 경쟁을 즐겨 보세요.</Typography>
             <Stack direction="row" spacing={1.5} mt={4}><Button component={RouterLink} to="/games" variant="contained" size="large" startIcon={<PlayCircleRounded />}>게임 찾기</Button><Button component={RouterLink} to="/rankings" variant="outlined" size="large" startIcon={<EmojiEventsRounded />}>이번 주 랭킹</Button></Stack>
           </Grid><Grid size={{ xs: 12, md: 4 }}><Card sx={(theme) => ({ bgcolor: alpha(theme.palette.background.paper, .82), backdropFilter: 'blur(14px)', boxShadow: `0 18px 40px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? .45 : .1)}` })}><CardContent sx={{ p: 3 }}><Stack direction="row" alignItems="center" justifyContent="space-between"><Typography color="text.secondary">나의 포털 레벨</Typography><Chip size="small" label={`${progress.percent}%`} color="secondary" variant="outlined" /></Stack><Stack direction="row" alignItems="baseline" spacing={1} mt={1}><Typography sx={{ fontSize: '3.2rem', fontWeight: 900, color: 'secondary.main', lineHeight: 1 }}>{user?.level ?? progress.level}</Typography><Typography color="text.secondary">LEVEL</Typography></Stack>
-              {/* Progress follows the server's geometric XP curve; a bare div also told
-                  assistive technology nothing, so this is a real progressbar. */}
-              <Box role="progressbar" aria-valuenow={progress.percent} aria-valuemin={0} aria-valuemax={100} aria-label={`다음 레벨까지 ${progress.percent}% 진행`} sx={(theme) => ({ height: 10, bgcolor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? .16 : .12), borderRadius: 10, mt: 2, overflow: 'hidden' })}><Box sx={(theme) => ({ width: `${progress.percent}%`, height: '100%', borderRadius: 10, background: `linear-gradient(90deg, ${theme.palette.secondary.main}, ${theme.palette.primary.main})`, transition: 'width .3s' })} /></Box>
+              {/* Progress follows the server's geometric XP curve. */}
+              <Box mt={2}><LevelMeter percent={progress.percent} label={`다음 레벨까지 ${progress.percent}% 진행`} /></Box>
               <Typography variant="body2" color="text.secondary" mt={1}>{(user?.xp ?? 0).toLocaleString('ko-KR')} XP · 다음 레벨까지 {progress.xpToNext.toLocaleString('ko-KR')} XP</Typography></CardContent></Card></Grid></Grid>
         </Container>
       </Box>
