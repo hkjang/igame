@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -435,6 +436,75 @@ type createRealmGuardVersionInput struct {
 	AssetVersion string `json:"asset_version,omitempty"`
 }
 
+
+// realmGuardContentVersionBase strips the `-r<n>` suffix a saved draft carries.
+func realmGuardContentVersionBase(value string) string {
+	if index := strings.Index(value, "-r"); index >= 0 {
+		return value[:index]
+	}
+	return value
+}
+
+// realmGuardNextContentVersion is the content version a new draft should carry.
+//
+// A draft's stage, balance and asset versions are all taken from the published
+// row it is cut from. This one was invented from the table's row count as
+// `0.2.<n>` instead, so a draft cut from published 0.3.1 was labelled 0.2.5 —
+// and publishing it moved the live content version backwards, past two releases
+// that had already shipped.
+//
+// Every existing version is considered, not just the published one, so the
+// sequence advances even while several drafts are open at once.
+func realmGuardNextContentVersion(existing []string) string {
+	best := []int(nil)
+	for _, candidate := range existing {
+		parts := strings.Split(realmGuardContentVersionBase(strings.TrimSpace(candidate)), ".")
+		if len(parts) < 2 {
+			continue
+		}
+		numbers := make([]int, 0, len(parts))
+		for _, part := range parts {
+			number, err := strconv.Atoi(part)
+			if err != nil || number < 0 {
+				numbers = nil
+				break
+			}
+			numbers = append(numbers, number)
+		}
+		if numbers == nil {
+			continue
+		}
+		if best == nil || realmGuardVersionLess(best, numbers) {
+			best = numbers
+		}
+	}
+	if best == nil {
+		// Nothing on file parses as a version. Leaving it alone is better than
+		// inventing a number that claims an ordering the content does not have.
+		for _, candidate := range existing {
+			if strings.TrimSpace(candidate) != "" {
+				return realmGuardContentVersionBase(candidate)
+			}
+		}
+		return "0.0.1"
+	}
+	best[len(best)-1]++
+	parts := make([]string, len(best))
+	for index, number := range best {
+		parts[index] = strconv.Itoa(number)
+	}
+	return strings.Join(parts, ".")
+}
+
+func realmGuardVersionLess(left, right []int) bool {
+	for index := 0; index < len(left) && index < len(right); index++ {
+		if left[index] != right[index] {
+			return left[index] < right[index]
+		}
+	}
+	return len(left) < len(right)
+}
+
 func (s *Server) createRealmGuardVersion(w http.ResponseWriter, r *http.Request) {
 	p, _ := principalFrom(r)
 	var in createRealmGuardVersionInput
@@ -465,13 +535,44 @@ func (s *Server) createRealmGuardVersion(w http.ResponseWriter, r *http.Request)
 		s.dbError(w, r, err)
 		return
 	}
+	existingVersions := []string{published.ContentVersion}
+	rows, err := tx.Query(r.Context(), `SELECT content_version FROM realmguard_content_versions`)
+	if err != nil {
+		s.dbError(w, r, err)
+		return
+	}
+	for rows.Next() {
+		var value string
+		if err := rows.Scan(&value); err != nil {
+			rows.Close()
+			s.dbError(w, r, err)
+			return
+		}
+		existingVersions = append(existingVersions, value)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
+	}
+	contentVersion := realmGuardNextContentVersion(existingVersions)
 	if strings.TrimSpace(in.Label) == "" {
-		in.Label = fmt.Sprintf("v0.2.%d", versionNo-1)
+		// The label column is unique, so a second draft opened against the same
+		// published version needs something to tell it apart. Its version number
+		// is the only thing guaranteed to be its own.
+		in.Label = "v" + contentVersion
+		var taken bool
+		if err := tx.QueryRow(r.Context(), `SELECT EXISTS(SELECT 1 FROM realmguard_content_versions WHERE label=$1)`, in.Label).Scan(&taken); err != nil {
+			s.dbError(w, r, err)
+			return
+		}
+		if taken {
+			in.Label = fmt.Sprintf("%s-%d", in.Label, versionNo)
+		}
 	}
 	if strings.TrimSpace(in.AssetVersion) == "" {
 		in.AssetVersion = published.AssetVersion
 	}
-	contentVersion := fmt.Sprintf("0.2.%d", versionNo-1)
 	checksum := realmGuardChecksum(published.RawContent)
 	var id uuid.UUID
 	var created, updated time.Time
