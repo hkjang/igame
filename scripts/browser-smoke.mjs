@@ -37,16 +37,19 @@ const accessibilityRoutes = [
 ];
 
 /**
- * Widths the layout sweep checks, with the routes that pack the most into a
- * header row.
+ * Widths the layout sweep checks.
  *
  * The Defense Studio's header pushed the page 69px wider than a 1280px window
  * and put its primary action off screen, while collapsing 새 Draft into an 86px
  * column of wrapped text 274px tall. Nothing caught it: the screenshots taken
- * during development were 1440 and 390, and 1280 sits between them.
+ * during development were 1440 and 390, and 1280 sits between them. The first
+ * run of this sweep then found the portal's own header 88px over at 900.
+ *
+ * It walks the same routes as the accessibility pass rather than keeping a
+ * second list, because a route worth checking for one is worth checking for the
+ * other, and two lists drift.
  */
 const layoutWidths = [1280, 900, 768];
-const layoutRoutes = ['/admin/defense', '/admin/realmguard', '/admin/games', '/admin/analytics', '/developer', '/games'];
 
 const baseURL = (process.env.IGAME_BASE_URL ?? process.argv[2] ?? 'http://127.0.0.1:8080').replace(/\/$/, '');
 const username = process.env.IGAME_USERNAME ?? process.argv[3] ?? '';
@@ -664,7 +667,7 @@ try {
   const layoutFailures = [];
   for (const width of layoutWidths) {
     await page.setViewportSize({ width, height: 900 });
-    for (const route of layoutRoutes) {
+    for (const route of accessibilityRoutes) {
       await page.goto(`${baseURL}${route}`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(400);
       const overflow = await page.evaluate(() => ({ document: document.documentElement.scrollWidth, window: window.innerWidth }));
@@ -702,7 +705,7 @@ try {
   ];
   if (failures.length > 0) throw new Error(`Browser diagnostics failed:\n${failures.join('\n')}`);
 
-  console.log(`Browser smoke passed: login, RealmGuard, three Defense games, education choices, both content studios, preview, refresh, ${layoutRoutes.length} routes with no horizontal overflow at ${layoutWidths.join('/')}px, ${accessibilityRoutes.length} routes with no serious accessibility violation, and zero external HTTP requests (${baseURL})`);
+  console.log(`Browser smoke passed: login, RealmGuard, three Defense games, education choices, both content studios, preview, refresh, ${accessibilityRoutes.length} routes with no horizontal overflow at ${layoutWidths.join('/')}px, ${accessibilityRoutes.length} routes with no serious accessibility violation, and zero external HTTP requests (${baseURL})`);
   await context.close();
 } finally {
   await browser.close();

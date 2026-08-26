@@ -6,6 +6,7 @@ import { alpha } from '@mui/material/styles';
 import { Alert, Box, Button, Card, CardContent, CircularProgress, Divider, Stack, TextField, Typography } from '@mui/material';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../state/AuthContext';
+import { titleForPath } from './routeTitles';
 
 export function LoginPage() {
   const { user, config, version, login } = useAuth();
@@ -15,12 +16,15 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  if (user) return <Navigate to="/" replace />;
+  // Where the visitor was headed before RequireAuth sent them here — a screen
+  // whose session expired under them, or a deep link they followed logged out.
+  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? '/';
+  const destination = from === '/' ? '' : titleForPath(from);
+  if (user) return <Navigate to={from} replace />;
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setSubmitting(true); setError('');
     try {
       await login(username, password);
-      const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? '/';
       navigate(from, { replace: true });
     } catch (cause) { setError(cause instanceof Error ? cause.message : '로그인에 실패했습니다.'); }
     finally { setSubmitting(false); }
@@ -35,6 +39,10 @@ export function LoginPage() {
       <Stack justifyContent="center" alignItems="center" sx={(theme) => ({ p: 3, bgcolor: alpha(theme.palette.surface.overlay, .62), borderLeft: { lg: 1 }, borderColor: 'divider' })}>
         <Card sx={{ width: '100%', maxWidth: 500, boxShadow: 12 }}><CardContent sx={{ p: { xs: 3, sm: 5 } }}>
           <Typography variant="h2">로그인</Typography><Typography color="text.secondary" mt={1} mb={3}>{config.display_name ?? config.name}에 오신 것을 환영합니다.</Typography>
+          {/* Being dropped here mid-task is otherwise indistinguishable from
+              arriving fresh: the page says welcome and nothing about the screen
+              that was open a moment ago. */}
+          {destination && <Alert severity="info" sx={{ mb: 2 }}>로그인하면 <strong>{destination}</strong> 화면으로 돌아갑니다.</Alert>}
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
           {config.oidc_enabled && <Button fullWidth size="large" variant="contained" endIcon={<ArrowForwardRounded />} href={config.oidc_login_url || '/api/v1/auth/oidc/login'}>사내 SSO로 계속</Button>}
           {config.oidc_enabled && config.bootstrap_login_enabled !== false && <Divider sx={{ my: 3 }}>또는 관리자 로그인</Divider>}

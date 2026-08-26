@@ -27,3 +27,17 @@ describe('routeTitles', () => {
     expect(documentTitleForPath('/rankings', '사내 게임')).toBe('랭킹 · 사내 게임');
   });
 });
+
+describe('the screen a visitor is sent back to', () => {
+  it('names the admin screen whose session expired', () => {
+    // The login page is otherwise indistinguishable from a fresh arrival, and
+    // the destination is the one thing that tells the visitor what happened.
+    expect(titleForPath('/admin/games')).toBe('게임 관리');
+    expect(titleForPath('/admin/realmguard')).toBe('RealmGuard Designer');
+    expect(titleForPath('/profile/keys')).toBe('개인 키 관리');
+  });
+
+  it('has a name for a deep link into a game', () => {
+    expect(titleForPath('/games/cyber-fortress')).toBe('게임 플레이');
+  });
+});
