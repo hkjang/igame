@@ -700,7 +700,8 @@ run_verified_battle() {
     --argjson duration "${minimum_duration_ms}" --argjson health "${starting_health}" --argjson resource "${remaining_resource}" \
     --argjson earned "${earned_resource}" --argjson spent "$((tower_spent + education_spent))" --argjson kills "${cumulative_kills}" --argjson waves "${total_waves}" \
     --argjson histogram "${cumulative_hist}" --argjson resource_state "${resource_state}" --argjson answers "${answers}" \
-    '{session_id:$session_id,session_token:$token,stage_id:$stage,difficulty:$difficulty,duration_ms:$duration,remaining_health:$health,remaining_resource:$resource,kills:$kills,escaped:0,spawned:$kills,waves_completed:$waves,victory:true,content_version:$content,policy_version:$policy,answers:$answers,battle:{earned_resource:$earned,spent_resource:$spent,recovered_resource:0,hero_id:$hero,hero_level:1},resource_state:$resource_state,defeated_by_enemy:$histogram,escaped_by_enemy:{},spawned_by_enemy:$histogram,score:999999999,stars:3}')"
+    '{session_id:$session_id,session_token:$token,stage_id:$stage,difficulty:$difficulty,duration_ms:$duration,remaining_health:$health,remaining_resource:$resource,kills:$kills,escaped:0,spawned:$kills,waves_completed:$waves,victory:true,content_version:$content,policy_version:$policy,answers:$answers,battle:{earned_resource:$earned,spent_resource:$spent,recovered_resource:0,hero_id:$hero,hero_level:1},defeated_by_enemy:$histogram,escaped_by_enemy:{},spawned_by_enemy:$histogram,score:999999999,stars:3}
+     | if ($resource_state | length) > 0 then .resource_state=$resource_state else . end')"
 
   if [[ "${manager_fixture}" == true ]]; then
     assert_unattested_result_rejected "${no_ledger_cookie}" "${slug}" "${no_ledger_id}" "${no_ledger_token}" \

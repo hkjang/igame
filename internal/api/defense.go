@@ -1412,6 +1412,15 @@ func (s *Server) submitDefenseResult(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "resource_state_required", "AI results require start, spent, and remaining resource_state metrics")
 		return
 	}
+	// Only the AI game has resource metrics, so the other two omit the field
+	// entirely and it decodes to a nil map. The column is `jsonb NOT NULL
+	// DEFAULT '{}'`, but a default applies to a column left out of an INSERT,
+	// not to one handed an explicit NULL — so every Cyber Fortress and Office
+	// Guardians battle ended in a 500 on submit. Normalised before the request
+	// hash so an omitted field and an empty object are the same request.
+	if in.ResourceState == nil {
+		in.ResourceState = map[string]defenseResourceMetric{}
+	}
 	requestHash := defenseResultRequestChecksum(in)
 	tokenHash := sha256.Sum256([]byte(in.SessionToken))
 	tx, err := s.DB.Begin(r.Context())
