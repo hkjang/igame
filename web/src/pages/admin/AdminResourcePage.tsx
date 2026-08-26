@@ -37,6 +37,16 @@ interface ResourceConfig {
   description: string;
   singular: string;
   fields: Field[];
+  /**
+   * Which fields the list shows, in order.
+   *
+   * The default takes the first six, which quietly dropped the one column that
+   * says whether a row is live: a game's 상태 is the sixteenth field it
+   * declares, so 게임 관리 — a screen whose own description is "공개 상태를
+   * 관리합니다" — listed nine games without saying which of them were being
+   * served. A resource with a lifecycle names its columns instead.
+   */
+  columns?: string[];
   readonly?: boolean;
   updateOnly?: boolean;
   defaults?: Row;
@@ -53,6 +63,7 @@ const exportableResources = new Set(['audit']);
 const configs: Record<string, ResourceConfig> = {
   games: {
     title: '게임 관리', description: '메타데이터 기반으로 게임을 등록하고 공개 상태를 관리합니다.', singular: '게임',
+    columns: ['name', 'slug', 'category_id', 'tags', 'game_type', 'status'],
     defaults: { game_type: 'iframe', status: 'draft', ranking_enabled: true, achievement_enabled: true, season_enabled: true, min_players: 1, max_players: 1, version: '1.0.0', score_order: 'desc', score_rules: {} },
     fields: [
       { key: 'name', label: '게임명', required: true }, { key: 'slug', label: 'Slug', required: true },
@@ -86,14 +97,17 @@ const configs: Record<string, ResourceConfig> = {
     fields: [{ key: 'name', label: '시즌명', required: true }, { key: 'description', label: '설명', type: 'textarea' }, { key: 'starts_at', label: '시작일', type: 'date', required: true }, { key: 'ends_at', label: '종료일', type: 'date', required: true }, { key: 'status', label: '상태', type: 'select', options: ['draft', 'active', 'closed'], optionLabels: { active: '진행 중' } }],
   },
   events: {
+    columns: ['name', 'event_type', 'game_id', 'starts_at', 'ends_at', 'status'],
     title: '이벤트', description: '사내 캠페인과 부서·팀 대항 이벤트를 만듭니다.', singular: '이벤트', defaults: { event_type: 'score_attack', status: 'draft', rules: {} },
     fields: [{ key: 'name', label: '이벤트명', required: true }, { key: 'description', label: '설명', type: 'textarea' }, { key: 'event_type', label: '유형', type: 'select', options: ['score_attack', 'time_attack', 'team_battle', 'department_battle', 'attendance'] }, { key: 'game_id', label: '게임', lookup: 'games' }, { key: 'starts_at', label: '시작일', type: 'date', required: true }, { key: 'ends_at', label: '종료일', type: 'date', required: true }, { key: 'status', label: '상태', type: 'select', options: ['draft', 'active', 'closed', 'cancelled'], optionLabels: { active: '진행 중' } }, { key: 'rules', label: '이벤트 규칙 JSON', type: 'json' }],
   },
   tournaments: {
+    columns: ['name', 'game_id', 'format', 'starts_at', 'ends_at', 'status'],
     title: '대회', description: '토너먼트와 팀 대항전을 구성합니다.', singular: '대회', defaults: { format: 'score_attack', status: 'draft', max_participants: 128, rules: {} },
     fields: [{ key: 'name', label: '대회명', required: true }, { key: 'description', label: '설명', type: 'textarea' }, { key: 'game_id', label: '게임', lookup: 'games' }, { key: 'format', label: '방식', type: 'select', options: ['score_attack', 'time_attack', 'survival', 'bracket', 'team_battle'] }, { key: 'max_participants', label: '최대 참가자', type: 'number' }, { key: 'starts_at', label: '시작일', type: 'date', required: true }, { key: 'ends_at', label: '종료일', type: 'date', required: true }, { key: 'status', label: '상태', type: 'select', options: ['draft', 'active', 'closed', 'cancelled'], optionLabels: { active: '진행 중' } }, { key: 'rules', label: '대회 규칙 JSON', type: 'json' }],
   },
   achievements: {
+    columns: ['code', 'name', 'game_id', 'xp', 'active'],
     title: '업적', description: '게임별·포털 공통 업적 조건을 관리합니다.', singular: '업적', defaults: { xp: 0, active: true, criteria: {} },
     fields: [{ key: 'code', label: '코드', required: true }, { key: 'name', label: '이름', required: true }, { key: 'description', label: '설명' }, { key: 'game_id', label: '게임', lookup: 'games' }, { key: 'icon_url', label: '아이콘 URL' }, { key: 'criteria', label: '조건 JSON', type: 'json' }, { key: 'xp', label: 'XP', type: 'number' }, { key: 'active', label: '사용', type: 'boolean' }],
   },
@@ -106,6 +120,7 @@ const configs: Record<string, ResourceConfig> = {
     fields: [{ key: 'title', label: '제목', required: true }, { key: 'content', label: '내용', type: 'textarea', required: true }, { key: 'status', label: '상태', type: 'select', options: ['draft', 'published'] }, { key: 'pinned', label: '상단 고정', type: 'boolean' }, { key: 'published_at', label: '게시 시각', type: 'date' }],
   },
   banners: {
+    columns: ['title', 'image_url', 'starts_at', 'ends_at', 'sort_order', 'enabled'],
     title: '배너', description: '홈과 이벤트 영역에 노출할 배너를 관리합니다.', singular: '배너', defaults: { enabled: true, sort_order: 0 },
     fields: [{ key: 'title', label: '제목', required: true }, { key: 'image_url', label: '이미지 URL', required: true }, { key: 'link_url', label: '연결 URL' }, { key: 'starts_at', label: '노출 시작', type: 'date' }, { key: 'ends_at', label: '노출 종료', type: 'date' }, { key: 'sort_order', label: '표시 순서', type: 'number' }, { key: 'enabled', label: '사용', type: 'boolean' }],
   },
@@ -245,7 +260,10 @@ export function AdminResourcePage({ resource }: { resource: string }) {
   const [busy, setBusy] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Row>();
   const [deleting, setDeleting] = useState(false);
-  const columns = useMemo(() => config.fields.slice(0, 6), [config.fields]);
+  const columns = useMemo(() => {
+    if (!config.columns) return config.fields.slice(0, 6);
+    return config.columns.map((key) => config.fields.find((field) => field.key === key)).filter((field): field is Field => Boolean(field));
+  }, [config.columns, config.fields]);
   const jsonErrors = useMemo(() => jsonFieldErrors(config.fields, form), [config.fields, form]);
   const actionColumns = config.readonly ? 0 : 1;
   const showForm = (row?: Row) => {

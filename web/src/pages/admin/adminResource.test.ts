@@ -107,3 +107,39 @@ describe('display of a select cell', () => {
     expect(display('root', role)).toBe('root');
   });
 });
+
+describe('list columns', () => {
+  const { configs } = __testing;
+  const listedColumns = (config: (typeof configs)[string]) =>
+    config.columns ?? config.fields.slice(0, 6).map((field) => field.key);
+
+  it('shows whether each row is live', () => {
+    // The default of "first six fields" hid the one column an operator scans
+    // for: a game's 상태 is its sixteenth field, so 게임 관리 listed nine games
+    // without saying which were being served.
+    const hidden: string[] = [];
+    for (const [resource, config] of Object.entries(configs)) {
+      const lifecycle = config.fields.find((field) => ['status', 'active', 'enabled'].includes(field.key));
+      if (lifecycle && !listedColumns(config).includes(lifecycle.key)) hidden.push(`${resource}.${lifecycle.key}`);
+    }
+    expect(hidden).toEqual([]);
+  });
+
+  it('names only fields the resource actually declares', () => {
+    // A column naming a field that does not exist would silently vanish rather
+    // than fail, so the mistake would ship.
+    const unknown: string[] = [];
+    for (const [resource, config] of Object.entries(configs)) {
+      for (const key of config.columns ?? []) {
+        if (!config.fields.some((field) => field.key === key)) unknown.push(`${resource}.${key}`);
+      }
+    }
+    expect(unknown).toEqual([]);
+  });
+
+  it('keeps every list narrow enough to read', () => {
+    for (const [resource, config] of Object.entries(configs)) {
+      expect(`${resource}:${listedColumns(config).length}`).toBe(`${resource}:${Math.min(6, listedColumns(config).length)}`);
+    }
+  });
+});
