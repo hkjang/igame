@@ -1,4 +1,5 @@
 import type { EnemyPresentation } from "./enemyPresentation";
+import type { ShapePainter } from "./shapePainter";
 
 /**
  * Paints an enemy from its presentation tokens.
@@ -9,25 +10,10 @@ import type { EnemyPresentation } from "./enemyPresentation";
  * space around (0, 0), scaled by the content's own radius so a boss and a pest
  * use the same code.
  *
- * The surface is described structurally rather than as a Phaser type, so the
- * same creature can be painted onto a battlefield and into a roster card in the
- * DOM without the art being written twice. Phaser's Graphics satisfies this
- * shape as it stands.
+ * The surface is `ShapePainter`, so the same creature is painted onto the
+ * battlefield and into a roster card in the DOM by this one routine.
  */
-export interface EnemyPainter {
-  fillStyle(colour: number, alpha?: number): EnemyPainter;
-  lineStyle(width: number, colour: number, alpha?: number): EnemyPainter;
-  fillCircle(x: number, y: number, radius: number): EnemyPainter;
-  fillEllipse(x: number, y: number, width: number, height: number): EnemyPainter;
-  fillTriangle(x1: number, y1: number, x2: number, y2: number, x3: number, y3: number): EnemyPainter;
-  fillRect(x: number, y: number, width: number, height: number): EnemyPainter;
-  fillRoundedRect(x: number, y: number, width: number, height: number, radius?: number): EnemyPainter;
-  lineBetween(x1: number, y1: number, x2: number, y2: number): EnemyPainter;
-  strokeCircle(x: number, y: number, radius: number): EnemyPainter;
-  strokeEllipse(x: number, y: number, width: number, height: number): EnemyPainter;
-}
-
-type Graphics = EnemyPainter;
+type Graphics = ShapePainter;
 
 function hex(value: string): number {
   return Number.parseInt(value.replace("#", ""), 16);

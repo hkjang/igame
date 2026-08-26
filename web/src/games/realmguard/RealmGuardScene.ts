@@ -4,6 +4,8 @@ import { BattleKernel, KERNEL_TICK_MS } from "./kernel/kernel";
 import type { KernelEvent, KernelTowerView } from "./kernel/kernel";
 import { drawEnemyBody } from "./enemyArt";
 import { resolveEnemyPresentation } from "./enemyPresentation";
+import { drawTowerBody } from "./towerArt";
+import { resolveTowerPresentation } from "./towerPresentation";
 import { kernelDigest, projectKernelConfig } from "./kernel/config";
 import { LedgerRecorder } from "./kernel/ledger";
 import type { KernelAction, KernelCommand } from "./kernel/ledger";
@@ -495,7 +497,7 @@ class RealmGuardBattleScene extends Phaser.Scene {
       const sprite = this.towerSprites.get(spotId);
       if (!sprite) return;
       sprite.object.removeAll(true);
-      sprite.object.add(this.drawTowerShape(sprite.definition, state.level));
+      sprite.object.add(this.drawTowerShape(sprite.definition, state.level, state.branch));
       sprite.level = state.level;
       this.pulse(sprite.object.x, sprite.object.y, sprite.definition.color, 52);
     }
@@ -510,7 +512,7 @@ class RealmGuardBattleScene extends Phaser.Scene {
     const base = this.spots.get(spot.id);
     base?.removeAll(true);
     const object = this.add
-      .container(spot.x, spot.y, this.drawTowerShape(definition, state.level))
+      .container(spot.x, spot.y, this.drawTowerShape(definition, state.level, state.branch))
       .setSize(68, 68)
       .setInteractive({ useHandCursor: true })
       .setDepth(7);
@@ -1056,47 +1058,13 @@ class RealmGuardBattleScene extends Phaser.Scene {
       .fillRoundedRect(-22, -37, 44 * clamped, 3, 2);
   }
 
-  private drawTowerShape(definition: TowerDefinition, level: number) {
+  private drawTowerShape(definition: TowerDefinition, level: number, branchId = "") {
     const base = this.add.graphics();
-    base.fillStyle(0x0a1522, 0.9).fillCircle(0, 0, 27);
-    base
-      .lineStyle(3 + level, definition.color, 0.95)
-      .strokeCircle(0, 0, 20 + level * 2);
-    if (definition.id === "sunspire")
-      base.fillStyle(definition.color).fillTriangle(0, -22, -13, 13, 13, 13);
-    if (definition.id === "runebloom")
-      for (let index = 0; index < 6; index += 1)
-        base
-          .fillStyle(definition.color, 0.8)
-          .fillCircle(
-            Math.cos((index * Math.PI) / 3) * 13,
-            Math.sin((index * Math.PI) / 3) * 13,
-            7,
-          );
-    if (definition.id === "stonepulse")
-      base
-        .fillStyle(definition.color)
-        .fillRoundedRect(-15, -15, 30, 30, 5)
-        .fillStyle(0x202938)
-        .fillRect(-5, -28, 10, 25);
-    if (this.isBlockingTower(definition)) {
-      base.fillStyle(0x334155).fillRoundedRect(-17, -15, 34, 27, 5);
-      base
-        .fillStyle(definition.color)
-        .fillTriangle(-15, -15, -7, -28, 0, -15)
-        .fillTriangle(0, -15, 8, -28, 15, -15);
-      base.fillStyle(0xdffcff).fillCircle(-10, 13, 5).fillCircle(10, 13, 5);
-    }
-    const badge = this.add
-      .text(0, 26, `L${level}`, {
-        fontFamily: "system-ui",
-        fontSize: "16px",
-        color: "#ffffff",
-        backgroundColor: "#07101ddd",
-        padding: { x: 4, y: 1 },
-      })
-      .setOrigin(0.5);
-    return [base, badge];
+    const presentation = resolveTowerPresentation(definition, branchId, this.isBlockingTower(definition));
+    // A specialised tower carries its branch badge in a brighter accent, so the
+    // two level-three builds of the same tower are no longer identical.
+    drawTowerBody(base, presentation, level, definition.color, 0xffffff);
+    return [base];
   }
 
   // ---------------------------------------------------------------- reporting
