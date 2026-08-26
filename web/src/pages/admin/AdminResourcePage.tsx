@@ -133,9 +133,32 @@ function jsonFieldErrors(fields: Field[], form: Row): Record<string, string> {
   return errors;
 }
 
-function display(value: unknown): React.ReactNode {
+type LookupOptions = Record<'categories' | 'games', Array<{ value: string; label: string }>>;
+
+/**
+ * Renders one cell.
+ *
+ * The field it belongs to has to come in with it: without that, a lookup column
+ * printed the raw foreign key and a tag column printed its JSON, so the games
+ * table showed operators a category UUID and `["Defense Series","AI교육"]`
+ * instead of the names they filed the game under.
+ */
+function display(value: unknown, field?: Field, lookups?: LookupOptions): React.ReactNode {
   if (typeof value === 'boolean') return <Chip size="small" color={value ? 'success' : 'default'} label={value ? '사용' : '미사용'} />;
   if (value === null || value === undefined || value === '') return '—';
+  if (field?.lookup) {
+    const match = lookups?.[field.lookup]?.find((option) => option.value === value);
+    // Falling back to the key rather than hiding it: an operator chasing a
+    // stale reference still needs to see what it points at.
+    return match ? match.label : String(value);
+  }
+  if (field?.type === 'tags' && Array.isArray(value)) {
+    return value.length === 0 ? '—' : (
+      <Stack direction="row" flexWrap="wrap" useFlexGap spacing={.5}>
+        {value.map((tag) => <Chip key={String(tag)} size="small" variant="outlined" label={String(tag)} />)}
+      </Stack>
+    );
+  }
   if (typeof value === 'object') return JSON.stringify(value);
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) return new Date(value).toLocaleString('ko-KR');
   return String(value);
@@ -261,7 +284,7 @@ export function AdminResourcePage({ resource }: { resource: string }) {
     {result.loading && <LinearProgress sx={{ mt: 3 }} />}
     <Box mt={3}>{result.error ? <ErrorPanel error={result.error} retry={() => void result.reload()} /> : <TableContainer component={Card}><Table aria-label={config.title}>
       <TableHead><TableRow>{columns.map((field) => <TableCell key={field.key}>{field.label}</TableCell>)}{!config.readonly && <TableCell align="right">관리</TableCell>}</TableRow></TableHead>
-      <TableBody>{result.data?.items.map((row, index) => <TableRow key={String(row.id ?? row.code ?? index)}>{columns.map((field) => <TableCell key={field.key}>{display(row[field.key])}</TableCell>)}{!config.readonly && <TableCell align="right">
+      <TableBody>{result.data?.items.map((row, index) => <TableRow key={String(row.id ?? row.code ?? index)}>{columns.map((field) => <TableCell key={field.key}>{display(row[field.key], field, lookupResult.data)}</TableCell>)}{!config.readonly && <TableCell align="right">
         {/* Naming the row keeps a screen reader from reading a column of identical "수정" buttons. */}
         <Tooltip title="수정"><IconButton aria-label={`${rowLabel(row)} 수정`} onClick={() => showForm(row)}><EditRounded /></IconButton></Tooltip>
         {!config.updateOnly && <Tooltip title="삭제"><IconButton aria-label={`${rowLabel(row)} 삭제`} color="error" onClick={() => setPendingDelete(row)}><DeleteOutlineRounded /></IconButton></Tooltip>}
@@ -311,4 +334,4 @@ export function AdminResourcePage({ resource }: { resource: string }) {
 }
 
 /** Exposed for unit tests; not part of the page's public surface. */
-export const __testing = { rowLabel, jsonFieldErrors };
+export const __testing = { rowLabel, jsonFieldErrors, display };

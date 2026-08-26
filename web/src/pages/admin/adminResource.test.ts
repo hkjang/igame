@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { __testing } from './AdminResourcePage';
 
-const { rowLabel, jsonFieldErrors } = __testing;
+const { rowLabel, jsonFieldErrors, display } = __testing;
 
 describe('rowLabel', () => {
   it('prefers the most human field available', () => {
@@ -36,5 +36,36 @@ describe('jsonFieldErrors', () => {
 
   it('passes valid JSON of any shape', () => {
     expect(jsonFieldErrors(fields, { rules: '[]', criteria: 'null' })).toEqual({});
+  });
+});
+
+describe('display', () => {
+  const lookups = {
+    categories: [{ value: 'cat-1', label: 'Defense Series' }],
+    games: [{ value: 'game-1', label: 'RealmGuard' }],
+  };
+
+  it('names a referenced row instead of printing its key', () => {
+    // The games table showed operators a category UUID, which tells them
+    // nothing about what the game was filed under.
+    expect(display('cat-1', { key: 'category_id', label: '카테고리', lookup: 'categories' }, lookups))
+      .toBe('Defense Series');
+  });
+
+  it('still shows a key that no longer resolves', () => {
+    // Hiding a stale reference would leave an operator chasing a blank cell.
+    expect(display('cat-gone', { key: 'category_id', label: '카테고리', lookup: 'categories' }, lookups))
+      .toBe('cat-gone');
+  });
+
+  it('leaves a plain value alone', () => {
+    expect(display('snake', { key: 'slug', label: 'Slug' }, lookups)).toBe('snake');
+    expect(display('', { key: 'slug', label: 'Slug' }, lookups)).toBe('—');
+    expect(display(null, { key: 'slug', label: 'Slug' }, lookups)).toBe('—');
+  });
+
+  it('formats a timestamp for a reader', () => {
+    expect(display('2026-08-26T01:02:03Z', { key: 'created_at', label: '생성' }, lookups))
+      .not.toContain('T');
   });
 });
