@@ -94,6 +94,16 @@ function baseline(currentTheme: Theme) {
       ].join(','),
     },
     '*:focus-visible': { outline: `3px solid ${currentTheme.palette.primary.main}`, outlineOffset: 2 },
+    // MuiButtonBase sets `outline: 0` on its own root, at the same specificity
+    // as the rule above and later in the cascade, so it won every time: a
+    // keyboard user tabbing the portal header saw nothing move on nine of the
+    // ten stops. Naming both classes outranks it without reaching for
+    // !important, and covers every control built on ButtonBase — buttons, icon
+    // buttons, tabs, menu items, list items, clickable chips and cards.
+    '.MuiButtonBase-root.Mui-focusVisible': {
+      outline: `3px solid ${currentTheme.palette.primary.main}`,
+      outlineOffset: 2,
+    },
     '::selection': { background: alpha(currentTheme.palette.primary.main, 0.28) },
     '.admin-scrollbar': {
       scrollbarWidth: 'thin',

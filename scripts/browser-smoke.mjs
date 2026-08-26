@@ -51,6 +51,17 @@ const accessibilityRoutes = [
  */
 const layoutWidths = [1280, 900, 768];
 
+/**
+ * Routes the keyboard sweep tabs through.
+ *
+ * MuiButtonBase sets `outline: 0` on its own root, at the same specificity as
+ * the theme's `*:focus-visible` rule and later in the cascade, so it won: nine
+ * of the first ten tab stops in the portal header moved focus and changed
+ * nothing on screen. axe cannot see this — the markup is correct and the
+ * browser knows where focus is; it is only invisible.
+ */
+const keyboardRoutes = ['/games', '/developer', '/profile', '/admin/games'];
+
 const baseURL = (process.env.IGAME_BASE_URL ?? process.argv[2] ?? 'http://127.0.0.1:8080').replace(/\/$/, '');
 const username = process.env.IGAME_USERNAME ?? process.argv[3] ?? '';
 const password = process.env.IGAME_PASSWORD ?? process.argv[4] ?? '';
@@ -662,6 +673,39 @@ try {
     }
   }
 
+  // Every keyboard stop has to show where it is.
+  const focusFailures = [];
+  for (const route of keyboardRoutes) {
+    await page.goto(`${baseURL}${route}`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(400);
+    await page.mouse.move(2, 2);
+    for (let stop = 0; stop < 14; stop += 1) {
+      await page.keyboard.press('Tab');
+      const focus = await page.evaluate(() => {
+        const element = document.activeElement;
+        if (!element || element === document.body) return null;
+        const ringed = (node) => {
+          if (!node) return false;
+          const style = getComputedStyle(node);
+          if (style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0) return true;
+          return style.boxShadow !== 'none' && /rgb/.test(style.boxShadow);
+        };
+        // A text field draws its ring on the notched outline beside the input,
+        // and a switch or checkbox on the button wrapping its hidden input.
+        const notch = element.closest('.MuiInputBase-root')?.querySelector('.MuiOutlinedInput-notchedOutline');
+        const thickened = notch ? parseFloat(getComputedStyle(notch).borderWidth) >= 2 : false;
+        const wrapper = element.closest('.MuiButtonBase-root');
+        return {
+          visible: ringed(element) || thickened || ringed(wrapper),
+          tag: element.tagName,
+          label: (element.getAttribute('aria-label') || element.textContent || '').trim().slice(0, 32),
+        };
+      });
+      if (focus && !focus.visible) focusFailures.push(`${route} stop ${stop + 1}: ${focus.tag} "${focus.label}"`);
+    }
+  }
+  if (focusFailures.length > 0) throw new Error(`Keyboard focus is invisible on:\n${focusFailures.join('\n')}`);
+
   // A page is never wider than the window it is in. Checked before the
   // accessibility pass so both run against the same settled session.
   const layoutFailures = [];
@@ -705,7 +749,7 @@ try {
   ];
   if (failures.length > 0) throw new Error(`Browser diagnostics failed:\n${failures.join('\n')}`);
 
-  console.log(`Browser smoke passed: login, RealmGuard, three Defense games, education choices, both content studios, preview, refresh, ${accessibilityRoutes.length} routes with no horizontal overflow at ${layoutWidths.join('/')}px, ${accessibilityRoutes.length} routes with no serious accessibility violation, and zero external HTTP requests (${baseURL})`);
+  console.log(`Browser smoke passed: login, RealmGuard, three Defense games, education choices, both content studios, preview, refresh, ${keyboardRoutes.length} routes with a visible focus ring on every keyboard stop, ${accessibilityRoutes.length} routes with no horizontal overflow at ${layoutWidths.join('/')}px, ${accessibilityRoutes.length} routes with no serious accessibility violation, and zero external HTTP requests (${baseURL})`);
   await context.close();
 } finally {
   await browser.close();
