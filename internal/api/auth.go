@@ -208,7 +208,7 @@ func (s *Server) oidcLogin(w http.ResponseWriter, r *http.Request) {
 	providerCtx := oidc.ClientContext(r.Context(), s.HTTP)
 	provider, err := s.oidcProvider(providerCtx, cfg.Issuer)
 	if err != nil {
-		writeError(w, 502, "oidc_discovery_failed", "OIDC provider discovery failed")
+		s.serverError(w, r, 502, "oidc_discovery_failed", "OIDC provider discovery failed", err)
 		return
 	}
 	state, err := randomToken(32)
@@ -259,7 +259,7 @@ func (s *Server) oidcCallback(w http.ResponseWriter, r *http.Request) {
 	providerCtx := oidc.ClientContext(r.Context(), s.HTTP)
 	provider, err := s.oidcProvider(providerCtx, cfg.Issuer)
 	if err != nil {
-		writeError(w, 502, "oidc_discovery_failed", "OIDC provider discovery failed")
+		s.serverError(w, r, 502, "oidc_discovery_failed", "OIDC provider discovery failed", err)
 		return
 	}
 	oauthCfg := oauth2.Config{ClientID: cfg.ClientID, ClientSecret: cfg.ClientSecret, Endpoint: provider.Endpoint(), RedirectURL: s.requestBaseURL(r) + "/api/v1/auth/oidc/callback", Scopes: cfg.Scopes}

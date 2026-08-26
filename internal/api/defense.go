@@ -817,12 +817,12 @@ func (s *Server) defenseConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	decoded, err := decodeDefenseContent(version.RawContent)
 	if err != nil {
-		writeError(w, 500, "invalid_published_content", "published Defense Series content is invalid")
+		s.serverError(w, r, 500, "invalid_published_content", "published Defense Series content is invalid", err)
 		return
 	}
 	content, err := sanitizeDefenseContent(version.RawContent)
 	if err != nil {
-		writeError(w, 500, "invalid_published_content", "published Defense Series content is invalid")
+		s.serverError(w, r, 500, "invalid_published_content", "published Defense Series content is invalid", err)
 		return
 	}
 	w.Header().Set("ETag", `"`+version.Checksum+`"`)
@@ -922,7 +922,7 @@ func (s *Server) defenseProgress(w http.ResponseWriter, r *http.Request) {
 	}
 	content, err := decodeDefenseContent(version.RawContent)
 	if err != nil {
-		writeError(w, 500, "invalid_published_content", err.Error())
+		s.serverError(w, r, 500, "invalid_published_content", err.Error(), err)
 		return
 	}
 	data, err := s.defenseProgressData(r.Context(), p.UserID, gameID, version, content)
@@ -1077,7 +1077,7 @@ func (s *Server) answerDefenseEducationEvent(w http.ResponseWriter, r *http.Requ
 	}
 	content, err := decodeDefenseContent(raw)
 	if err != nil {
-		writeError(w, 500, "invalid_pinned_content", err.Error())
+		s.serverError(w, r, 500, "invalid_pinned_content", err.Error(), err)
 		return
 	}
 	if !defenseEducationEnabled(content) {
@@ -1488,7 +1488,7 @@ func (s *Server) submitDefenseResult(w http.ResponseWriter, r *http.Request) {
 	}
 	content, err := decodeDefenseContent(raw)
 	if err != nil {
-		writeError(w, 500, "invalid_pinned_content", err.Error())
+		s.serverError(w, r, 500, "invalid_pinned_content", err.Error(), err)
 		return
 	}
 	var stage defenseStageDefinition
@@ -1615,7 +1615,8 @@ func (s *Server) submitDefenseResult(w http.ResponseWriter, r *http.Request) {
 	attestationJSON, _ := json.Marshal(attestation)
 	proofPayload, _ := json.Marshal(map[string]any{"method": defenseVerificationMethod, "session_id": in.SessionID, "user_id": p.UserID, "digest": attestation.Digest, "score": score, "stars": stars, "learning_score": learningScore})
 	if s.Secrets == nil {
-		writeError(w, 500, "proof_unavailable", "server proof encryption is unavailable")
+		s.serverError(w, r, 500, "proof_unavailable", "server proof encryption is unavailable",
+			errors.New("the encryption key is not configured, so a result cannot be sealed"))
 		return
 	}
 	serverProof, err := s.Secrets.Seal(string(proofPayload))
@@ -1739,7 +1740,7 @@ func (s *Server) defenseRankings(w http.ResponseWriter, r *http.Request) {
 		ShowDepartment bool   `json:"show_department"`
 	}
 	if err := s.setting(r.Context(), "privacy", &privacy); err != nil {
-		writeError(w, 503, "privacy_setting_unavailable", "privacy policy is unavailable")
+		s.serverError(w, r, 503, "privacy_setting_unavailable", "privacy policy is unavailable", err)
 		return
 	}
 	if (group == "department" || group == "team") && !privacy.ShowDepartment {

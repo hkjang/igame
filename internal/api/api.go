@@ -256,6 +256,12 @@ func (s *Server) Router() http.Handler {
 
 func (s *Server) securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The identifier the failure logs carry, handed back on every response so
+		// a colleague reporting "저장이 안 됩니다" can quote something an operator
+		// can grep for. It identifies the request, not the person.
+		if id := middleware.GetReqID(r.Context()); id != "" {
+			w.Header().Set("X-Request-Id", id)
+		}
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "SAMEORIGIN")
 		w.Header().Set("Referrer-Policy", "same-origin")
@@ -308,7 +314,7 @@ func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
 	if err := s.DB.Ping(ctx); err != nil {
-		writeError(w, 503, "database_unavailable", "database is unavailable")
+		s.serverError(w, r, 503, "database_unavailable", "database is unavailable", err)
 		return
 	}
 	writeJSON(w, 200, map[string]any{"status": "ok", "service": serviceName, "version": version.Version})
@@ -686,7 +692,20 @@ func (s *Server) dbError(w http.ResponseWriter, r *http.Request, err error) {
 		return
 	}
 	s.logRequestError(r, err)
-	writeError(w, 500, "internal_error", "internal server error")
+	s.serverError(w, r, 500, "internal_error", "internal server error", err)
+}
+
+// serverError reports a fault the caller cannot act on. The cause goes to the
+// log with the request identity; the client is told exactly what it was told
+// before.
+//
+// Two dozen 5xx paths used to return with the error still in hand and nothing
+// written down. When the published Defense content stopped decoding, the API
+// answered 500 invalid_published_content and the log stayed silent, so there
+// was no way to learn which field had gone wrong.
+func (s *Server) serverError(w http.ResponseWriter, r *http.Request, status int, code, message string, cause error) {
+	s.logRequestError(r, cause)
+	writeError(w, status, code, message)
 }
 
 func (s *Server) logRequestError(r *http.Request, err error) {

@@ -64,7 +64,8 @@ func (s *Server) getDefenseDraftSection(w http.ResponseWriter, r *http.Request) 
 	}
 	var document map[string]json.RawMessage
 	if json.Unmarshal(version.RawContent, &document) != nil || len(document[section]) == 0 {
-		writeError(w, 500, "invalid_content", "stored content is missing the requested section")
+		s.serverError(w, r, 500, "invalid_content", "stored content is missing the requested section",
+			fmt.Errorf("defense version %s has no %q section", version.ID, section))
 		return
 	}
 	w.Header().Set("ETag", `"`+version.Checksum+`"`)
@@ -453,12 +454,12 @@ func (s *Server) previewDefenseVersion(w http.ResponseWriter, r *http.Request) {
 	}
 	decoded, err := decodeDefenseContent(version.RawContent)
 	if err != nil {
-		writeError(w, 500, "invalid_content", err.Error())
+		s.serverError(w, r, 500, "invalid_content", err.Error(), err)
 		return
 	}
 	content, err := sanitizeDefenseContent(version.RawContent)
 	if err != nil {
-		writeError(w, 500, "invalid_content", err.Error())
+		s.serverError(w, r, 500, "invalid_content", err.Error(), err)
 		return
 	}
 	_, name, _ := s.defenseGame(r.Context(), slug)
@@ -548,7 +549,7 @@ func (s *Server) reviewDefenseVersion(w http.ResponseWriter, r *http.Request) {
 	}
 	var approval approvalSetting
 	if err := s.setting(r.Context(), "approval", &approval); err != nil {
-		writeError(w, 503, "approval_setting_unavailable", "approval policy is unavailable")
+		s.serverError(w, r, 503, "approval_setting_unavailable", "approval policy is unavailable", err)
 		return
 	}
 	if !approval.Enabled {
@@ -631,7 +632,7 @@ func (s *Server) publishDefenseVersion(w http.ResponseWriter, r *http.Request) {
 	}
 	var approval approvalSetting
 	if err := s.setting(r.Context(), "approval", &approval); err != nil {
-		writeError(w, 503, "approval_setting_unavailable", "approval policy is unavailable")
+		s.serverError(w, r, 503, "approval_setting_unavailable", "approval policy is unavailable", err)
 		return
 	}
 	tx, err := s.DB.Begin(r.Context())
@@ -742,7 +743,7 @@ func (s *Server) defenseTelemetryReport(w http.ResponseWriter, r *http.Request) 
 		ShowDepartment bool `json:"show_department"`
 	}
 	if err = s.setting(r.Context(), "privacy", &privacy); err != nil {
-		writeError(w, 503, "privacy_setting_unavailable", "privacy policy is unavailable")
+		s.serverError(w, r, 503, "privacy_setting_unavailable", "privacy policy is unavailable", err)
 		return
 	}
 	departmentCount := int64(0)
@@ -780,14 +781,14 @@ func (s *Server) defenseLearningReport(w http.ResponseWriter, r *http.Request) {
 	}
 	content, err := decodeDefenseContent(version.RawContent)
 	if err != nil {
-		writeError(w, 500, "invalid_published_content", err.Error())
+		s.serverError(w, r, 500, "invalid_published_content", err.Error(), err)
 		return
 	}
 	var privacy struct {
 		ShowDepartment bool `json:"show_department"`
 	}
 	if err = s.setting(r.Context(), "privacy", &privacy); err != nil {
-		writeError(w, 503, "privacy_setting_unavailable", "privacy policy is unavailable")
+		s.serverError(w, r, 503, "privacy_setting_unavailable", "privacy policy is unavailable", err)
 		return
 	}
 	var participants, plays, battleClears int64

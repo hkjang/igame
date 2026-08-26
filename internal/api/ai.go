@@ -15,7 +15,7 @@ import (
 func (s *Server) aiChatCompletions(w http.ResponseWriter, r *http.Request) {
 	cfg, err := s.loadAISetting(r.Context())
 	if err != nil || !cfg.Enabled {
-		writeError(w, 503, "ai_disabled", "AI service is not configured")
+		s.serverError(w, r, 503, "ai_disabled", "AI service is not configured", err)
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 8<<20)
@@ -73,14 +73,14 @@ func (s *Server) aiChatCompletions(w http.ResponseWriter, r *http.Request) {
 	}
 	endpoint, err := chatCompletionsURL(cfg.BaseURL)
 	if err != nil {
-		writeError(w, 500, "invalid_ai_configuration", "AI base URL is invalid")
+		s.serverError(w, r, 500, "invalid_ai_configuration", "AI base URL is invalid", err)
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(cfg.TimeoutSeconds)*time.Second)
 	defer cancel()
 	upstream, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
-		writeError(w, 500, "ai_request_failed", "AI request cannot be created")
+		s.serverError(w, r, 500, "ai_request_failed", "AI request cannot be created", err)
 		return
 	}
 	upstream.Header.Set("Content-Type", "application/json")
@@ -94,7 +94,7 @@ func (s *Server) aiChatCompletions(w http.ResponseWriter, r *http.Request) {
 	client := &http.Client{Transport: s.HTTP.Transport}
 	response, err := client.Do(upstream)
 	if err != nil {
-		writeError(w, 502, "ai_upstream_unavailable", "AI upstream is unavailable")
+		s.serverError(w, r, 502, "ai_upstream_unavailable", "AI upstream is unavailable", err)
 		return
 	}
 	defer response.Body.Close()

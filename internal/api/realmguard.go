@@ -566,7 +566,7 @@ func (s *Server) realmGuardConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	response, err := realmGuardConfigPayload(version)
 	if err != nil {
-		writeError(w, 500, "invalid_published_content", err.Error())
+		s.serverError(w, r, 500, "invalid_published_content", err.Error(), err)
 		return
 	}
 	writeJSON(w, 200, response)
@@ -916,7 +916,7 @@ func (s *Server) realmGuardProgress(w http.ResponseWriter, r *http.Request) {
 	}
 	content, err := decodeRealmGuardContent(version.RawContent)
 	if err != nil {
-		writeError(w, 500, "invalid_published_content", err.Error())
+		s.serverError(w, r, 500, "invalid_published_content", err.Error(), err)
 		return
 	}
 	data, err := s.realmGuardProgressData(r.Context(), p, version, content)
@@ -956,7 +956,7 @@ func (s *Server) putRealmGuardProgress(w http.ResponseWriter, r *http.Request) {
 	}
 	content, err := decodeRealmGuardContent(version.RawContent)
 	if err != nil {
-		writeError(w, 500, "invalid_published_content", err.Error())
+		s.serverError(w, r, 500, "invalid_published_content", err.Error(), err)
 		return
 	}
 	if err := s.ensureRealmGuardUser(r.Context(), p.UserID, content); err != nil {

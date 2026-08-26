@@ -54,11 +54,12 @@ func (s *Server) getRealmGuardDraftSection(w http.ResponseWriter, r *http.Reques
 	}
 	var document map[string]json.RawMessage
 	if err := json.Unmarshal(version.RawContent, &document); err != nil {
-		writeError(w, 500, "invalid_content", err.Error())
+		s.serverError(w, r, 500, "invalid_content", err.Error(), err)
 		return
 	}
 	if len(document[section]) == 0 {
-		writeError(w, 500, "invalid_content", "stored content is missing the requested section")
+		s.serverError(w, r, 500, "invalid_content", "stored content is missing the requested section",
+			fmt.Errorf("realmguard version %s has no %q section", version.ID, section))
 		return
 	}
 	w.Header().Set("ETag", `"`+version.Checksum+`"`)
