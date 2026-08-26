@@ -84,3 +84,18 @@ export function optionLabel(value: unknown, overrides?: Record<string, string>):
   const key = String(value);
   return overrides?.[key] ?? OPTION_LABELS[key] ?? key;
 }
+
+/**
+ * The human name for a row of data.
+ *
+ * Shared because two screens need the same answer: the admin tables name a row
+ * in its delete confirmation, and the review queue has to say which game an
+ * approver is being asked to approve.
+ */
+export function rowLabel(row: Record<string, unknown>): string {
+  for (const key of ['name', 'title', 'display_name', 'username', 'code', 'slug']) {
+    const value = row[key];
+    if (typeof value === 'string' && value.trim()) return value;
+  }
+  return String(row.id ?? '항목');
+}

@@ -12,7 +12,7 @@ import {
   TableHead, TablePagination, TableRow, TextField, Tooltip, Typography,
 } from '@mui/material';
 import { api } from '../../api/client';
-import { optionLabel } from '../../labels';
+import { optionLabel, rowLabel } from '../../labels';
 import { ErrorPanel } from '../../components/ErrorPanel';
 import { useAsync } from '../../hooks/useAsync';
 import { useSnackbar } from '../../state/SnackbarContext';
@@ -131,14 +131,6 @@ const configs: Record<string, ResourceConfig> = {
 };
 
 /** Human name for a row, used in row actions and the delete confirmation. */
-function rowLabel(row: Row): string {
-  for (const key of ['name', 'title', 'display_name', 'username', 'code', 'slug']) {
-    const value = row[key];
-    if (typeof value === 'string' && value.trim()) return value;
-  }
-  return String(row.id ?? '항목');
-}
-
 /** Reports which JSON fields currently hold something the server would reject. */
 function jsonFieldErrors(fields: Field[], form: Row): Record<string, string> {
   const errors: Record<string, string> = {};
