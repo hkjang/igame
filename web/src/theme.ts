@@ -127,10 +127,12 @@ export function createAppTheme(mode: ThemeMode) {
     shape: { borderRadius: 14 },
     components: {
       MuiCssBaseline: { styleOverrides: (currentTheme) => baseline(currentTheme) },
-      // whiteSpace: a button label is a single control, and the admin header
-      // was breaking "새로고침" across two lines to fit beside the search box.
-      // A toolbar that runs out of room wraps its buttons, not their words.
-      MuiButton: { styleOverrides: { root: { minHeight: 44, borderRadius: 10, paddingInline: 18, whiteSpace: 'nowrap' } } },
+      // The admin header was breaking "새로고침" across two lines to fit beside
+      // the search box. keep-all is the fix rather than nowrap: nowrap holds a
+      // label together at any cost, which truncated the Defense games' answer
+      // buttons — sentences a player has to read in full to choose between.
+      // keep-all breaks between 어절 and never inside one.
+      MuiButton: { styleOverrides: { root: { minHeight: 44, borderRadius: 10, paddingInline: 18, wordBreak: 'keep-all', overflowWrap: 'break-word' } } },
       MuiIconButton: { styleOverrides: { root: { minWidth: 44, minHeight: 44 } } },
       MuiTextField: { defaultProps: { fullWidth: true, size: 'medium' } },
       // A disabled field's helper text is usually the reason it is disabled —

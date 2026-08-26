@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { normalizeRealmGuardConfig } from "../api";
 import { calculateLocalResult } from "../content";
 import type { RealmDifficulty, RealmGuardConfig } from "../types";
-import { kernelDigest, projectKernelConfig } from "./config";
+import { kernelDigest, projectKernelConfig, withLoadout } from "./config";
 import { BattleKernel } from "./kernel";
 import { KERNEL_RULES_VERSION } from "./ledger";
 import type { KernelCommand } from "./ledger";
@@ -29,6 +29,12 @@ const FIXTURE_PATH = resolve(
 const STAGE_ID = "stage-1";
 const DIFFICULTY: RealmDifficulty = "veteran";
 const HERO_ID = "aerin";
+/**
+ * The loadout a fresh account actually has on stage 1: meteor is the only skill
+ * unlocked before stage 4. The smoke posts the battle a new player plays, which
+ * is the one the server has to be able to reproduce.
+ */
+const SKILL_IDS = ["meteor"];
 
 /**
  * An undefended battle is the shortest honest defeat the only stage a fresh
@@ -59,7 +65,7 @@ function publishedConfig(): RealmGuardConfig {
 function buildFixture() {
   const config = publishedConfig();
   const stage = config.stages.find((item) => item.id === STAGE_ID)!;
-  const projection = projectKernelConfig(config, stage, DIFFICULTY, HERO_ID);
+  const projection = projectKernelConfig(withLoadout(config, SKILL_IDS), stage, DIFFICULTY, HERO_ID);
   const kernel = new BattleKernel(projection, 1);
   const telemetry: Array<{ event: string; data: Record<string, unknown> }> = [
     {
@@ -141,6 +147,7 @@ function buildFixture() {
     ledger: {
       rules_version: KERNEL_RULES_VERSION,
       config_digest: kernelDigest(projection),
+      skill_ids: SKILL_IDS,
       ticks: outcome.ticks,
       commands: COMMANDS,
     },

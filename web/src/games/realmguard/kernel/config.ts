@@ -105,6 +105,25 @@ function projectTowers(config: RealmGuardConfig): KernelTower[] {
   }));
 }
 
+/**
+ * The published content narrowed to one player's loadout.
+ *
+ * Skills unlock as a campaign progresses, so a battle usually runs on fewer
+ * than the three skills the content declares. The narrowing has to be written
+ * once: the browser projects the result, the server reprojects it from the
+ * ledger's `skill_ids`, and the digest check refuses the battle if the two
+ * disagree by so much as an ordering.
+ */
+export function withLoadout<T extends RealmGuardConfig>(config: T, skillIds: readonly string[]): T {
+  return {
+    ...config,
+    skills: config.skills.filter((skill) => skillIds.includes(skill.id)).slice(0, KERNEL_LOADOUT_LIMIT),
+  };
+}
+
+/** The loadout size the engine supports; the content declares exactly this many. */
+export const KERNEL_LOADOUT_LIMIT = 3;
+
 export function projectKernelConfig(
   config: RealmGuardConfig,
   stage: RealmStage,

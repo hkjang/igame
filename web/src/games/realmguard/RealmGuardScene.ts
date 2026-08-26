@@ -118,6 +118,7 @@ class RealmGuardBattleScene extends Phaser.Scene {
   private accumulator = 0;
   private lastHUD = -1000;
   private completed = false;
+  private readonly kernelSkillIds: string[];
 
   private isBlockingTower(definition: TowerDefinition) {
     return (
@@ -136,6 +137,10 @@ class RealmGuardBattleScene extends Phaser.Scene {
       options.hero.id,
     );
     this.configDigest = kernelDigest(projection);
+    // Off the projection, not off the selection: the server has to filter the
+    // published skills the same way, and only the projection knows the order
+    // and the cap that filtering used.
+    this.kernelSkillIds = projection.skills.map((skill) => skill.id);
     this.kernel = new BattleKernel(projection, options.accountHeroLevel);
   }
 
@@ -1148,7 +1153,7 @@ class RealmGuardBattleScene extends Phaser.Scene {
       asset_version: this.options.config.assetVersion,
       ledger: this.recorder.truncated
         ? undefined
-        : this.recorder.build(this.configDigest, outcome.ticks),
+        : this.recorder.build(this.configDigest, outcome.ticks, this.kernelSkillIds),
     };
     this.emitHUD(true);
     const result = { ...stats, victory, ...local };

@@ -368,7 +368,8 @@ for smoke_battle_contract in \
   'escaped_by_enemy' \
   'spawned_by_enemy' \
   'realmguard-kernel-1' \
-  'config_digest'; do
+  'config_digest' \
+  'skill_ids'; do
   if ! grep -Fq "${smoke_battle_contract}" "${REPO_DIR}/scripts/testdata/realmguard-smoke.json"; then
     printf 'RealmGuard smoke battle fixture is missing contract coverage: %s\n' "${smoke_battle_contract}" >&2
     exit 1

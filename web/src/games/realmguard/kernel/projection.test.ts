@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { normalizeRealmGuardConfig } from "../api";
 import type { RealmDifficulty } from "../types";
-import { kernelDigest, projectKernelConfig } from "./config";
+import { kernelDigest, projectKernelConfig, withLoadout } from "./config";
 
 /**
  * The browser normalizes published content and the Go verifier projects the
@@ -28,15 +28,20 @@ function publishedConfig() {
 
 describe("kernel projection", () => {
   const normalized = publishedConfig();
-  const cases: Array<{ stage_id: string; difficulty: RealmDifficulty; hero_id: string }> = [
-    { stage_id: "stage-1", difficulty: "normal", hero_id: "aerin" },
-    { stage_id: "stage-1", difficulty: "veteran", hero_id: "aerin" },
-    { stage_id: "stage-4", difficulty: "casual", hero_id: "brann" },
-    { stage_id: "stage-5", difficulty: "veteran", hero_id: "nyra" },
-    { stage_id: "stage-7", difficulty: "normal", hero_id: "brann" },
-    { stage_id: "stage-9", difficulty: "veteran", hero_id: "aerin" },
-    { stage_id: "stage-10", difficulty: "casual", hero_id: "nyra" },
-    { stage_id: "endless-rift", difficulty: "veteran", hero_id: "nyra" },
+  // skill_ids is the loadout, and it is the dimension that was missing: skills
+  // unlock with progress, so the first stage a fresh account can play is fought
+  // with one skill while the content declares three. The server projected all
+  // three, the digests disagreed, and every battle came back as a content
+  // mismatch. The single-skill case below is that battle.
+  const cases: Array<{ stage_id: string; difficulty: RealmDifficulty; hero_id: string; skill_ids: string[] }> = [
+    { stage_id: "stage-1", difficulty: "normal", hero_id: "aerin", skill_ids: ["meteor"] },
+    { stage_id: "stage-1", difficulty: "veteran", hero_id: "aerin", skill_ids: ["meteor", "reinforcement", "freeze"] },
+    { stage_id: "stage-4", difficulty: "casual", hero_id: "brann", skill_ids: ["meteor", "reinforcement"] },
+    { stage_id: "stage-5", difficulty: "veteran", hero_id: "nyra", skill_ids: ["freeze", "meteor"] },
+    { stage_id: "stage-7", difficulty: "normal", hero_id: "brann", skill_ids: ["reinforcement"] },
+    { stage_id: "stage-9", difficulty: "veteran", hero_id: "aerin", skill_ids: ["meteor", "reinforcement", "freeze"] },
+    { stage_id: "stage-10", difficulty: "casual", hero_id: "nyra", skill_ids: ["freeze"] },
+    { stage_id: "endless-rift", difficulty: "veteran", hero_id: "nyra", skill_ids: ["meteor", "freeze"] },
   ];
 
   const digested = cases.map((item) => {
@@ -44,7 +49,12 @@ describe("kernel projection", () => {
     return {
       ...item,
       digest: kernelDigest(
-        projectKernelConfig(normalized, stage, item.difficulty, item.hero_id),
+        projectKernelConfig(
+          withLoadout(normalized, item.skill_ids),
+          stage,
+          item.difficulty,
+          item.hero_id,
+        ),
       ),
     };
   });
@@ -62,6 +72,9 @@ describe("kernel projection", () => {
     expect(new Set(digested.map((item) => item.difficulty)).size).toBe(3);
     expect(new Set(digested.map((item) => item.hero_id)).size).toBe(3);
     expect(digested.some((item) => item.stage_id === "endless-rift")).toBe(true);
+    // A loadout of one, of two and of three: the sizes a campaign actually
+    // passes through, and the ones the projection has to agree on.
+    expect(new Set(digested.map((item) => item.skill_ids.length))).toEqual(new Set([1, 2, 3]));
     expect(new Set(digested.map((item) => item.digest)).size).toBe(digested.length);
   });
 

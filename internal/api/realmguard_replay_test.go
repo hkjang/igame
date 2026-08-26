@@ -10,10 +10,11 @@ import (
 
 type projectionFixture struct {
 	Cases []struct {
-		StageID    string `json:"stage_id"`
-		Difficulty string `json:"difficulty"`
-		HeroID     string `json:"hero_id"`
-		Digest     string `json:"digest"`
+		StageID    string   `json:"stage_id"`
+		Difficulty string   `json:"difficulty"`
+		HeroID     string   `json:"hero_id"`
+		SkillIDs   []string `json:"skill_ids"`
+		Digest     string   `json:"digest"`
 	} `json:"cases"`
 }
 
@@ -59,7 +60,7 @@ func TestKernelProjectionMatchesBrowser(t *testing.T) {
 			if stage == nil {
 				t.Fatalf("stage %s missing from fixture content", item.StageID)
 			}
-			config, err := realmGuardKernelConfig(content, *stage, item.Difficulty, item.HeroID)
+			config, err := realmGuardKernelConfig(content, *stage, item.Difficulty, item.HeroID, item.SkillIDs)
 			if err != nil {
 				t.Fatalf("project: %v", err)
 			}
@@ -83,6 +84,7 @@ func TestReplayRefusesLedgersItCannotTrust(t *testing.T) {
 		value := battle.Ledger{
 			RulesVersion: battle.RulesVersion,
 			ConfigDigest: good.Digest,
+			SkillIDs:     append([]string(nil), good.SkillIDs...),
 			Ticks:        60,
 			Commands:     []battle.Command{{Tick: 1, Op: "build", Spot: stage.TowerSpots[0].ID, Tower: "sunspire"}},
 		}
@@ -107,6 +109,14 @@ func TestReplayRefusesLedgersItCannotTrust(t *testing.T) {
 		{"commands out of order", ledger(func(l *battle.Ledger) {
 			l.Commands = append(l.Commands, battle.Command{Tick: 0, Op: "wave"})
 		}), "invalid_ledger"},
+		// The loadout decides which skills the battle ran on, so a ledger that
+		// does not name one the content declares cannot be projected at all.
+		{"no loadout", ledger(func(l *battle.Ledger) { l.SkillIDs = nil }), "invalid_ledger"},
+		{"unknown skill", ledger(func(l *battle.Ledger) { l.SkillIDs = []string{"telekinesis"} }), "invalid_ledger"},
+		{"duplicated skill", ledger(func(l *battle.Ledger) { l.SkillIDs = []string{"meteor", "meteor"} }), "invalid_ledger"},
+		{"oversized loadout", ledger(func(l *battle.Ledger) {
+			l.SkillIDs = []string{"meteor", "reinforcement", "freeze", "meteor"}
+		}), "invalid_ledger"},
 	} {
 		t.Run(item.name, func(t *testing.T) {
 			_, _, err := replayRealmGuardBattle(item.payload, content, stage, good.Difficulty, good.HeroID, 1)
@@ -128,6 +138,7 @@ func TestReplayDerivesTheOutcomeItself(t *testing.T) {
 	encoded, _ := json.Marshal(battle.Ledger{
 		RulesVersion: battle.RulesVersion,
 		ConfigDigest: good.Digest,
+		SkillIDs:     good.SkillIDs,
 		Ticks:        1200,
 		Commands: []battle.Command{
 			{Tick: 1, Op: "build", Spot: stage.TowerSpots[1].ID, Tower: "sunspire"},

@@ -18,6 +18,30 @@ const realmGuardReplayMethod = "server_replay_v1"
 // clock. The client offers 1x and 2x, so a session may compress at most in half.
 const realmGuardMaxSpeedup = 2
 
+// realmGuardMaxSkills is the loadout size the engine supports, and the content
+// validator already refuses anything but exactly three skills to choose from.
+const realmGuardMaxSkills = 3
+
+// validateRealmGuardLoadout refuses a loadout the published content cannot
+// account for, before it can reach the projection and be blamed on the content.
+func validateRealmGuardLoadout(skillIDs []string, content realmGuardDecodedContent) error {
+	if len(skillIDs) == 0 || len(skillIDs) > realmGuardMaxSkills {
+		return rejectRealmGuardResult(422, "invalid_ledger", "전투에 사용한 스킬 구성이 올바르지 않습니다.")
+	}
+	known := make(map[string]bool, len(content.Skills))
+	for _, skill := range content.Skills {
+		known[skill.ID] = true
+	}
+	seen := make(map[string]bool, len(skillIDs))
+	for _, id := range skillIDs {
+		if !known[id] || seen[id] {
+			return rejectRealmGuardResult(422, "invalid_ledger", "전투에 사용한 스킬 구성이 올바르지 않습니다.")
+		}
+		seen[id] = true
+	}
+	return nil
+}
+
 type realmGuardReplayAttestation struct {
 	Method       string `json:"method"`
 	RulesVersion string `json:"rules_version"`
@@ -52,7 +76,16 @@ func optionalInt(value *int, fallback float64) float64 {
 // battle kernel reads. It mirrors the browser projection field for field; when
 // the two disagree the submitted digest will not match and the result is
 // refused rather than scored against rules the player never faced.
-func realmGuardKernelConfig(content realmGuardDecodedContent, stage realmGuardStageDefinition, difficulty, heroID string) (battle.Config, error) {
+// realmGuardKernelConfig projects the published content into the numbers a
+// battle runs on.
+//
+// skillIDs is the loadout: skills unlock with progress, so a player usually
+// fights with fewer than the three the content declares, and the browser
+// projects only the ones it gave them. Projecting all three here made the two
+// sides disagree on every battle a player fought before unlocking the lot,
+// which the digest check then refused as a content mismatch — no score from the
+// game could be recorded at all.
+func realmGuardKernelConfig(content realmGuardDecodedContent, stage realmGuardStageDefinition, difficulty, heroID string, skillIDs []string) (battle.Config, error) {
 	balance, ok := content.Balance.Difficulties[difficulty]
 	if !ok {
 		return battle.Config{}, fmt.Errorf("difficulty %q is not present in the pinned balance", difficulty)
@@ -147,9 +180,22 @@ func realmGuardKernelConfig(content realmGuardDecodedContent, stage realmGuardSt
 	if hero.ID == "" {
 		return battle.Config{}, fmt.Errorf("hero %q is not present in the pinned content", heroID)
 	}
+	// Content order, not selection order, and the same cap the browser applies:
+	// the two projections have to be byte-identical, so the ordering cannot come
+	// from anything the player controls.
+	chosen := make(map[string]bool, len(skillIDs))
+	for _, id := range skillIDs {
+		chosen[id] = true
+	}
 	skills := make([]battle.Skill, 0, len(content.Skills))
 	for _, skill := range content.Skills {
+		if !chosen[skill.ID] {
+			continue
+		}
 		skills = append(skills, battle.Skill{ID: skill.ID, Cooldown: skill.Cooldown})
+		if len(skills) == realmGuardMaxSkills {
+			break
+		}
 	}
 	return battle.Config{
 		Difficulty: difficulty,
@@ -215,7 +261,10 @@ func replayRealmGuardBattle(raw json.RawMessage, content realmGuardDecodedConten
 		}
 		previous = command.Tick
 	}
-	config, err := realmGuardKernelConfig(content, stage, difficulty, heroID)
+	if err := validateRealmGuardLoadout(ledger.SkillIDs, content); err != nil {
+		return battle.Outcome{}, realmGuardReplayAttestation{}, err
+	}
+	config, err := realmGuardKernelConfig(content, stage, difficulty, heroID, ledger.SkillIDs)
 	if err != nil {
 		return battle.Outcome{}, realmGuardReplayAttestation{}, rejectRealmGuardResult(422, "invalid_content", err.Error())
 	}

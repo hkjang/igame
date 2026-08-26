@@ -28,6 +28,8 @@ export interface KernelLedger {
   /** Bumped whenever the rules change in a way that invalidates old replays. */
   rules_version: string;
   config_digest: string;
+  /** The loadout the battle was fought with, in published-content order. */
+  skill_ids: string[];
   ticks: number;
   commands: KernelCommand[];
 }
@@ -51,10 +53,17 @@ export class LedgerRecorder {
     return this.overflowed;
   }
 
-  build(configDigest: string, ticks: number): KernelLedger {
+  /**
+   * `skillIds` is the loadout the battle was fought with, in the order the
+   * published content declares them. Skills unlock with progress, so the
+   * content alone does not say which rules a given battle ran under, and the
+   * server cannot reproduce the projection without being told.
+   */
+  build(configDigest: string, ticks: number, skillIds: string[]): KernelLedger {
     return {
       rules_version: KERNEL_RULES_VERSION,
       config_digest: configDigest,
+      skill_ids: [...skillIds],
       ticks,
       commands: [...this.commands],
     };

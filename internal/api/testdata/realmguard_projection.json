@@ -4,49 +4,80 @@
       "stage_id": "stage-1",
       "difficulty": "normal",
       "hero_id": "aerin",
-      "digest": "26632d36bd0a13b8"
+      "skill_ids": [
+        "meteor"
+      ],
+      "digest": "8e4c93e6dd0e057c"
     },
     {
       "stage_id": "stage-1",
       "difficulty": "veteran",
       "hero_id": "aerin",
+      "skill_ids": [
+        "meteor",
+        "reinforcement",
+        "freeze"
+      ],
       "digest": "31ed8cf2fbf85ccc"
     },
     {
       "stage_id": "stage-4",
       "difficulty": "casual",
       "hero_id": "brann",
-      "digest": "a746ea88b29f8e74"
+      "skill_ids": [
+        "meteor",
+        "reinforcement"
+      ],
+      "digest": "023478d72a353d3f"
     },
     {
       "stage_id": "stage-5",
       "difficulty": "veteran",
       "hero_id": "nyra",
-      "digest": "a79ed34560b4feb4"
+      "skill_ids": [
+        "freeze",
+        "meteor"
+      ],
+      "digest": "091fa354aa6a22fb"
     },
     {
       "stage_id": "stage-7",
       "difficulty": "normal",
       "hero_id": "brann",
-      "digest": "17ca1b8a84b34ec5"
+      "skill_ids": [
+        "reinforcement"
+      ],
+      "digest": "175fee3fe3edf20d"
     },
     {
       "stage_id": "stage-9",
       "difficulty": "veteran",
       "hero_id": "aerin",
+      "skill_ids": [
+        "meteor",
+        "reinforcement",
+        "freeze"
+      ],
       "digest": "7ba34ca3d8371985"
     },
     {
       "stage_id": "stage-10",
       "difficulty": "casual",
       "hero_id": "nyra",
-      "digest": "1a482d228ab2161d"
+      "skill_ids": [
+        "freeze"
+      ],
+      "digest": "6ffc3e49ecd5c5a7"
     },
     {
       "stage_id": "endless-rift",
       "difficulty": "veteran",
       "hero_id": "nyra",
-      "digest": "58b4412739f319c2"
+      "skill_ids": [
+        "meteor",
+        "freeze"
+      ],
+      "digest": "4a9fbb039972cb77"
     }
   ]
 }

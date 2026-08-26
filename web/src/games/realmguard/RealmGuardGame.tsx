@@ -21,6 +21,7 @@ import type { RealmGuardRankingFilters } from './api';
 import { createRealmGuardUUID, isRequiredRealmGuardTelemetry, REALMGUARD_OPTIONAL_TELEMETRY_LIMIT, realmGuardEventPayload, retryRealmGuardTelemetry } from './telemetry';
 import type { BattleHUD, RealmDifficulty, RealmGuardConfig, RealmProgress, RealmResult, RealmSceneController, RealmStage, TargetingMode } from './types';
 import { HeroSelectCard } from './HeroSelectCard';
+import { withLoadout } from './kernel/config';
 import { GameSurface } from '../GameSurface';
 import { BATTLE_SCROLL_MARGIN, useBattleInView } from '../useBattleInView';
 import { StageRoster } from './StageRoster';
@@ -110,7 +111,7 @@ export function RealmGuardGame({ onStart, onTelemetry, onAuthoritativeComplete, 
   const progress = resource.data?.progress ?? EMPTY_PROGRESS;
   const stage = config?.stages.find((item) => item.id === stageId);
   const hero = config?.heroes.find((item) => item.id === heroId);
-  const battleConfig = useMemo(() => config ? { ...config, skills: config.skills.filter((skill) => skillIds.includes(skill.id)).slice(0, 3) } : undefined, [config, skillIds]);
+  const battleConfig = useMemo(() => config ? withLoadout(config, skillIds) : undefined, [config, skillIds]);
   const queueTelemetry = useCallback((event: string, data?: Record<string, unknown>) => {
     if (!recording || !onTelemetry) return Promise.resolve();
     if (!isRequiredRealmGuardTelemetry(event)) {

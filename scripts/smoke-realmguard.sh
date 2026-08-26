@@ -221,11 +221,11 @@ request POST /api/v1/realmguard/results 422 "${invalid_defeat_body}" \
 # considered: a forged content digest means the browser and the server were not
 # playing the same rules.
 forged_ledger_body="$(jq --compact-output --argjson body "${invalid_defeat_body}" --null-input \
-  '$body + {ledger:{rules_version:"realmguard-kernel-1",config_digest:"0000000000000000",ticks:120,commands:[]}}')"
+  '$body + {ledger:{rules_version:"realmguard-kernel-1",config_digest:"0000000000000000",skill_ids:["meteor"],ticks:120,commands:[]}}')"
 request POST /api/v1/realmguard/results 409 "${forged_ledger_body}" \
   | jq --exit-status '.error.code == "content_projection_mismatch"' >/dev/null
 stale_rules_body="$(jq --compact-output --argjson body "${invalid_defeat_body}" --null-input \
-  '$body + {ledger:{rules_version:"realmguard-kernel-0",config_digest:"0000000000000000",ticks:120,commands:[]}}')"
+  '$body + {ledger:{rules_version:"realmguard-kernel-0",config_digest:"0000000000000000",skill_ids:["meteor"],ticks:120,commands:[]}}')"
 request POST /api/v1/realmguard/results 409 "${stale_rules_body}" \
   | jq --exit-status '.error.code == "ledger_rules_mismatch"' >/dev/null
 
@@ -308,7 +308,20 @@ duration_tolerance_ms="$(jq '(.balance.duration_tolerance_ms | ceil)' <<<"${conf
 minimum_milestone_ms="$((min_wave_duration_ms / 5))"
 if ((minimum_milestone_ms < 250)); then minimum_milestone_ms=250; fi
 if ((minimum_milestone_ms > 1000)); then minimum_milestone_ms=1000; fi
-milestone_sleep_seconds="$(((minimum_milestone_ms + 999) / 1000))"
+# The server measures the gap between wave.start and wave.complete as it
+# received them, so this wait has to actually pass. `sleep` alone does not:
+# a busy container host hands back short sleeps, and a run of this smoke put
+# 711ms between a pair that needed 1000. Wait by the clock instead.
+milestone_wait_ms="$((minimum_milestone_ms + 400))"
+wait_at_least_ms() {
+  local required="$1" start elapsed
+  start="$(date +%s%3N)"
+  while :; do
+    elapsed="$(( $(date +%s%3N) - start ))"
+    ((elapsed >= required)) && break
+    sleep "$(awk -v milliseconds="$((required - elapsed))" 'BEGIN { printf "%.3f", milliseconds / 1000 }')"
+  done
+}
 
 # Every milestone but the opening ready and the closing complete, in the order
 # the battle produced them. A wave start is followed by a real pause so its
@@ -320,7 +333,7 @@ for ((index = 1; index < telemetry_count - 1; index++)); do
   post_telemetry "${session_id}" "${session_token}" "${milestone_event}" "${sequence}" "${milestone_data}" >/dev/null
   sequence=$((sequence + 1))
   if [[ "${milestone_event}" == "realmguard.wave.start" ]]; then
-    sleep "${milestone_sleep_seconds}"
+    wait_at_least_ms "${milestone_wait_ms}"
   fi
 done
 

@@ -159,10 +159,14 @@ type Command struct {
 
 // Ledger is the submitted replay envelope.
 type Ledger struct {
-	RulesVersion string    `json:"rules_version"`
-	ConfigDigest string    `json:"config_digest"`
-	Ticks        int       `json:"ticks"`
-	Commands     []Command `json:"commands"`
+	RulesVersion string `json:"rules_version"`
+	ConfigDigest string `json:"config_digest"`
+	// SkillIDs is the loadout the battle was fought with. Skills unlock as a
+	// player progresses, so the published content is not enough to reproduce
+	// the rules a particular battle ran under.
+	SkillIDs []string  `json:"skill_ids"`
+	Ticks    int       `json:"ticks"`
+	Commands []Command `json:"commands"`
 }
 
 // Outcome is everything a score is allowed to depend on.

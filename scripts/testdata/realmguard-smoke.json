@@ -10,7 +10,10 @@
   "asset_version": "procedural-2",
   "ledger": {
     "rules_version": "realmguard-kernel-1",
-    "config_digest": "31ed8cf2fbf85ccc",
+    "config_digest": "a28e6aaab8787430",
+    "skill_ids": [
+      "meteor"
+    ],
     "ticks": 5235,
     "commands": [
       {
