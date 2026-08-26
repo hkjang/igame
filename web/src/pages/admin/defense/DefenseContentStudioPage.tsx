@@ -55,6 +55,7 @@ import type {
 import { useAsync } from "../../../hooks/useAsync";
 import { useAuth } from "../../../state/AuthContext";
 import { useSnackbar } from "../../../state/SnackbarContext";
+import { JsonSubField } from "../JsonSubField";
 import {
   defenseReportMetrics,
   formatDefenseReportMetric,
@@ -391,19 +392,13 @@ function DefenseQuickEditor({
           />
         ))}
         {structuredKeys.map((key) => (
-          <TextField
+          <JsonSubField
             key={key}
+            resetKey={`${index}:${key}`}
+            initial={current[key] ?? []}
             label={`${key} JSON`}
-            multiline
-            minRows={3}
-            value={JSON.stringify(current[key] ?? [], null, 2)}
-            onChange={(event) => {
-              try {
-                update(key, JSON.parse(event.target.value));
-              } catch {
-                /* keep the last valid structured value */
-              }
-            }}
+            helperText={`${Array.isArray(current[key]) ? current[key].length : 0}개 · JSON으로 편집`}
+            onChange={(value) => update(key, value)}
           />
         ))}
       </Stack>
@@ -738,6 +733,10 @@ export function DefenseContentStudioPage() {
                   )}
                   {!parsed.error && (
                     <DefenseQuickEditor
+                      // Remount when the document changes: the field holds its
+                      // own text while it is being typed, and without this it
+                      // would keep showing the previous game's JSON.
+                      key={`${slug}:${section}:${versionId}`}
                       data={parsed.value}
                       onChange={(value) =>
                         setEditor(JSON.stringify(value, null, 2))

@@ -8,6 +8,7 @@ import SaveRounded from '@mui/icons-material/SaveRounded';
 import ScienceRounded from '@mui/icons-material/ScienceRounded';
 import { Alert, Box, Button, Card, CardContent, Chip, CircularProgress, Container, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControl, Grid, InputLabel, MenuItem, Paper, Select, Stack, Tab, Tabs, TextField, Typography } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
+import { JsonSubField } from '../JsonSubField';
 import { ErrorPanel } from '../../../components/ErrorPanel';
 import { UnsavedChangesDialog } from '../../../components/UnsavedChangesDialog';
 import { useUnsavedGuard } from '../../../hooks/useUnsavedGuard';
@@ -35,56 +36,6 @@ function ContentSummary({ data }: { data: unknown }) {
 const numericKeys = new Set(['number', 'starting_gold', 'lives', 'cost', 'damage', 'range', 'fire_rate', 'projectile_speed', 'hp', 'speed', 'armor', 'reward', 'life_damage', 'radius', 'respawn_seconds', 'cooldown', 'unlock_stage']);
 const quickKeys = ['id', 'name', 'label', 'title', 'subtitle', 'description', 'number', 'mode', 'theme', 'gimmick', 'starting_gold', 'lives', 'cost', 'damage', 'range', 'fire_rate', 'projectile_speed', 'hp', 'speed', 'armor', 'reward', 'life_damage', 'radius', 'respawn_seconds', 'cooldown', 'unlock_stage'];
 const structuredKeys = ['path', 'paths', 'tower_spots', 'entries', 'branches', 'traits'];
-
-/**
- * A JSON sub-field that keeps its own text while it is being typed.
- *
- * Binding the textarea straight to `JSON.stringify(model)` made these fields
- * unusable: every keystroke that left the text momentarily invalid was dropped
- * and the field snapped back to the previous value, so the only way to change
- * one was to paste complete valid JSON.
- */
-function JsonSubField({ resetKey, initial, label, helperText, onChange, onValidity }: {
-  resetKey: string;
-  initial: unknown;
-  label: string;
-  helperText: string;
-  onChange: (value: unknown) => void;
-  onValidity: (key: string, message: string) => void;
-}) {
-  const [text, setText] = useState(() => JSON.stringify(initial, null, 2));
-  const [error, setError] = useState('');
-  // Resync only when the edited item changes, never while typing.
-  useEffect(() => {
-    setText(JSON.stringify(initial, null, 2));
-    setError('');
-    onValidity(resetKey, '');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetKey]);
-  useEffect(() => () => onValidity(resetKey, ''), [onValidity, resetKey]);
-  return <TextField
-    label={label}
-    multiline
-    minRows={3}
-    value={text}
-    error={Boolean(error)}
-    helperText={error || helperText}
-    inputProps={{ spellCheck: false }}
-    onChange={(event) => {
-      const next = event.target.value;
-      setText(next);
-      try {
-        onChange(JSON.parse(next));
-        setError('');
-        onValidity(resetKey, '');
-      } catch (cause) {
-        const message = cause instanceof Error ? cause.message : 'JSON 오류';
-        setError(message);
-        onValidity(resetKey, message);
-      }
-    }}
-  />;
-}
 
 function QuickEditor({ data, onChange, onValidity }: { data: unknown; onChange: (data: unknown) => void; onValidity: (key: string, message: string) => void }) {
   const [selected, setSelected] = useState(0);
