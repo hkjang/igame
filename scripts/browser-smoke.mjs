@@ -36,6 +36,18 @@ const accessibilityRoutes = [
   '/admin/notices', '/admin/realmguard', '/admin/defense', '/admin/analytics', '/admin/settings',
 ];
 
+/**
+ * Widths the layout sweep checks, with the routes that pack the most into a
+ * header row.
+ *
+ * The Defense Studio's header pushed the page 69px wider than a 1280px window
+ * and put its primary action off screen, while collapsing 새 Draft into an 86px
+ * column of wrapped text 274px tall. Nothing caught it: the screenshots taken
+ * during development were 1440 and 390, and 1280 sits between them.
+ */
+const layoutWidths = [1280, 900, 768];
+const layoutRoutes = ['/admin/defense', '/admin/realmguard', '/admin/games', '/admin/analytics', '/developer', '/games'];
+
 const baseURL = (process.env.IGAME_BASE_URL ?? process.argv[2] ?? 'http://127.0.0.1:8080').replace(/\/$/, '');
 const username = process.env.IGAME_USERNAME ?? process.argv[3] ?? '';
 const password = process.env.IGAME_PASSWORD ?? process.argv[4] ?? '';
@@ -647,6 +659,23 @@ try {
     }
   }
 
+  // A page is never wider than the window it is in. Checked before the
+  // accessibility pass so both run against the same settled session.
+  const layoutFailures = [];
+  for (const width of layoutWidths) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const route of layoutRoutes) {
+      await page.goto(`${baseURL}${route}`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(400);
+      const overflow = await page.evaluate(() => ({ document: document.documentElement.scrollWidth, window: window.innerWidth }));
+      if (overflow.document > overflow.window + 1) {
+        layoutFailures.push(`${route} at ${width}px is ${overflow.document}px wide in a ${overflow.window}px window`);
+      }
+    }
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  if (layoutFailures.length > 0) throw new Error(`Horizontal overflow:\n${layoutFailures.join('\n')}`);
+
   // Accessibility last: it navigates away from wherever the flow ended, and a
   // violation here is a real defect rather than a flake, so it belongs with the
   // other things that fail the release.
@@ -673,7 +702,7 @@ try {
   ];
   if (failures.length > 0) throw new Error(`Browser diagnostics failed:\n${failures.join('\n')}`);
 
-  console.log(`Browser smoke passed: login, RealmGuard, three Defense games, education choices, both content studios, preview, refresh, ${accessibilityRoutes.length} routes with no serious accessibility violation, and zero external HTTP requests (${baseURL})`);
+  console.log(`Browser smoke passed: login, RealmGuard, three Defense games, education choices, both content studios, preview, refresh, ${layoutRoutes.length} routes with no horizontal overflow at ${layoutWidths.join('/')}px, ${accessibilityRoutes.length} routes with no serious accessibility violation, and zero external HTTP requests (${baseURL})`);
   await context.close();
 } finally {
   await browser.close();

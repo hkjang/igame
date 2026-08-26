@@ -589,9 +589,13 @@ export function DefenseContentStudioPage() {
       <Stack
         direction={{ xs: "column", lg: "row" }}
         justifyContent="space-between"
+        // alignItems: without it the controls stretch to the height of the
+        // title block beside them, which turned 새 Draft into an 86px-wide,
+        // 274px-tall bar with its label broken across two lines.
+        alignItems={{ lg: "flex-start" }}
         gap={2}
       >
-        <Box>
+        <Box sx={{ minWidth: 0 }}>
           <Typography
             component="h1"
             variant="h1"
@@ -608,7 +612,16 @@ export function DefenseContentStudioPage() {
             버전으로 검토하고 게시합니다.
           </Typography>
         </Box>
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+        {/* The title yields width before these do, and they wrap among
+            themselves rather than pushing the page wider than the window. */}
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1}
+          useFlexGap
+          flexWrap="wrap"
+          justifyContent={{ lg: "flex-end" }}
+          sx={{ flexShrink: 0 }}
+        >
           <TextField
             data-testid="defense-game-select"
             select
