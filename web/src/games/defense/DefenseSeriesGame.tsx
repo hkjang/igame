@@ -85,6 +85,7 @@ import type {
   DefenseSlug,
 } from "./types";
 import { optionLabel } from "../../labels";
+import { GameSurface } from "../GameSurface";
 
 const INITIAL_HUD: BattleHUD = {
   status: "ready",
@@ -1107,6 +1108,7 @@ export function DefenseSeriesGame({
 
   if (phase === "select")
     return (
+      <GameSurface>
       <Box
         data-testid="defense-game-shell"
         sx={{ width: "100%", maxWidth: 1280, mx: "auto", p: { xs: 1, md: 2 } }}
@@ -1339,6 +1341,7 @@ export function DefenseSeriesGame({
           </Grid>
         </Paper>
       </Box>
+      </GameSurface>
     );
 
   const command = (value: RealmCommand) => controller.current?.command(value);
@@ -1359,6 +1362,7 @@ export function DefenseSeriesGame({
     return options;
   }, []);
   return (
+    <GameSurface>
     <Box
       data-testid="defense-game-shell"
       data-battle-status={hud.status}
@@ -1865,6 +1869,7 @@ export function DefenseSeriesGame({
         </Box>
       )}
     </Box>
+    </GameSurface>
   );
 }
 
