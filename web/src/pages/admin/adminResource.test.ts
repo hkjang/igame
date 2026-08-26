@@ -139,7 +139,25 @@ describe('list columns', () => {
 
   it('keeps every list narrow enough to read', () => {
     for (const [resource, config] of Object.entries(configs)) {
-      expect(`${resource}:${listedColumns(config).length}`).toBe(`${resource}:${Math.min(6, listedColumns(config).length)}`);
+      // The audit log earns a seventh: its columns are short, and the change
+      // itself is the reason anyone opens it.
+      const cap = resource === 'audit' ? 7 : 6;
+      expect(`${resource}:${listedColumns(config).length}`).toBe(`${resource}:${Math.min(cap, listedColumns(config).length)}`);
     }
+  });
+});
+
+describe('auditDetail', () => {
+  const { auditDetail } = __testing;
+
+  it('has something to say for every shape an entry takes', () => {
+    // Rendering is checked in the browser gate; what matters here is that no
+    // shape falls through to a blank cell or to raw JSON braces.
+    expect(auditDetail(undefined)).toBe('—');
+    expect(auditDetail({})).toBe('—');
+    expect(auditDetail('not an object')).toBe('—');
+    expect(auditDetail([1, 2])).toBe('—');
+    expect(auditDetail({ role: { from: 'user', to: 'admin' } })).not.toBe('—');
+    expect(auditDetail({ password_reset: true })).not.toBe('—');
   });
 });

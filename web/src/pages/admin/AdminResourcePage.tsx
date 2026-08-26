@@ -18,7 +18,7 @@ import { useAsync } from '../../hooks/useAsync';
 import { useSnackbar } from '../../state/SnackbarContext';
 
 type Row = Record<string, unknown> & { id?: string; code?: string; slug?: string };
-type FieldType = 'text' | 'number' | 'boolean' | 'date' | 'textarea' | 'select' | 'tags' | 'json';
+type FieldType = 'text' | 'number' | 'boolean' | 'date' | 'textarea' | 'select' | 'tags' | 'json' | 'detail';
 
 interface Field {
   key: string;
@@ -126,7 +126,7 @@ const configs: Record<string, ResourceConfig> = {
   },
   audit: {
     title: '감사 로그', description: '관리 변경과 보안 관련 활동을 추적합니다.', singular: '로그', readonly: true,
-    fields: [{ key: 'created_at', label: '시각' }, { key: 'actor_username', label: '수행자' }, { key: 'action', label: '작업' }, { key: 'resource_type', label: '대상 유형' }, { key: 'resource_id', label: '대상 ID' }, { key: 'remote_addr', label: 'IP' }],
+    fields: [{ key: 'created_at', label: '시각' }, { key: 'actor_username', label: '수행자' }, { key: 'action', label: '작업' }, { key: 'resource_type', label: '대상 유형' }, { key: 'resource_id', label: '대상 ID' }, { key: 'detail', label: '변경 내용', type: 'detail' }, { key: 'remote_addr', label: 'IP' }],
   },
 };
 
@@ -146,6 +146,37 @@ function jsonFieldErrors(fields: Field[], form: Row): Record<string, string> {
 type LookupOptions = Record<'categories' | 'games', Array<{ value: string; label: string }>>;
 
 /**
+ * What an audit entry actually changed, in one line.
+ *
+ * The audit screen showed the actor, the action, the target and the address —
+ * everything except the change itself, which is the reason to look. The detail
+ * was only reachable through the CSV export or the database.
+ *
+ * A `{from, to}` pair reads as an arrow, because that is the shape the entries
+ * worth reading have: a role granted, a status locked, a version published.
+ */
+function auditDetail(value: unknown): React.ReactNode {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return '—';
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length === 0) return '—';
+  return (
+    <Stack direction="row" flexWrap="wrap" useFlexGap spacing={.5}>
+      {entries.slice(0, 4).map(([key, item]) => {
+        const pair = item && typeof item === 'object' && !Array.isArray(item) ? item as Record<string, unknown> : undefined;
+        // Verbatim, not translated. The shared label dictionary is keyed by
+        // value, and an audit detail is arbitrary: running it through turned
+        // `username admin` into `username 관리자`.
+        const text = pair && 'from' in pair && 'to' in pair
+          ? `${key} ${String(pair.from)} → ${String(pair.to)}`
+          : `${key} ${typeof item === 'object' ? JSON.stringify(item) : String(item)}`;
+        return <Chip key={key} size="small" variant="outlined" label={text.slice(0, 44)} />;
+      })}
+      {entries.length > 4 && <Chip size="small" label={`외 ${entries.length - 4}개`} />}
+    </Stack>
+  );
+}
+
+/**
  * Renders one cell.
  *
  * The field it belongs to has to come in with it: without that, a lookup column
@@ -162,6 +193,7 @@ function display(value: unknown, field?: Field, lookups?: LookupOptions): React.
     // stale reference still needs to see what it points at.
     return match ? match.label : String(value);
   }
+  if (field?.type === 'detail') return auditDetail(value);
   if (field?.type === 'select') return optionLabel(value, field.optionLabels);
   if (field?.type === 'tags' && Array.isArray(value)) {
     return value.length === 0 ? '—' : (
@@ -354,4 +386,4 @@ export function AdminResourcePage({ resource }: { resource: string }) {
 }
 
 /** Exposed for unit tests; not part of the page's public surface. */
-export const __testing = { rowLabel, jsonFieldErrors, display, optionLabel, configs };
+export const __testing = { rowLabel, jsonFieldErrors, display, optionLabel, auditDetail, configs };

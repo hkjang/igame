@@ -480,16 +480,23 @@ func (s *Server) updateUser(w http.ResponseWriter, r *http.Request) {
 		h := string(b)
 		hash = &h
 	}
-	tag, err := s.DB.Exec(r.Context(), `UPDATE users SET display_name=COALESCE($2,display_name),department=COALESCE($3,department),team=COALESCE($4,team),role=COALESCE($5,role),status=COALESCE($6,status),password_hash=COALESCE($7,password_hash),updated_at=now() WHERE id=$1`, id, in.DisplayName, in.Department, in.Team, in.Role, in.Status, hash)
+	// The previous role and status come back with the new ones. Granting admin is
+	// the most consequential thing this endpoint does, and an audit entry saying
+	// only "role: admin" cannot tell a promotion from a no-op.
+	var wasRole, wasStatus, nowRole, nowStatus string
+	err := s.DB.QueryRow(r.Context(), `WITH previous AS (SELECT role, status FROM users WHERE id=$1)
+		UPDATE users SET display_name=COALESCE($2,display_name),department=COALESCE($3,department),team=COALESCE($4,team),role=COALESCE($5,role),status=COALESCE($6,status),password_hash=COALESCE($7,password_hash),updated_at=now() WHERE id=$1
+		RETURNING (SELECT role FROM previous),(SELECT status FROM previous),role,status`,
+		id, in.DisplayName, in.Department, in.Team, in.Role, in.Status, hash).Scan(&wasRole, &wasStatus, &nowRole, &nowStatus)
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, 404, "not_found", "user not found")
+		return
+	}
 	if err != nil {
 		s.dbError(w, r, err)
 		return
 	}
-	if tag.RowsAffected() == 0 {
-		writeError(w, 404, "not_found", "user not found")
-		return
-	}
-	s.audit(r, "user.update", "user", id.String(), map[string]any{"role": in.Role, "status": in.Status})
+	s.audit(r, "user.update", "user", id.String(), auditUserChange(wasRole, nowRole, wasStatus, nowStatus, hash != nil))
 	w.WriteHeader(204)
 }
 
@@ -762,4 +769,27 @@ func (s *Server) deleteCategory(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, "category.delete", "category", id.String(), nil)
 	w.WriteHeader(204)
+}
+
+// auditUserChange describes what an update actually did to an account.
+//
+// Only fields that moved are recorded, each as the value before and after, so a
+// reader can tell a promotion from a request that set the role it already had.
+// A password reset is recorded as having happened: it lets the operator sign in
+// as that person, and it used to leave no trace at all.
+func auditUserChange(wasRole, nowRole, wasStatus, nowStatus string, passwordReset bool) map[string]any {
+	detail := map[string]any{}
+	if wasRole != nowRole {
+		detail["role"] = map[string]string{"from": wasRole, "to": nowRole}
+	}
+	if wasStatus != nowStatus {
+		detail["status"] = map[string]string{"from": wasStatus, "to": nowStatus}
+	}
+	if passwordReset {
+		detail["password_reset"] = true
+	}
+	if len(detail) == 0 {
+		detail["changed"] = "profile fields only"
+	}
+	return detail
 }
