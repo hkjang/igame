@@ -45,13 +45,17 @@ export function PortalLayout() {
   const close = () => setAnchor(null);
   const doLogout = async () => { close(); await logout(); navigate('/login', { replace: true }); };
   return (
-    <Box sx={{ minHeight: '100dvh' }}>
+    <Box sx={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
       <RouteChrome mainRef={mainRef} />
-      <AppBar position="sticky" elevation={0} sx={(theme) => ({ borderBottom: 1, borderColor: 'divider', bgcolor: alpha(theme.palette.surface.ground, .9), backdropFilter: 'blur(16px)' })}>
+      {/* The bar paints its own translucent ground, so it also has to set its
+          own text colour: inheriting the default `primary.contrastText` put
+          white text on the light ground and near-black on the dark one, which
+          left the wordmark invisible in both themes. */}
+      <AppBar position="sticky" elevation={0} color="transparent" sx={(theme) => ({ color: 'text.primary', borderBottom: 1, borderColor: 'divider', bgcolor: alpha(theme.palette.surface.ground, .9), backdropFilter: 'blur(16px)' })}>
         <Container maxWidth="xl"><Toolbar disableGutters sx={{ minHeight: 72, gap: 2 }}>
-          <Stack component={RouterLink} to="/" direction="row" alignItems="center" spacing={1} aria-label="igame 홈">
-            <Box sx={{ width: 38, height: 38, borderRadius: 2, display: 'grid', placeItems: 'center', color: 'primary.contrastText', bgcolor: 'primary.main' }}><SportsEsportsRounded /></Box>
-            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: '-.04em' }}>{config.display_name ?? 'igame'}</Typography>
+          <Stack component={RouterLink} to="/" direction="row" alignItems="center" spacing={1.25} aria-label="igame 홈" sx={{ textDecoration: 'none', color: 'inherit', '&:hover .brand-mark': { transform: 'rotate(-6deg) scale(1.04)' } }}>
+            <Box className="brand-mark" sx={(theme) => ({ width: 38, height: 38, borderRadius: 2.5, display: 'grid', placeItems: 'center', color: 'primary.contrastText', background: `linear-gradient(140deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`, boxShadow: `0 6px 18px ${alpha(theme.palette.primary.main, .35)}`, transition: 'transform .2s' })}><SportsEsportsRounded /></Box>
+            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: '-.04em', color: 'text.primary' }}>{config.display_name ?? 'igame'}</Typography>
           </Stack>
           <Stack component="nav" aria-label="주 메뉴" direction="row" spacing={.5} sx={{ ml: 3, display: { xs: 'none', md: 'flex' } }}>
             {navigation.map((item) => <Button key={item.to} component={NavLink} to={item.to} end={item.to === '/'} color="inherit" startIcon={item.icon} sx={(theme) => ({ color: 'text.secondary', '&.active': { color: 'primary.main', bgcolor: alpha(theme.palette.primary.main, .08) } })}>{item.label}</Button>)}
@@ -75,7 +79,9 @@ export function PortalLayout() {
           </Menu>
         </Toolbar></Container>
       </AppBar>
-      <Box component="main" id={MAIN_CONTENT_ID} ref={mainRef} tabIndex={-1} sx={{ outline: 'none' }}><Outlet /></Box>
+      {/* flex:1 keeps the footer on the bottom edge instead of leaving it
+          stranded mid-screen on a short page such as an empty ranking board. */}
+      <Box component="main" id={MAIN_CONTENT_ID} ref={mainRef} tabIndex={-1} sx={{ outline: 'none', flex: 1 }}><Outlet /></Box>
       <Box component="footer" sx={{ mt: 8, borderTop: 1, borderColor: 'divider', py: 3 }}><Container maxWidth="xl"><Typography variant="body2" color="text.secondary">{config.display_name ?? 'igame'} · igame platform · v{version.version}</Typography></Container></Box>
     </Box>
   );

@@ -171,6 +171,33 @@ try {
     }
   }
 
+  // The catalogue is the first screen with real artwork on it. Card art used to
+  // resolve to its own aspect ratio and render taller than its frame, painting
+  // over the title underneath, and a mis-sized visually-hidden live region added
+  // a full screen of empty scroll below the grid. Both were invisible to unit
+  // tests, so the browser gate measures them.
+  await page.goto(`${baseURL}/games`, { waitUntil: 'networkidle' });
+  // Specifically a card that carries artwork: the placeholder cards cannot show
+  // the overflow this guards against, so matching the first card in the grid
+  // would quietly assert nothing.
+  const illustratedCard = page.locator('.MuiCard-root:has(img.game-art)').first();
+  await visible(illustratedCard, 'illustrated game catalogue card');
+  const artBox = await elementBox(illustratedCard.locator('img.game-art'), 'game card artwork');
+  const frameBox = await elementBox(illustratedCard.locator('.game-art-frame'), 'game card artwork frame');
+  if (!boxIsInside(artBox, { ...frameBox, height: frameBox.height + 1 })) {
+    throw new Error(`Game card artwork ${JSON.stringify(artBox)} escapes its frame ${JSON.stringify(frameBox)}`);
+  }
+  const cardTitleBox = await elementBox(illustratedCard.getByRole('heading').first(), 'game card title');
+  if (boxesOverlap(artBox, cardTitleBox)) throw new Error('Game card artwork covers the card title');
+  const catalogueScroll = await page.evaluate(() => ({
+    scroll: document.documentElement.scrollHeight,
+    content: Math.ceil(document.querySelector('footer').getBoundingClientRect().bottom + window.scrollY),
+  }));
+  if (catalogueScroll.scroll > catalogueScroll.content + 48) {
+    throw new Error(`Game catalogue scrolls ${catalogueScroll.scroll}px past its ${catalogueScroll.content}px of content`);
+  }
+  await capture(page, '01b-games');
+
   await page.goto(`${baseURL}/games/realmguard`, { waitUntil: 'networkidle' });
   await page.reload({ waitUntil: 'networkidle' });
   await visible(page.getByRole('heading', { name: 'RealmGuard', exact: true }).first(), 'RealmGuard page heading');

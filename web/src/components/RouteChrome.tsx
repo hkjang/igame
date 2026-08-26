@@ -6,12 +6,20 @@ import { titleForPath } from '../pages/routeTitles';
 /** The landmark the skip link and route focus both target. */
 export const MAIN_CONTENT_ID = 'main-content';
 
-const offscreen = {
+/**
+ * Takes an element out of sight while leaving it in the accessibility tree.
+ *
+ * Written in explicit pixels because MUI's `sx` reads bare numbers through the
+ * sizing scale, where `width: 1` means 100%: the earlier hand-written version
+ * of this style rendered a full-viewport block and added a screen of dead
+ * scroll below every page that used it.
+ */
+export const visuallyHidden = {
   position: 'absolute',
-  width: 1,
-  height: 1,
+  width: '1px',
+  height: '1px',
   padding: 0,
-  margin: -1,
+  margin: '-1px',
   overflow: 'hidden',
   clipPath: 'inset(50%)',
   whiteSpace: 'nowrap',
@@ -72,7 +80,7 @@ export function RouteChrome({ mainRef }: { mainRef: RefObject<HTMLElement | null
       >
         본문으로 건너뛰기
       </Box>
-      <Box role="status" aria-live="polite" sx={offscreen}>{announcement}</Box>
+      <Box role="status" aria-live="polite" sx={visuallyHidden}>{announcement}</Box>
     </>
   );
 }

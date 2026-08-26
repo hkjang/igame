@@ -3,6 +3,7 @@ import CampaignRounded from '@mui/icons-material/CampaignRounded';
 import PushPinRounded from '@mui/icons-material/PushPinRounded';
 import SearchRounded from '@mui/icons-material/SearchRounded';
 import { Box, Card, CardContent, Chip, Container, InputAdornment, Stack, TextField, Typography } from '@mui/material';
+import { visuallyHidden } from '../components/RouteChrome';
 import { api } from '../api/client';
 import { ErrorPanel } from '../components/ErrorPanel';
 import { LoadingScreen } from '../components/LoadingScreen';
@@ -74,7 +75,7 @@ export function NoticesPage() {
       </Box>
 
       {!result.loading && !result.error && (
-        <Box role="status" aria-live="polite" sx={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clipPath: 'inset(50%)', whiteSpace: 'nowrap' }}>
+        <Box role="status" aria-live="polite" sx={visuallyHidden}>
           {`공지 ${notices.length}건`}
         </Box>
       )}

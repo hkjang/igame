@@ -3,6 +3,7 @@ import { Alert, Box, Chip, Container, Grid, InputAdornment, Skeleton, Stack, Tex
 import { useMemo, useState } from 'react';
 import { api } from '../api/client';
 import { GameCard } from '../components/GameCard';
+import { visuallyHidden } from '../components/RouteChrome';
 import { mergeGames } from '../data/builtinGames';
 import { useAsync } from '../hooks/useAsync';
 import { useSnackbar } from '../state/SnackbarContext';
@@ -33,6 +34,6 @@ export function GamesPage() {
     <Grid container spacing={2.5}>{loading ? Array.from({ length: 5 }, (_, index) => <Grid key={index} size={{ xs: 12, sm: 6, md: 4, xl: 2.4 }}><Skeleton variant="rounded" height={390} /></Grid>) : filtered.map((game) => <Grid key={game.id} size={{ xs: 12, sm: 6, md: 4, xl: 2.4 }}><GameCard game={game} onFavorite={(item) => void favorite(item)} /></Grid>)}</Grid>
     {!loading && filtered.length === 0 && <Box textAlign="center" py={10}><Typography variant="h3">검색 결과가 없습니다</Typography><Typography color="text.secondary" mt={1}>검색어나 카테고리를 바꿔 보세요.</Typography></Box>}
     {/* Filtering rewrites the grid silently; announce the new count so it is not a screen-reader-only surprise. */}
-    <Box role="status" aria-live="polite" sx={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clipPath: 'inset(50%)', whiteSpace: 'nowrap' }}>{loading ? '' : `게임 ${filtered.length}개`}</Box>
+    <Box role="status" aria-live="polite" sx={visuallyHidden}>{loading ? '' : `게임 ${filtered.length}개`}</Box>
   </Container>;
 }

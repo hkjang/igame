@@ -3,6 +3,8 @@ import { copyFile, mkdir } from 'node:fs/promises';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
+const devApi = process.env.IGAME_DEV_API ?? 'http://localhost:8080';
+
 export default defineConfig({
   plugins: [react(), {
     name: 'bundle-offline-gamehub-sdk',
@@ -26,23 +28,21 @@ export default defineConfig({
     chunkSizeWarningLimit: 900,
   },
   server: {
-    port: 5173,
+    port: Number(process.env.IGAME_DEV_PORT ?? 5173),
+    // A checkout on a Windows-mounted path gets no inotify events, so the dev
+    // server silently keeps serving the last build. IGAME_DEV_POLL turns on
+    // polling for those working copies without slowing anyone else down.
+    watch: process.env.IGAME_DEV_POLL ? { usePolling: true, interval: 400 } : undefined,
     proxy: {
       // The dev server is a different origin from the API, so the browser's
       // Origin would not match the service address and every state-changing
       // request would be refused. Presenting the target's own origin keeps the
       // dev proxy working without loosening the check on the server, and never
       // ships: production serves the built bundle from the same origin.
-      '/api': {
-        target: 'http://localhost:8080',
-        changeOrigin: true,
-        headers: { Origin: 'http://localhost:8080' },
-      },
-      '/mcp': {
-        target: 'http://localhost:8080',
-        changeOrigin: true,
-        headers: { Origin: 'http://localhost:8080' },
-      },
+      // IGAME_DEV_API points the proxy at a service on another address when
+      // 8080 is already taken on the machine.
+      '/api': { target: devApi, changeOrigin: true, headers: { Origin: devApi } },
+      '/mcp': { target: devApi, changeOrigin: true, headers: { Origin: devApi } },
     },
   },
   test: {

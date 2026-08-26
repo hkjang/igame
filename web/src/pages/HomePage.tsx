@@ -2,7 +2,7 @@ import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded';
 import EmojiEventsRounded from '@mui/icons-material/EmojiEventsRounded';
 import PlayCircleRounded from '@mui/icons-material/PlayCircleRounded';
 import WhatshotRounded from '@mui/icons-material/WhatshotRounded';
-import { alpha } from '@mui/material/styles';
+import { alpha, lighten } from '@mui/material/styles';
 import { Box, Button, Card, CardContent, Chip, Container, Grid, Skeleton, Stack, Typography } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import { api } from '../api/client';
@@ -33,17 +33,37 @@ export function HomePage() {
   };
   return (
     <>
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', background: (theme) => `linear-gradient(110deg, ${alpha(theme.palette.primary.dark, .34)}, ${alpha(theme.palette.surface.ground, .5)} 55%, ${alpha(theme.palette.success.dark, .3)})` }}>
+      {/* Layered light rather than one flat sweep: a single low-alpha gradient
+          over a pale ground reads as grey wash and gives the greeting no
+          presence at all. */}
+      <Box sx={(theme) => {
+        // On a pale ground a dark hue at low alpha turns grey, so the light
+        // palette tints with lightened hues instead of the same ones the dark
+        // palette uses.
+        const dark = theme.palette.mode === 'dark';
+        const warm = dark ? theme.palette.primary.main : lighten(theme.palette.primary.main, .5);
+        const cool = dark ? theme.palette.secondary.main : lighten(theme.palette.secondary.main, .62);
+        return {
+          borderBottom: 1,
+          borderColor: 'divider',
+          background: [
+            `radial-gradient(70rem 26rem at 4% -22%, ${alpha(warm, dark ? .32 : .85)}, transparent 68%)`,
+            `radial-gradient(48rem 22rem at 97% -14%, ${alpha(cool, dark ? .24 : .7)}, transparent 66%)`,
+            `linear-gradient(180deg, ${alpha(warm, dark ? .12 : .3)}, transparent 58%)`,
+            theme.palette.surface.ground,
+          ].join(','),
+        };
+      }}>
         <Container maxWidth="xl" sx={{ py: { xs: 6, md: 9 } }}>
           <Grid container spacing={4} alignItems="center"><Grid size={{ xs: 12, md: 8 }}>
             <Chip icon={<WhatshotRounded />} label="오늘의 플레이" color="primary" variant="outlined" />
             <Typography variant="h1" mt={2}>안녕하세요, {user?.display_name || user?.username}님.<br />오늘은 어떤 게임을 해볼까요?</Typography>
             <Typography color="text.secondary" mt={2} sx={{ maxWidth: 740, fontSize: '1.08rem' }}>짧은 휴식에 집중력을 리셋하고, 동료들과 건강한 기록 경쟁을 즐겨 보세요.</Typography>
             <Stack direction="row" spacing={1.5} mt={4}><Button component={RouterLink} to="/games" variant="contained" size="large" startIcon={<PlayCircleRounded />}>게임 찾기</Button><Button component={RouterLink} to="/rankings" variant="outlined" size="large" startIcon={<EmojiEventsRounded />}>이번 주 랭킹</Button></Stack>
-          </Grid><Grid size={{ xs: 12, md: 4 }}><Card sx={(theme) => ({ bgcolor: alpha(theme.palette.background.paper, .68), backdropFilter: 'blur(12px)' })}><CardContent sx={{ p: 3 }}><Typography color="text.secondary">나의 포털 레벨</Typography><Stack direction="row" alignItems="baseline" spacing={1} mt={1}><Typography sx={{ fontSize: '3.2rem', fontWeight: 900, color: 'secondary.main' }}>{user?.level ?? progress.level}</Typography><Typography color="text.secondary">LEVEL</Typography></Stack>
+          </Grid><Grid size={{ xs: 12, md: 4 }}><Card sx={(theme) => ({ bgcolor: alpha(theme.palette.background.paper, .82), backdropFilter: 'blur(14px)', boxShadow: `0 18px 40px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? .45 : .1)}` })}><CardContent sx={{ p: 3 }}><Stack direction="row" alignItems="center" justifyContent="space-between"><Typography color="text.secondary">나의 포털 레벨</Typography><Chip size="small" label={`${progress.percent}%`} color="secondary" variant="outlined" /></Stack><Stack direction="row" alignItems="baseline" spacing={1} mt={1}><Typography sx={{ fontSize: '3.2rem', fontWeight: 900, color: 'secondary.main', lineHeight: 1 }}>{user?.level ?? progress.level}</Typography><Typography color="text.secondary">LEVEL</Typography></Stack>
               {/* Progress follows the server's geometric XP curve; a bare div also told
                   assistive technology nothing, so this is a real progressbar. */}
-              <Box role="progressbar" aria-valuenow={progress.percent} aria-valuemin={0} aria-valuemax={100} aria-label={`다음 레벨까지 ${progress.percent}% 진행`} sx={(theme) => ({ height: 9, bgcolor: alpha(theme.palette.text.primary, .08), borderRadius: 9, mt: 2, overflow: 'hidden' })}><Box sx={{ width: `${progress.percent}%`, height: '100%', bgcolor: 'secondary.main', transition: 'width .3s' }} /></Box>
+              <Box role="progressbar" aria-valuenow={progress.percent} aria-valuemin={0} aria-valuemax={100} aria-label={`다음 레벨까지 ${progress.percent}% 진행`} sx={(theme) => ({ height: 10, bgcolor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? .16 : .12), borderRadius: 10, mt: 2, overflow: 'hidden' })}><Box sx={(theme) => ({ width: `${progress.percent}%`, height: '100%', borderRadius: 10, background: `linear-gradient(90deg, ${theme.palette.secondary.main}, ${theme.palette.primary.main})`, transition: 'width .3s' })} /></Box>
               <Typography variant="body2" color="text.secondary" mt={1}>{(user?.xp ?? 0).toLocaleString('ko-KR')} XP · 다음 레벨까지 {progress.xpToNext.toLocaleString('ko-KR')} XP</Typography></CardContent></Card></Grid></Grid>
         </Container>
       </Box>
