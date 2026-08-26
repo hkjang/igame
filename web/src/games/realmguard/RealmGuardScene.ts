@@ -2,6 +2,8 @@ import Phaser from "phaser";
 import { advanceFixedSimulation, calculateLocalResult } from "./content";
 import { BattleKernel, KERNEL_TICK_MS } from "./kernel/kernel";
 import type { KernelEvent, KernelTowerView } from "./kernel/kernel";
+import { drawEnemyBody } from "./enemyArt";
+import { resolveEnemyPresentation } from "./enemyPresentation";
 import { kernelDigest, projectKernelConfig } from "./kernel/config";
 import { LedgerRecorder } from "./kernel/ledger";
 import type { KernelAction, KernelCommand } from "./kernel/ledger";
@@ -420,26 +422,23 @@ class RealmGuardBattleScene extends Phaser.Scene {
     if (!state) return;
     const definition = this.options.config.enemies[state.def];
     if (!definition) return;
-    const flying =
-      definition.traits.includes("flying") || state.modifiers.has("flying");
+    // Traits come from the pinned content and from the wave's own modifiers, so
+    // what a player reads on a body is exactly what the battle rules act on.
+    const traits = [...definition.traits, ...state.modifiers];
+    const flying = traits.includes("flying");
+    const presentation = resolveEnemyPresentation(
+      definition.id,
+      traits,
+      this.options.presentationGame ?? "realmguard",
+    );
     const body = this.add.graphics();
-    body.fillStyle(0x07111e, 0.5).fillCircle(3, 4, definition.radius + 3);
-    body.fillStyle(definition.color).fillCircle(0, 0, definition.radius);
-    body
-      .lineStyle(
-        definition.traits.includes("boss") ? 5 : 2,
-        definition.traits.includes("boss") ? 0xffd166 : 0xffffff,
-        0.65,
-      )
-      .strokeCircle(0, 0, definition.radius);
-    if (flying)
-      body
-        .lineStyle(3, 0xcaf3ff, 0.8)
-        .strokeEllipse(0, 0, definition.radius * 3, definition.radius);
-    if (definition.traits.includes("armored"))
-      body
-        .fillStyle(0xd6d4c8, 0.7)
-        .fillTriangle(-8, -4, 0, -definition.radius - 4, 8, -4);
+    drawEnemyBody(
+      body,
+      // Content owns the colour; art direction only supplies one when the
+      // roster does not, so an operator's palette still wins on the field.
+      definition.color ? { ...presentation, primary: `#${definition.color.toString(16).padStart(6, "0")}` } : presentation,
+      definition.radius,
+    );
     const health = this.add.graphics();
     const label = definition.traits.includes("boss")
       ? this.add
@@ -462,13 +461,19 @@ class RealmGuardBattleScene extends Phaser.Scene {
 
   private drawEnemyHealth(sprite: EnemySprite, ratio: number) {
     const clamped = Math.max(0, Math.min(1, ratio));
+    const radius = sprite.definition.radius;
+    // Scaled off the radius rather than fixed: silhouettes reach about 1.5
+    // radii above their centre, and a boss carries a ring at 1.22, so a
+    // constant offset left the bar sitting inside the biggest bodies.
+    const width = Math.max(26, radius * 2.2);
+    const top = -radius * 1.55 - 6;
     sprite.health.clear();
     sprite.health
       .fillStyle(0x07101d, 0.85)
-      .fillRect(-17, -sprite.definition.radius - 11, 34, 5);
+      .fillRect(-width / 2, top, width, 5);
     sprite.health
       .fillStyle(clamped > 0.35 ? 0x65e392 : 0xff6f72)
-      .fillRect(-16, -sprite.definition.radius - 10, 32 * clamped, 3);
+      .fillRect(-width / 2 + 1, top + 1, (width - 2) * clamped, 3);
   }
 
   private applyTowerChange(
