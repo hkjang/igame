@@ -3,6 +3,8 @@ import CampaignRounded from '@mui/icons-material/CampaignRounded';
 import PushPinRounded from '@mui/icons-material/PushPinRounded';
 import SearchRounded from '@mui/icons-material/SearchRounded';
 import { Box, Card, CardContent, Chip, Container, InputAdornment, Stack, TextField, Typography } from '@mui/material';
+import { EmptyState } from '../components/EmptyState';
+import { PageHeader } from '../components/PageHeader';
 import { visuallyHidden } from '../components/RouteChrome';
 import { api } from '../api/client';
 import { ErrorPanel } from '../components/ErrorPanel';
@@ -27,13 +29,7 @@ export function NoticesPage() {
 
   return (
     <Container maxWidth="md" sx={{ py: { xs: 4, md: 6 } }}>
-      <Stack direction="row" spacing={1.5} alignItems="center">
-        <CampaignRounded color="primary" sx={{ fontSize: 40 }} />
-        <Box>
-          <Typography variant="h1" sx={{ fontSize: { xs: '2.2rem', md: '3.2rem' } }}>공지사항</Typography>
-          <Typography color="text.secondary">서비스 안내와 운영 공지를 모두 확인할 수 있습니다.</Typography>
-        </Box>
-      </Stack>
+      <PageHeader icon={<CampaignRounded />} title="공지사항" description="서비스 안내와 운영 공지를 모두 확인할 수 있습니다." />
 
       <TextField
         value={search}
@@ -48,10 +44,11 @@ export function NoticesPage() {
         {result.loading ? <LoadingScreen label="공지사항을 불러오는 중…" />
           : result.error ? <ErrorPanel error={result.error} retry={() => void result.reload()} />
           : notices.length === 0 ? (
-            <Box textAlign="center" py={8}>
-              <Typography variant="h3">{search ? '검색 결과가 없습니다' : '등록된 공지가 없습니다'}</Typography>
-              <Typography color="text.secondary" mt={1}>{search ? '다른 검색어를 사용해 보세요.' : '새 공지가 올라오면 이곳에 표시됩니다.'}</Typography>
-            </Box>
+            <EmptyState
+              icon={search ? <SearchRounded /> : <CampaignRounded />}
+              title={search ? '검색 결과가 없습니다' : '등록된 공지가 없습니다'}
+              description={search ? '다른 검색어를 사용해 보세요.' : '관리자가 공지를 올리면 이곳에 바로 표시됩니다.'}
+            />
           ) : (
             <Stack spacing={2}>
               {notices.map((notice) => (

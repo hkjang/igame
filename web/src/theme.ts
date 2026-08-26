@@ -136,6 +136,11 @@ export function createAppTheme(mode: ThemeMode) {
         },
       },
       MuiTooltip: { styleOverrides: { tooltip: { fontSize: '0.9rem' } } },
+      // Korean has no inter-word spaces at the character level, so the default
+      // break-anywhere behaviour splits 어절 across lines ("있습 / 니다").
+      // keep-all holds each word together; break-word still saves the layout
+      // from an unbreakable string such as a long URL.
+      MuiTypography: { styleOverrides: { root: { wordBreak: 'keep-all', overflowWrap: 'break-word' } } },
     },
   });
 }
