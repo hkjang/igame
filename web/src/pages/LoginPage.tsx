@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useRef, useState } from 'react';
 import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded';
 import LockRounded from '@mui/icons-material/LockRounded';
 import SportsEsportsRounded from '@mui/icons-material/SportsEsportsRounded';
@@ -16,6 +16,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const passwordRef = useRef<HTMLInputElement>(null);
   // Where the visitor was headed before RequireAuth sent them here — a screen
   // whose session expired under them, or a deep link they followed logged out.
   const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? '/';
@@ -26,7 +27,13 @@ export function LoginPage() {
     try {
       await login(username, password);
       navigate(from, { replace: true });
-    } catch (cause) { setError(cause instanceof Error ? cause.message : '로그인에 실패했습니다.'); }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '로그인에 실패했습니다.');
+      // Disabling the button while the request was in flight dropped focus to
+      // the body, so a failed attempt returned the visitor to the top of the
+      // page. The password is what they have to correct, so focus goes there.
+      requestAnimationFrame(() => passwordRef.current?.select());
+    }
     finally { setSubmitting(false); }
   };
   return (
@@ -48,7 +55,7 @@ export function LoginPage() {
           {config.oidc_enabled && config.bootstrap_login_enabled !== false && <Divider sx={{ my: 3 }}>또는 관리자 로그인</Divider>}
           {config.bootstrap_login_enabled !== false && <Box component="form" onSubmit={(event) => void submit(event)}><Stack spacing={2}>
             <TextField label="관리자 아이디" autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} required inputProps={{ minLength: 1 }} />
-            <TextField label="비밀번호" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+            <TextField inputRef={passwordRef} label="비밀번호" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
             <Button type="submit" fullWidth size="large" variant={config.oidc_enabled ? 'outlined' : 'contained'} startIcon={submitting ? <CircularProgress size={20} /> : <LockRounded />} disabled={submitting}>관리자 로그인</Button>
           </Stack></Box>}
           {!config.oidc_enabled && config.bootstrap_login_enabled === false && <Alert severity="warning">사용 가능한 로그인 방식이 없습니다. 시스템 관리자에게 문의하세요.</Alert>}

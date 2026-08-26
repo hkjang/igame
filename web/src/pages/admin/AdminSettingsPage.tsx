@@ -8,6 +8,7 @@ import { LoadingScreen } from '../../components/LoadingScreen';
 import { useAsync } from '../../hooks/useAsync';
 import { useSnackbar } from '../../state/SnackbarContext';
 import { ReviewQueue } from '../../components/ReviewQueue';
+import { useRetainFocus } from '../../hooks/useRetainFocus';
 
 type Values = Record<string, unknown>;
 const allPermissions = ['api:access', 'mcp:access', 'games:read', 'sessions:write', 'scores:write', 'rankings:read', 'profile:read', 'profile:write', 'ai:invoke', 'workflow:write', 'admin:*'];
@@ -15,7 +16,9 @@ const roles = ['user', 'manager', 'operator', 'admin'];
 const roleLabels: Record<string, string> = { user: '일반 사용자', manager: '팀장', operator: '게임 운영자', admin: '서비스 관리자' };
 
 function SettingCard({ title, description, children, onSave, busy }: { title: string; description: string; children: React.ReactNode; onSave: () => void; busy: boolean }) {
-  return <Card><CardContent sx={{ p: { xs: 2.5, md: 3.5 } }}><Typography variant="h3">{title}</Typography><Typography color="text.secondary" mt={.7}>{description}</Typography><Divider sx={{ my: 3 }} />{children}<Button variant="contained" startIcon={<SaveRounded />} onClick={onSave} disabled={busy} sx={{ mt: 3 }}>설정 저장</Button></CardContent></Card>;
+  // Saving disables this button, which blurred it and dropped focus to the body.
+  const saveRef = useRetainFocus<HTMLButtonElement>(busy);
+  return <Card><CardContent sx={{ p: { xs: 2.5, md: 3.5 } }}><Typography variant="h3">{title}</Typography><Typography color="text.secondary" mt={.7}>{description}</Typography><Divider sx={{ my: 3 }} />{children}<Button ref={saveRef} variant="contained" startIcon={<SaveRounded />} onClick={onSave} disabled={busy} sx={{ mt: 3 }}>설정 저장</Button></CardContent></Card>;
 }
 
 function OIDCSettings({ initial }: { initial: Values }) {
