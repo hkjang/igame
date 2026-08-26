@@ -22,6 +22,7 @@ import { createRealmGuardUUID, isRequiredRealmGuardTelemetry, REALMGUARD_OPTIONA
 import type { BattleHUD, RealmDifficulty, RealmGuardConfig, RealmProgress, RealmResult, RealmSceneController, RealmStage, TargetingMode } from './types';
 import { HeroSelectCard } from './HeroSelectCard';
 import { GameSurface } from '../GameSurface';
+import { BATTLE_SCROLL_MARGIN, useBattleInView } from '../useBattleInView';
 import { StageRoster } from './StageRoster';
 
 const EMPTY_PROGRESS: RealmProgress = { total_stars: 0, unlocked_stage: 1, hero_levels: { aerin: 1 }, heroes: { aerin: { unlocked: true, level: 1, xp: 0 } }, skills: { meteor: { unlocked: true, level: 1 } }, loadout: { hero_id: 'aerin', skill_ids: ['meteor'] }, campaign_completed: false, stages: [] };
@@ -89,6 +90,7 @@ export function RealmGuardGame({ onStart, onTelemetry, onAuthoritativeComplete, 
   const optionalTelemetryCount = useRef(0);
   const battleEventId = useRef('');
   const [phase, setPhase] = useState<'select' | 'battle' | 'result'>('select');
+  const battleRef = useBattleInView<HTMLDivElement>(phase !== 'select');
   const [stageId, setStageId] = useState('stage-1');
   const [difficulty, setDifficulty] = useState<RealmDifficulty>('normal');
   const [heroId, setHeroId] = useState('aerin');
@@ -237,7 +239,7 @@ export function RealmGuardGame({ onStart, onTelemetry, onAuthoritativeComplete, 
   </Box>;
 
   const command = (value: Parameters<RealmSceneController['command']>[0]) => controller.current?.command(value);
-  return <GameSurface><Box data-testid="realmguard-battle-shell" sx={{ width: '100%', maxWidth: 1280, mx: 'auto', position: 'relative', aspectRatio: '16 / 9', bgcolor: '#09131f', overflow: 'hidden', userSelect: 'none', [portraitBattleMedia]: { aspectRatio: 'auto', minHeight: 760 } }}>
+  return <GameSurface><Box ref={battleRef} data-testid="realmguard-battle-shell" sx={{ width: '100%', maxWidth: 1280, mx: 'auto', position: 'relative', aspectRatio: '16 / 9', bgcolor: '#09131f', overflow: 'hidden', userSelect: 'none', scrollMarginTop: `${BATTLE_SCROLL_MARGIN}px`, [portraitBattleMedia]: { aspectRatio: 'auto', minHeight: `min(760px, calc(100dvh - ${BATTLE_SCROLL_MARGIN + 8}px))` } }}>
     <Box ref={canvasRef} aria-label="RealmGuard 전장" sx={{ position: 'absolute', inset: 0, touchAction: 'none', '& canvas': { display: 'block', maxWidth: '100%', maxHeight: '100%', touchAction: 'none' }, [portraitBattleMedia]: { top: 132, bottom: 270 } }} />
     {phase === 'battle' && <>
       <Stack data-testid="realmguard-battle-hud" direction="row" spacing={1} sx={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 4, pointerEvents: 'auto', overflowX: 'auto', overflowY: 'hidden', touchAction: 'pan-x', pb: .5, scrollbarWidth: 'thin', '& .MuiChip-root, & .MuiButton-root, & > span': { flexShrink: 0 }, [portraitBattleMedia]: { top: 8, left: 8, right: 8 } }}><Chip icon={<FavoriteRounded />} label={`${hud.lives} 생명`} color={hud.lives <= 5 ? 'error' : 'default'} sx={{ fontWeight: 800 }} /><Chip label={`${hud.gold} 골드`} sx={{ fontWeight: 800 }} /><Chip label={`파동 ${hud.wave}/${hud.totalWaves || '∞'}`} sx={{ fontWeight: 800 }} /><Chip label={`${hud.kills} 처치`} /><Box flex={1} /><Tooltip title={hud.heroAlive ? '영웅을 이동할 지점을 선택합니다.' : `${hud.heroRespawn}초 후 부활`}><span><Button disabled={!hud.heroAlive} variant="contained" color="secondary" onClick={() => { command({ type: 'move-hero' }); setAimHint('영웅이 이동할 지점을 선택하세요.'); }} sx={{ minHeight: 44, minWidth: 190 }}>{hero?.name ?? '영웅'} Lv.{hud.heroLevel} · {hud.heroHp}/{hud.heroMaxHp} HP</Button></span></Tooltip><Button variant="contained" onClick={() => command({ type: 'speed', value: hud.speed === 1 ? 2 : 1 })} startIcon={<FastForwardRounded />} sx={{ minHeight: 44 }}>{hud.speed}×</Button><Button variant="contained" onClick={() => command({ type: 'toggle-pause' })} startIcon={hud.status === 'paused' ? <PlayArrowRounded /> : <PauseRounded />} sx={{ minHeight: 44 }}>{hud.status === 'paused' ? '계속' : '일시정지'}</Button></Stack>

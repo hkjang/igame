@@ -86,6 +86,7 @@ import type {
 } from "./types";
 import { optionLabel } from "../../labels";
 import { GameSurface } from "../GameSurface";
+import { BATTLE_SCROLL_MARGIN, useBattleInView } from "../useBattleInView";
 
 const INITIAL_HUD: BattleHUD = {
   status: "ready",
@@ -499,6 +500,7 @@ export function DefenseSeriesGame({
   const aiRef = useRef<AIResources>({ ...INITIAL_AI });
   const lastEscapedByEnemy = useRef<Record<string, number>>({});
   const [phase, setPhase] = useState<"select" | "battle" | "result">("select");
+  const battleRef = useBattleInView<HTMLDivElement>(phase !== "select");
   const [stageId, setStageId] = useState("stage-1");
   const [difficulty, setDifficulty] = useState<RealmDifficulty>("normal");
   const [heroId, setHeroId] = useState("");
@@ -1364,6 +1366,7 @@ export function DefenseSeriesGame({
   return (
     <GameSurface>
     <Box
+      ref={battleRef}
       data-testid="defense-game-shell"
       data-battle-status={hud.status}
       data-ai-depleted={
@@ -1380,6 +1383,7 @@ export function DefenseSeriesGame({
         minHeight: { xs: 620, md: 0 },
         bgcolor: "#07101d",
         overflow: "hidden",
+        scrollMarginTop: `${BATTLE_SCROLL_MARGIN}px`,
       }}
     >
       <Box
