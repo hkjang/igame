@@ -70,7 +70,7 @@ export function AdminLayout() {
   return (
     <Box sx={{ minHeight: '100dvh', display: 'flex', bgcolor: 'surface.ground' }}>
       <RouteChrome mainRef={mainRef} />
-      <AppBar position="fixed" elevation={0} sx={(theme) => ({ display: { lg: 'none' }, bgcolor: alpha(theme.palette.surface.ground, .95), borderBottom: 1, borderColor: 'divider' })}><Toolbar><IconButton aria-label="관리자 메뉴 열기" onClick={() => setMobileOpen(true)}><MenuRounded /></IconButton><Typography fontWeight={800} ml={1}>igame 서비스 관리</Typography></Toolbar></AppBar>
+      <AppBar position="fixed" elevation={0} sx={(theme) => ({ display: { lg: 'none' }, bgcolor: alpha(theme.palette.surface.ground, .95), color: 'text.primary', borderBottom: 1, borderColor: 'divider' })}><Toolbar><IconButton aria-label="관리자 메뉴 열기" onClick={() => setMobileOpen(true)}><MenuRounded /></IconButton><Typography fontWeight={800} ml={1}>igame 서비스 관리</Typography></Toolbar></AppBar>
       <Box component="aside" sx={{ width: { lg: width }, flexShrink: 0 }}>
         <Drawer variant="permanent" open sx={{ display: { xs: 'none', lg: 'block' }, '& .MuiDrawer-paper': { width, borderRightColor: 'divider' } }}>{navigation}</Drawer>
         <Drawer variant="temporary" open={mobileOpen} onClose={() => setMobileOpen(false)} ModalProps={{ keepMounted: true }} sx={{ display: { lg: 'none' }, '& .MuiDrawer-paper': { width } }}>{navigation}</Drawer>

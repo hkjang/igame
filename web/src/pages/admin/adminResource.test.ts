@@ -69,3 +69,45 @@ describe('display', () => {
       .not.toContain('T');
   });
 });
+
+describe('optionLabel', () => {
+  const { optionLabel, configs } = __testing;
+
+  it('speaks Korean for every value any select can hold', () => {
+    // The console is Korean throughout; a dropdown that still offers `draft`
+    // and `department_battle` is asking an operator to read the schema.
+    const untranslated: string[] = [];
+    for (const [resource, config] of Object.entries(configs)) {
+      for (const field of config.fields) {
+        for (const option of field.options ?? []) {
+          if (optionLabel(field, option) === option) untranslated.push(`${resource}.${field.key}=${option}`);
+        }
+      }
+    }
+    expect(untranslated).toEqual([]);
+  });
+
+  it('lets a field say what the shared wording gets wrong', () => {
+    const games = configs.games.fields.find((field) => field.key === 'status')!;
+    const users = configs.users.fields.find((field) => field.key === 'status')!;
+    // The same `active` is a game being served and a user being allowed in.
+    expect(optionLabel(games, 'active')).toBe('서비스 중');
+    expect(optionLabel(users, 'active')).toBe('활성');
+  });
+
+  it('shows a value it has no label for rather than nothing', () => {
+    expect(optionLabel(undefined, 'retired')).toBe('retired');
+  });
+});
+
+describe('display of a select cell', () => {
+  const { display, configs } = __testing;
+  const role = configs.users.fields.find((field) => field.key === 'role')!;
+
+  it('reads the label, not the stored value', () => {
+    expect(display('admin', role)).toBe('관리자');
+    // A value the options no longer list still has to be visible: it is what
+    // the operator is being asked to fix.
+    expect(display('root', role)).toBe('root');
+  });
+});

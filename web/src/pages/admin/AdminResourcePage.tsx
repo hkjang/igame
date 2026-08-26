@@ -24,6 +24,8 @@ interface Field {
   label: string;
   type?: FieldType;
   options?: string[];
+  /** Korean for this field's own values, where the shared wording reads wrong. */
+  optionLabels?: Record<string, string>;
   required?: boolean;
   readonly?: boolean;
   lookup?: 'categories' | 'games';
@@ -60,7 +62,7 @@ const configs: Record<string, ResourceConfig> = {
       { key: 'multiplayer', label: '멀티플레이', type: 'boolean' }, { key: 'ranking_enabled', label: '랭킹 사용', type: 'boolean' },
       { key: 'achievement_enabled', label: '업적 사용', type: 'boolean' }, { key: 'season_enabled', label: '시즌 사용', type: 'boolean' },
       { key: 'min_players', label: '최소 인원', type: 'number' }, { key: 'max_players', label: '최대 인원', type: 'number' },
-      { key: 'status', label: '상태', type: 'select', options: ['draft', 'active', 'maintenance', 'disabled'] },
+      { key: 'status', label: '상태', type: 'select', options: ['draft', 'active', 'maintenance', 'disabled'], optionLabels: { active: '서비스 중' } },
       { key: 'version', label: '버전' }, { key: 'developer', label: '개발자' },
       { key: 'score_order', label: '점수 정렬', type: 'select', options: ['desc', 'asc'] },
       { key: 'score_rules', label: '점수 검증 규칙 JSON', type: 'json' },
@@ -80,15 +82,15 @@ const configs: Record<string, ResourceConfig> = {
   },
   seasons: {
     title: '시즌', description: '기간별 랭킹 시즌과 기록 보관 정책을 운영합니다.', singular: '시즌', defaults: { status: 'draft' },
-    fields: [{ key: 'name', label: '시즌명', required: true }, { key: 'description', label: '설명', type: 'textarea' }, { key: 'starts_at', label: '시작일', type: 'date', required: true }, { key: 'ends_at', label: '종료일', type: 'date', required: true }, { key: 'status', label: '상태', type: 'select', options: ['draft', 'active', 'closed'] }],
+    fields: [{ key: 'name', label: '시즌명', required: true }, { key: 'description', label: '설명', type: 'textarea' }, { key: 'starts_at', label: '시작일', type: 'date', required: true }, { key: 'ends_at', label: '종료일', type: 'date', required: true }, { key: 'status', label: '상태', type: 'select', options: ['draft', 'active', 'closed'], optionLabels: { active: '진행 중' } }],
   },
   events: {
     title: '이벤트', description: '사내 캠페인과 부서·팀 대항 이벤트를 만듭니다.', singular: '이벤트', defaults: { event_type: 'score_attack', status: 'draft', rules: {} },
-    fields: [{ key: 'name', label: '이벤트명', required: true }, { key: 'description', label: '설명', type: 'textarea' }, { key: 'event_type', label: '유형', type: 'select', options: ['score_attack', 'time_attack', 'team_battle', 'department_battle', 'attendance'] }, { key: 'game_id', label: '게임', lookup: 'games' }, { key: 'starts_at', label: '시작일', type: 'date', required: true }, { key: 'ends_at', label: '종료일', type: 'date', required: true }, { key: 'status', label: '상태', type: 'select', options: ['draft', 'active', 'closed', 'cancelled'] }, { key: 'rules', label: '이벤트 규칙 JSON', type: 'json' }],
+    fields: [{ key: 'name', label: '이벤트명', required: true }, { key: 'description', label: '설명', type: 'textarea' }, { key: 'event_type', label: '유형', type: 'select', options: ['score_attack', 'time_attack', 'team_battle', 'department_battle', 'attendance'] }, { key: 'game_id', label: '게임', lookup: 'games' }, { key: 'starts_at', label: '시작일', type: 'date', required: true }, { key: 'ends_at', label: '종료일', type: 'date', required: true }, { key: 'status', label: '상태', type: 'select', options: ['draft', 'active', 'closed', 'cancelled'], optionLabels: { active: '진행 중' } }, { key: 'rules', label: '이벤트 규칙 JSON', type: 'json' }],
   },
   tournaments: {
     title: '대회', description: '토너먼트와 팀 대항전을 구성합니다.', singular: '대회', defaults: { format: 'score_attack', status: 'draft', max_participants: 128, rules: {} },
-    fields: [{ key: 'name', label: '대회명', required: true }, { key: 'description', label: '설명', type: 'textarea' }, { key: 'game_id', label: '게임', lookup: 'games' }, { key: 'format', label: '방식', type: 'select', options: ['score_attack', 'time_attack', 'survival', 'bracket', 'team_battle'] }, { key: 'max_participants', label: '최대 참가자', type: 'number' }, { key: 'starts_at', label: '시작일', type: 'date', required: true }, { key: 'ends_at', label: '종료일', type: 'date', required: true }, { key: 'status', label: '상태', type: 'select', options: ['draft', 'active', 'closed', 'cancelled'] }, { key: 'rules', label: '대회 규칙 JSON', type: 'json' }],
+    fields: [{ key: 'name', label: '대회명', required: true }, { key: 'description', label: '설명', type: 'textarea' }, { key: 'game_id', label: '게임', lookup: 'games' }, { key: 'format', label: '방식', type: 'select', options: ['score_attack', 'time_attack', 'survival', 'bracket', 'team_battle'] }, { key: 'max_participants', label: '최대 참가자', type: 'number' }, { key: 'starts_at', label: '시작일', type: 'date', required: true }, { key: 'ends_at', label: '종료일', type: 'date', required: true }, { key: 'status', label: '상태', type: 'select', options: ['draft', 'active', 'closed', 'cancelled'], optionLabels: { active: '진행 중' } }, { key: 'rules', label: '대회 규칙 JSON', type: 'json' }],
   },
   achievements: {
     title: '업적', description: '게임별·포털 공통 업적 조건을 관리합니다.', singular: '업적', defaults: { xp: 0, active: true, criteria: {} },
@@ -136,6 +138,33 @@ function jsonFieldErrors(fields: Field[], form: Row): Record<string, string> {
 type LookupOptions = Record<'categories' | 'games', Array<{ value: string; label: string }>>;
 
 /**
+ * Korean for the values a select field offers.
+ *
+ * The console speaks Korean everywhere except the columns it took straight from
+ * the database, which handed operators the schema's own vocabulary: 상태 said
+ * `draft`, 유형 said `department_battle`, 점수 정렬 said `desc`. Keyed by the
+ * value, because a value that appears on several resources means the same thing
+ * on each; a field where it does not carries its own `optionLabels`.
+ */
+const OPTION_LABELS: Record<string, string> = {
+  draft: '초안', active: '활성', maintenance: '점검 중', disabled: '사용 중지',
+  closed: '종료', cancelled: '취소', published: '게시 중',
+  valid: '정상', flagged: '검토 필요', excluded: '집계 제외',
+  embedded: '내장 실행', iframe: 'iframe 삽입', external: '외부 링크',
+  desc: '높은 점수가 상위', asc: '낮은 점수가 상위',
+  user: '일반', manager: '매니저', operator: '운영자', admin: '관리자',
+  score_attack: '점수 경쟁', time_attack: '기록 경쟁', team_battle: '팀 대항',
+  department_battle: '부서 대항', attendance: '출석', survival: '생존', bracket: '토너먼트',
+  badge: '배지', title: '칭호', avatar_frame: '아바타 프레임',
+};
+
+/** The label for one option, falling back to the raw value so nothing vanishes. */
+function optionLabel(field: Field | undefined, value: unknown): string {
+  const key = String(value);
+  return field?.optionLabels?.[key] ?? OPTION_LABELS[key] ?? key;
+}
+
+/**
  * Renders one cell.
  *
  * The field it belongs to has to come in with it: without that, a lookup column
@@ -152,6 +181,7 @@ function display(value: unknown, field?: Field, lookups?: LookupOptions): React.
     // stale reference still needs to see what it points at.
     return match ? match.label : String(value);
   }
+  if (field?.type === 'select') return optionLabel(field, value);
   if (field?.type === 'tags' && Array.isArray(value)) {
     return value.length === 0 ? '—' : (
       <Stack direction="row" flexWrap="wrap" useFlexGap spacing={.5}>
@@ -278,11 +308,17 @@ export function AdminResourcePage({ resource }: { resource: string }) {
   return <Container maxWidth="xl" sx={{ py: { xs: 3, lg: 5 } }}>
     <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'end' }} gap={2}>
       <Box><Typography variant="h1" sx={{ fontSize: { xs: '2.1rem', lg: '3rem' } }}>{config.title}</Typography><Typography color="text.secondary" mt={1}>{config.description}</Typography>{paged && !result.loading && <Typography variant="body2" color="text.secondary" mt={.5} role="status">{query ? `검색 결과 ${total.toLocaleString('ko-KR')}건` : `전체 ${total.toLocaleString('ko-KR')}건`}</Typography>}</Box>
-      <Stack direction="row" spacing={1} alignItems="center">{searchable && <TextField value={search} onChange={(event) => setSearch(event.target.value)} placeholder={resource === 'audit' ? '수행자·작업·대상·IP 검색' : '아이디·이름·소속 검색'} aria-label={`${config.title} 검색`} size="small" sx={{ minWidth: { sm: 260 } }} slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchRounded fontSize="small" /></InputAdornment> } }} />}{exportable && <Button component="a" href={`/api/v1/admin/${resource}?format=csv${query ? `&q=${encodeURIComponent(query)}` : ''}`} startIcon={<FileDownloadRounded />} disabled={total === 0}>CSV 내보내기</Button>}<Button startIcon={<RefreshRounded />} onClick={() => void result.reload()}>새로고침</Button>{!config.readonly && !config.updateOnly && <Button variant="contained" startIcon={<AddRounded />} onClick={() => showForm()}>새 {config.singular}</Button>}</Stack>
+      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>{searchable && <TextField value={search} onChange={(event) => setSearch(event.target.value)} placeholder={resource === 'audit' ? '수행자·작업·대상·IP 검색' : '아이디·이름·소속 검색'} aria-label={`${config.title} 검색`} size="small" sx={{ width: { xs: '100%', sm: 260 } }} slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchRounded fontSize="small" /></InputAdornment> } }} />}{exportable && <Button component="a" href={`/api/v1/admin/${resource}?format=csv${query ? `&q=${encodeURIComponent(query)}` : ''}`} startIcon={<FileDownloadRounded />} disabled={total === 0}>CSV 내보내기</Button>}<Button startIcon={<RefreshRounded />} onClick={() => void result.reload()}>새로고침</Button>{!config.readonly && !config.updateOnly && <Button variant="contained" startIcon={<AddRounded />} onClick={() => showForm()}>새 {config.singular}</Button>}</Stack>
     </Stack>
     {exportable && <Alert severity="info" sx={{ mt: 3 }}>CSV 내보내기는 화면의 페이지가 아니라 현재 검색 조건에 해당하는 <strong>전체 기록</strong>을 내려받습니다.</Alert>}
     {result.loading && <LinearProgress sx={{ mt: 3 }} />}
-    <Box mt={3}>{result.error ? <ErrorPanel error={result.error} retry={() => void result.reload()} /> : <TableContainer component={Card}><Table aria-label={config.title}>
+    <Box mt={3}>{result.error ? <ErrorPanel error={result.error} retry={() => void result.reload()} /> : <TableContainer component={Card}><Table
+      aria-label={config.title}
+      // Without a floor the table shrinks to the viewport instead of scrolling
+      // inside its container, and on a phone the 설명 column collapsed to one
+      // character per line while the columns past it were cut off entirely.
+      sx={{ minWidth: 140 * (columns.length + actionColumns) }}
+    >
       <TableHead><TableRow>{columns.map((field) => <TableCell key={field.key}>{field.label}</TableCell>)}{!config.readonly && <TableCell align="right">관리</TableCell>}</TableRow></TableHead>
       <TableBody>{result.data?.items.map((row, index) => <TableRow key={String(row.id ?? row.code ?? index)}>{columns.map((field) => <TableCell key={field.key}>{display(row[field.key], field, lookupResult.data)}</TableCell>)}{!config.readonly && <TableCell align="right">
         {/* Naming the row keeps a screen reader from reading a column of identical "수정" buttons. */}
@@ -311,7 +347,7 @@ export function AdminResourcePage({ resource }: { resource: string }) {
               onChange={(event) => setForm({ ...form, [field.key]: field.type === 'number' && event.target.value !== '' ? Number(event.target.value) : event.target.value })}
               helperText={jsonErrors[field.key] ?? (field.type === 'tags' ? '쉼표로 구분' : field.type === 'json' ? '유효한 JSON 형식' : field.lookup && lookupResult.error ? '목록을 불러오지 못했습니다.' : undefined)}
               slotProps={field.type === 'date' ? { inputLabel: { shrink: true } } : undefined}
-            >{field.lookup && !field.required && <MenuItem value="">미지정</MenuItem>}{field.lookup ? lookupResult.data?.[field.lookup].map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>) : field.options?.map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}</TextField>)}</Stack></DialogContent>
+            >{field.lookup && !field.required && <MenuItem value="">미지정</MenuItem>}{field.lookup ? lookupResult.data?.[field.lookup].map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>) : field.options?.map((option) => <MenuItem key={option} value={option}>{optionLabel(field, option)}</MenuItem>)}</TextField>)}</Stack></DialogContent>
         <DialogActions>
           <Button onClick={() => setOpen(false)} disabled={busy}>취소</Button>
           <Button type="submit" variant="contained" disabled={busy || Object.keys(jsonErrors).length > 0} startIcon={busy ? <CircularProgress size={18} color="inherit" /> : undefined}>{busy ? '저장 중…' : '저장'}</Button>
@@ -334,4 +370,4 @@ export function AdminResourcePage({ resource }: { resource: string }) {
 }
 
 /** Exposed for unit tests; not part of the page's public surface. */
-export const __testing = { rowLabel, jsonFieldErrors, display };
+export const __testing = { rowLabel, jsonFieldErrors, display, optionLabel, configs };

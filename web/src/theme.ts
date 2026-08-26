@@ -127,7 +127,10 @@ export function createAppTheme(mode: ThemeMode) {
     shape: { borderRadius: 14 },
     components: {
       MuiCssBaseline: { styleOverrides: (currentTheme) => baseline(currentTheme) },
-      MuiButton: { styleOverrides: { root: { minHeight: 44, borderRadius: 10, paddingInline: 18 } } },
+      // whiteSpace: a button label is a single control, and the admin header
+      // was breaking "새로고침" across two lines to fit beside the search box.
+      // A toolbar that runs out of room wraps its buttons, not their words.
+      MuiButton: { styleOverrides: { root: { minHeight: 44, borderRadius: 10, paddingInline: 18, whiteSpace: 'nowrap' } } },
       MuiIconButton: { styleOverrides: { root: { minWidth: 44, minHeight: 44 } } },
       MuiTextField: { defaultProps: { fullWidth: true, size: 'medium' } },
       MuiCard: {
