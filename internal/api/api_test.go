@@ -22,3 +22,24 @@ func TestEveryResponseCarriesTheIdentifierTheLogUses(t *testing.T) {
 		t.Fatal("no X-Request-Id on the response; a reported failure cannot be found in the log")
 	}
 }
+
+// A refusal is the audit entry an auditor most wants to find, and there was
+// none: an identified account could probe user management, the audit log and
+// the OIDC configuration and leave no row and no log line.
+func TestAccessDeniedDetailSaysWhoTriedWhatAndWhatWasNeeded(t *testing.T) {
+	detail := accessDeniedDetail("PATCH", "/api/v1/admin/users/abc", "operator", "session", []string{"admin"})
+	for key, want := range map[string]any{
+		"method":    "PATCH",
+		"path":      "/api/v1/admin/users/abc",
+		"role":      "operator",
+		"auth_type": "session",
+	} {
+		if detail[key] != want {
+			t.Fatalf("detail[%q] is %v, want %v", key, detail[key], want)
+		}
+	}
+	roles, ok := detail["required_roles"].([]string)
+	if !ok || len(roles) != 1 || roles[0] != "admin" {
+		t.Fatalf("required_roles is %v, want [admin]", detail["required_roles"])
+	}
+}

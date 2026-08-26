@@ -422,11 +422,41 @@ func (s *Server) requireRole(roles ...string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			p, _ := principalFrom(r)
 			if !allowed[p.Role] || (p.AuthType == "api_key" && !p.Can("admin:*")) {
+				s.recordAccessDenied(r, roles)
 				writeError(w, 403, "forbidden", "insufficient role or API key scope")
 				return
 			}
 			next.ServeHTTP(w, r)
 		})
+	}
+}
+
+// recordAccessDenied writes down an attempt on something the caller may not
+// have.
+//
+// The audit log recorded what succeeded and nothing about what was refused, so
+// an identified account could probe every admin endpoint — user management, the
+// audit log itself, the OIDC configuration — and leave no row and no log line.
+// A refusal is the entry an auditor most wants to find.
+func (s *Server) recordAccessDenied(r *http.Request, required []string) {
+	p, _ := principalFrom(r)
+	detail := accessDeniedDetail(r.Method, r.URL.Path, p.Role, p.AuthType, required)
+	if s.Log != nil {
+		s.Log.Warn("access denied", "path", r.URL.Path, "method", r.Method,
+			"role", p.Role, "required", required, "request_id", middleware.GetReqID(r.Context()))
+	}
+	s.audit(r, "access.denied", "endpoint", r.URL.Path, detail)
+}
+
+// accessDeniedDetail is what the audit row says about a refusal: what was
+// attempted, by an account holding what, against what was needed.
+func accessDeniedDetail(method, path, role, authType string, required []string) map[string]any {
+	return map[string]any{
+		"method":         method,
+		"path":           path,
+		"role":           role,
+		"auth_type":      authType,
+		"required_roles": required,
 	}
 }
 
@@ -469,6 +499,7 @@ func (s *Server) enforceAPIKeyPermissions(next http.Handler) http.Handler {
 		case path == "/api/v1/realmguard/config" || path == "/api/v1/realmguard/version":
 			required = "games:read"
 		case strings.Contains(path, "/api-keys"):
+			s.recordAccessDenied(r, []string{"a session, not an API key"})
 			writeError(w, 403, "forbidden", "API keys cannot manage API keys")
 			return
 		case path == "/api/v1/ai/chat/completions":
@@ -499,6 +530,7 @@ func (s *Server) enforceAPIKeyPermissions(next http.Handler) http.Handler {
 			required = "api:access"
 		}
 		if !p.Can(required) {
+			s.recordAccessDenied(r, []string{required})
 			writeError(w, 403, "insufficient_scope", "API key requires "+required)
 			return
 		}
@@ -519,6 +551,12 @@ func (p Principal) Can(permission string) bool {
 }
 
 func (s *Server) audit(r *http.Request, action, resourceType, resourceID string, detail any) {
+	// A server without a database cannot record anything, and now that refusals
+	// are audited this is reached from middleware that runs before any handler
+	// has needed one.
+	if s.DB == nil {
+		return
+	}
 	p, _ := principalFrom(r)
 	body, _ := json.Marshal(detail)
 	if len(body) == 0 {
