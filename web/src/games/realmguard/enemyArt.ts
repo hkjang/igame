@@ -1,4 +1,3 @@
-import type Phaser from "phaser";
 import type { EnemyPresentation } from "./enemyPresentation";
 
 /**
@@ -6,12 +5,29 @@ import type { EnemyPresentation } from "./enemyPresentation";
  *
  * Kept out of the scene because it is the largest piece of pure drawing in the
  * product and touches no battle state: the kernel decides what an enemy does,
- * this decides only what it looks like. Everything is drawn once when the
- * sprite is created, in local space around (0, 0), scaled by the content's own
- * radius so a boss and a pest use the same code.
+ * this decides only what it looks like. Everything is drawn once, in local
+ * space around (0, 0), scaled by the content's own radius so a boss and a pest
+ * use the same code.
+ *
+ * The surface is described structurally rather than as a Phaser type, so the
+ * same creature can be painted onto a battlefield and into a roster card in the
+ * DOM without the art being written twice. Phaser's Graphics satisfies this
+ * shape as it stands.
  */
+export interface EnemyPainter {
+  fillStyle(colour: number, alpha?: number): EnemyPainter;
+  lineStyle(width: number, colour: number, alpha?: number): EnemyPainter;
+  fillCircle(x: number, y: number, radius: number): EnemyPainter;
+  fillEllipse(x: number, y: number, width: number, height: number): EnemyPainter;
+  fillTriangle(x1: number, y1: number, x2: number, y2: number, x3: number, y3: number): EnemyPainter;
+  fillRect(x: number, y: number, width: number, height: number): EnemyPainter;
+  fillRoundedRect(x: number, y: number, width: number, height: number, radius?: number): EnemyPainter;
+  lineBetween(x1: number, y1: number, x2: number, y2: number): EnemyPainter;
+  strokeCircle(x: number, y: number, radius: number): EnemyPainter;
+  strokeEllipse(x: number, y: number, width: number, height: number): EnemyPainter;
+}
 
-type Graphics = Phaser.GameObjects.Graphics;
+type Graphics = EnemyPainter;
 
 function hex(value: string): number {
   return Number.parseInt(value.replace("#", ""), 16);
