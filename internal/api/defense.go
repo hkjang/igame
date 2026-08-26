@@ -1256,6 +1256,21 @@ func defenseScore(stage defenseStageDefinition, balance defenseBalanceDefinition
 	return total, stars, map[string]any{"health_bonus": health, "resource_bonus": resource, "ai_resource_bonus": aiResourceBonus, "wave_bonus": waves, "clear_time_bonus": timeBonus, "difficulty_bonus": difficulty, "base_total": baseTotal, "difficulty_score_multiplier": scoreMultiplier, "total": total}
 }
 
+// defenseResourceStateForStorage keeps a nil loadout of resource metrics out of
+// the database.
+//
+// Only the AI game has resource metrics, so the other two omit the field and it
+// decodes to a nil map, which reaches Postgres as an explicit NULL. The column
+// is `jsonb NOT NULL DEFAULT '{}'`, and a default fills a column left out of an
+// INSERT — not one handed a NULL — so every Cyber Fortress and Office Guardians
+// battle ended in a 500 on submit.
+func defenseResourceStateForStorage(state map[string]defenseResourceMetric) map[string]defenseResourceMetric {
+	if state == nil {
+		return map[string]defenseResourceMetric{}
+	}
+	return state
+}
+
 func defenseLearningBreakdown(ctx context.Context, tx pgx.Tx, sessionID uuid.UUID) (int, map[string]any, []map[string]any, error) {
 	rows, err := tx.Query(ctx, `SELECT event_id,question_id,answer_id,topic,correct,score FROM defense_event_answers WHERE session_id=$1 ORDER BY answered_at,event_id`, sessionID)
 	if err != nil {
@@ -1412,15 +1427,9 @@ func (s *Server) submitDefenseResult(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "resource_state_required", "AI results require start, spent, and remaining resource_state metrics")
 		return
 	}
-	// Only the AI game has resource metrics, so the other two omit the field
-	// entirely and it decodes to a nil map. The column is `jsonb NOT NULL
-	// DEFAULT '{}'`, but a default applies to a column left out of an INSERT,
-	// not to one handed an explicit NULL — so every Cyber Fortress and Office
-	// Guardians battle ended in a 500 on submit. Normalised before the request
-	// hash so an omitted field and an empty object are the same request.
-	if in.ResourceState == nil {
-		in.ResourceState = map[string]defenseResourceMetric{}
-	}
+	// Normalised before the request hash so that omitting the field and sending
+	// an empty object are the same request.
+	in.ResourceState = defenseResourceStateForStorage(in.ResourceState)
 	requestHash := defenseResultRequestChecksum(in)
 	tokenHash := sha256.Sum256([]byte(in.SessionToken))
 	tx, err := s.DB.Begin(r.Context())

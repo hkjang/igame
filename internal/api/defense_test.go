@@ -855,3 +855,36 @@ func TestDefenseDraftPUTChecksumMatchesPersistedJSONB(t *testing.T) {
 		t.Fatalf("second PUT checksum %q differs from immediate load checksum %q", second.Version.Checksum, loaded.Checksum)
 	}
 }
+
+// A game without resource metrics omits the field entirely, and a nil map is
+// written to a NOT NULL jsonb column as SQL NULL rather than as the column's
+// default. Two of the three Defense games shipped like that and returned 500 on
+// every submitted battle.
+func TestDefenseResultOmittingResourceStateIsStoredAsAnEmptyObject(t *testing.T) {
+	var in defenseResultInput
+	if err := json.Unmarshal([]byte(`{"stage_id":"stage-1","difficulty":"normal"}`), &in); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if in.ResourceState != nil {
+		t.Fatal("a payload without resource_state should decode to a nil map; the guard below is what fixes it")
+	}
+	stored := defenseResourceStateForStorage(in.ResourceState)
+	if stored == nil {
+		t.Fatal("a nil map reaches Postgres as NULL and violates the NOT NULL column")
+	}
+	encoded, err := json.Marshal(stored)
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	if string(encoded) != "{}" {
+		t.Fatalf("stored resource_state is %s, want {}", encoded)
+	}
+}
+
+func TestDefenseResourceStateForStorageKeepsWhatTheAIGameSends(t *testing.T) {
+	sent := map[string]defenseResourceMetric{"compute": {Start: 1000, Spent: 40, Remaining: 960}}
+	stored := defenseResourceStateForStorage(sent)
+	if len(stored) != 1 || stored["compute"].Remaining != 960 {
+		t.Fatalf("the AI game's metrics did not survive normalisation: %+v", stored)
+	}
+}
