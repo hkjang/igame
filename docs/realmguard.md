@@ -19,6 +19,17 @@ RealmGuard는 igame `v0.2.0`에 포함된 데이터 기반 tower defense 게임�
 
 마이그레이션은 게시본이 **손대지 않은 정본 시드일 때만** 적용됩니다. Designer로 직접 게시한 팩이 있는 설치에서는 그 콘텐츠를 그대로 두고 아무것도 바꾸지 않습니다.
 
+## 전장에서 읽히는 것
+
+`v0.7.0`부터 적과 타워는 자기 행동에서 파생된 외형을 갖습니다. 이전에는 12종 전부가 색만 다른 원이었고, 상대법을 결정하는 특성(방어·비행·위상·분열·공성)이 정작 결정을 내리는 전장에서 보이지 않았습니다.
+
+- 정본 12종은 각자의 실루엣을 가지며, 이 client가 처음 보는 원격 설정 적은 **하는 일**에서 모양을 받습니다. 비행이면 가오리, 공성이면 공성 야수, 치유면 로브를 걸친 점술사입니다.
+- 특성 표식은 실루엣이 이미 말하지 않을 때만 그립니다. 보스는 이름표가 놓이는 금색 링만 답니다.
+- 타워는 3레벨에서 고른 분기를 표식으로 보여줍니다. 표식은 분기 이름이 아니라 분기가 실제로 움직이는 수치에서 정해지므로 운영자가 만든 분기도 읽히며, 규칙이 저지 타워로 취급하는 것은 이름과 무관하게 병영으로 그립니다. 레벨은 링 위의 pip입니다.
+- stage 선택 화면의 로스터는 해당 stage의 wave 표에서 읽은 개체와 그 특성에 대한 대처를 함께 보여줍니다.
+
+이 외형은 모두 서비스 공통 renderer이며 콘텐츠의 id와 특성에서 파생됩니다. 새 콘텐츠 version이나 `asset_version` 변경을 요구하지 않고, 전투 규칙에도 닿지 않습니다. kernel이 적의 반지름과 위치만 넘겨주므로 화면이 그리는 것은 결과를 바꿀 수 없습니다.
+
 ## 독자 IP와 자산 경계
 
 RealmGuard의 stage명, enemy, tower, hero, skill, 수치 데이터와 코드 생성 그래픽은 이 프로젝트를 위해 작성한 독자 콘텐츠입니다. Kingdom Rush를 포함한 제3자 게임의 코드, 서사, 캐릭터, map, sprite, 음원 또는 UI 자산을 복제하거나 포함하지 않습니다. 공식 lore를 별도로 가정하지 않으며 화면과 콘텐츠 데이터에 실제 존재하는 명칭만 운영 문서의 기준으로 삼습니다.
@@ -155,7 +166,7 @@ Balance 조정은 신규 session부터 적용하고 진행 중인 session은 시
 
 ## Backup과 복구
 
-RealmGuard의 `realmguard_content_versions`, `realmguard_user_progress`, `realmguard_user_heroes`, `realmguard_user_skills`, `realmguard_user_loadouts`, `realmguard_results`와 연결된 `game_sessions`, `scores`, achievement/audit 및 `game_telemetry` 원장을 하나의 PostgreSQL 백업 시점으로 보존합니다. Result의 `verification_method`, `attestation`, 재현에 사용한 `ledger`, 서버 생성 암호화 proof와 telemetry의 `client_event_id`/`sequence_no`도 복구 검증 대상입니다. 별도 active-pointer table은 없고 단 하나의 `realmguard_content_versions.status='published'` row가 active version입니다. 코드 생성 graphic과 Phaser bundle은 실제 배포한 igame 서비스 이미지(현재 `igame:v0.6.1`)에 있으므로 그 이미지 archive와 checksum을 DB 복구 세트에 함께 보관합니다. RealmGuard 콘텐츠 버전 `0.3.1`과 서비스 이미지 버전을 혼동하지 않습니다. 운영자가 별도 upload 자산을 도입한 경우에만 `/app/data` snapshot도 같은 복구 시점으로 맞춥니다.
+RealmGuard의 `realmguard_content_versions`, `realmguard_user_progress`, `realmguard_user_heroes`, `realmguard_user_skills`, `realmguard_user_loadouts`, `realmguard_results`와 연결된 `game_sessions`, `scores`, achievement/audit 및 `game_telemetry` 원장을 하나의 PostgreSQL 백업 시점으로 보존합니다. Result의 `verification_method`, `attestation`, 재현에 사용한 `ledger`, 서버 생성 암호화 proof와 telemetry의 `client_event_id`/`sequence_no`도 복구 검증 대상입니다. 별도 active-pointer table은 없고 단 하나의 `realmguard_content_versions.status='published'` row가 active version입니다. 코드 생성 graphic과 Phaser bundle은 실제 배포한 igame 서비스 이미지(현재 `igame:v0.7.0`)에 있으므로 그 이미지 archive와 checksum을 DB 복구 세트에 함께 보관합니다. RealmGuard 콘텐츠 버전 `0.3.1`과 서비스 이미지 버전을 혼동하지 않습니다. 운영자가 별도 upload 자산을 도입한 경우에만 `/app/data` snapshot도 같은 복구 시점으로 맞춥니다.
 
 복구 훈련에서는 공통 [백업과 복구](backup-restore.md) 절차에 더해 다음을 확인합니다.
 

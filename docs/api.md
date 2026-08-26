@@ -135,7 +135,7 @@ POST /api/v1/games/cyber-fortress/sessions HTTP/1.1
 Authorization: Bearer igk_...
 Content-Type: application/json
 
-{"metadata":{"client":"gamehub-js","client_version":"0.6.1","defense_content_version_id":"9ea33ec1-39a7-4e65-ad57-ae11a6b2790f"}}
+{"metadata":{"client":"gamehub-js","client_version":"0.7.0","defense_content_version_id":"9ea33ec1-39a7-4e65-ad57-ae11a6b2790f"}}
 ```
 
 pin이 없으면 `428 defense_version_required`, UUID가 현재 slug의 published snapshot이 아니면 `409 defense_config_stale`입니다. 성공 응답의 `session.defense_content_version_id`는 요청 UUID와 정확히 같아야 합니다. 게시 race가 발생한 client는 config를 다시 읽고 새 session을 생성합니다. 이전 UUID를 새 session에 묵시적으로 대입하지 않습니다.
@@ -167,7 +167,7 @@ POST /api/v1/games/realmguard/sessions HTTP/1.1
 Authorization: Bearer igk_...
 Content-Type: application/json
 
-{"metadata":{"client":"gamehub-js","client_version":"0.6.1","realmguard_version_id":"9ea33ec1-39a7-4e65-ad57-ae11a6b2790f"}}
+{"metadata":{"client":"gamehub-js","client_version":"0.7.0","realmguard_version_id":"9ea33ec1-39a7-4e65-ad57-ae11a6b2790f"}}
 ```
 
 성공 응답의 `session.realmguard_version_id`는 요청한 UUID와 같습니다. `GET /api/v1/realmguard/config`는 stage의 전체 path, tower spot, wave와 gimmick을 포함한 실행 설정을 반환합니다. `GET /api/v1/realmguard/version`은 게시 version의 `content_version`, `stage_version`, `balance_version`, `asset_version`과 checksum을 반환합니다. 전투 결과의 `stage_version`에는 이 전역 stage-content version이 아니라 선택한 stage 객체의 `version`을 제출합니다. 응답은 둘을 각각 `stage_version`, `stage_content_version`으로 구분합니다.
