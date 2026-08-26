@@ -7,8 +7,8 @@ import type { EnemyArchetype, RealmStage } from './types';
 
 /** What a trait means for the player, and what to do about it. */
 const TRAIT_COPY: Record<string, { label: string; hint: string }> = {
-  armored: { label: '방어', hint: '물리 피해를 크게 줄입니다. 비전이나 공성으로 상대하세요.' },
-  flying: { label: '비행', hint: '지상 저지를 지나칩니다. 하늘을 잡는 타워가 필요합니다.' },
+  armored: { label: '방어', hint: '물리 피해를 크게 줄입니다. 다른 피해 유형으로 상대하세요.' },
+  flying: { label: '비행', hint: '지상 저지를 지나칩니다. 공중을 잡을 수 있는 배치가 필요합니다.' },
   swift: { label: '신속', hint: '이동이 빠릅니다. 둔화나 길목 저지가 유효합니다.' },
   regenerating: { label: '재생', hint: '스스로 체력을 회복합니다. 지속 화력으로 끊어내세요.' },
   healer: { label: '치유', hint: '주변 아군을 회복시킵니다. 먼저 처치하세요.' },
@@ -33,10 +33,13 @@ export function StageRoster({
   stage,
   enemies,
   game = 'realmguard',
+  noun = '적',
 }: {
   stage: RealmStage;
   enemies: EnemyArchetype[];
   game?: HeroPresentationGame;
+  /** What this game calls the things it sends: 적, 사이버 위협, 업무 위협. */
+  noun?: string;
 }) {
   const byId = new Map(enemies.map((enemy) => [enemy.id, enemy]));
   const seen = new Set<string>();
@@ -53,7 +56,7 @@ export function StageRoster({
 
   return (
     <Box mt={3}>
-      <Typography variant="h3" mb={.5}>이 전장의 적</Typography>
+      <Typography variant="h3" mb={.5}>이 전장의 {noun}</Typography>
       <Typography color="text.secondary" mb={1.5}>
         {stage.name}의 파동에 등장하는 개체입니다. 전장에서도 같은 모습과 표식으로 나타납니다.
       </Typography>
@@ -77,7 +80,9 @@ export function StageRoster({
             >
               <EnemyPortrait presentation={presentation} size={64} label={`${enemy.name} 외형`} />
               <Box sx={{ minWidth: 0 }}>
-                <Typography fontWeight={800} noWrap>{enemy.name}</Typography>
+                {/* Wrapping rather than truncating: "Credential Stuffing" cut
+                    to "Credential Stu…" stops naming the thing it names. */}
+                <Typography fontWeight={800} sx={{ lineHeight: 1.25 }}>{enemy.name}</Typography>
                 <Typography variant="body2" color="text.secondary">
                   체력 {enemy.hp.toLocaleString('ko-KR')} · 생명 피해 {enemy.lifeDamage}
                 </Typography>

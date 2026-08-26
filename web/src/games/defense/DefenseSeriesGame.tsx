@@ -41,6 +41,7 @@ import type {
   RealmSceneController,
 } from "../realmguard/types";
 import { HeroSelectCard } from "../realmguard/HeroSelectCard";
+import { StageRoster } from "../realmguard/StageRoster";
 import { DEFENSE_PACKS, isDefenseSlug } from "./content";
 import {
   defenseAPI,
@@ -1248,6 +1249,14 @@ export function DefenseSeriesGame({
                   );
                 })}
               </Grid>
+              {stage && (
+                <StageRoster
+                  stage={stage}
+                  enemies={pack.config.enemies}
+                  game={slug}
+                  noun={pack.presentation.enemyName}
+                />
+              )}
               {!practice && !preview && <DefenseLeaderboard slug={slug} />}
             </Grid>
             <Grid size={{ xs: 12, lg: 4 }}>
