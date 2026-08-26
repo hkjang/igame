@@ -52,7 +52,12 @@ export function PortalLayout() {
           white text on the light ground and near-black on the dark one, which
           left the wordmark invisible in both themes. */}
       <AppBar position="sticky" elevation={0} color="transparent" sx={(theme) => ({ color: 'text.primary', borderBottom: 1, borderColor: 'divider', bgcolor: alpha(theme.palette.surface.ground, .9), backdropFilter: 'blur(16px)' })}>
-        <Container maxWidth="xl"><Toolbar disableGutters sx={{ minHeight: 72, gap: 2 }}>
+        {/* flexWrap: a breakpoint only knows the width of the window. A reader who
+            has raised their browser's default font gets the same 1280px window
+            with a header that no longer fits it, and the account controls hung
+            39px off the right edge. Wrapping answers both: the nav drops to its
+            own row and nothing leaves the page. */}
+        <Container maxWidth="xl"><Toolbar disableGutters sx={{ minHeight: 72, gap: 2, flexWrap: 'wrap', rowGap: 1, py: { xs: 0, } }}>
           <Stack component={RouterLink} to="/" direction="row" alignItems="center" spacing={1.25} aria-label="igame 홈" sx={{ textDecoration: 'none', color: 'inherit', '&:hover .brand-mark': { transform: 'rotate(-6deg) scale(1.04)' } }}>
             <Box className="brand-mark" sx={(theme) => ({ width: 38, height: 38, borderRadius: 2.5, display: 'grid', placeItems: 'center', color: 'primary.contrastText', background: `linear-gradient(140deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`, boxShadow: `0 6px 18px ${alpha(theme.palette.primary.main, .35)}`, transition: 'transform .2s' })}><SportsEsportsRounded /></Box>
             <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: '-.04em', color: 'text.primary' }}>{config.display_name ?? 'igame'}</Typography>

@@ -2,7 +2,6 @@ export const FONT_SCALE_MIN = 100;
 export const FONT_SCALE_MAX = 125;
 export const FONT_SCALE_STEP = 5;
 
-const BASE_FONT_PX = 16;
 const FONT_SCALE_KEY = 'igame-font-scale';
 const MOTION_KEY = 'igame-motion';
 const THEME_KEY = 'igame-theme';
@@ -61,7 +60,11 @@ export function loadPreferences(): Preferences {
 
 /** Applies preferences to the document. Safe to call before React mounts. */
 export function applyPreferences({ fontScale, motion, theme }: Preferences): void {
-  document.documentElement.style.fontSize = `${BASE_FONT_PX * clampFontScale(fontScale) / 100}px`;
+  // A percentage, not a pixel size: an absolute value overrode whatever the
+  // reader had set as their browser's default font, so someone who had raised
+  // it for legibility opened the portal and got 16px anyway. This scale
+  // multiplies their setting instead of replacing it, and 100 leaves it alone.
+  document.documentElement.style.fontSize = `${clampFontScale(fontScale)}%`;
   document.documentElement.dataset.motion = motion ? 'on' : 'off';
   // Setting the scheme before React mounts keeps the browser from painting
   // scrollbars and form controls in the wrong mode for a frame.

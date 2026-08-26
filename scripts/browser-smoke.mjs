@@ -720,6 +720,28 @@ try {
       }
     }
   }
+  await page.setViewportSize({ width: 1280, height: 900 });
+
+  // The same check for a reader who has doubled their browser's default font
+  // rather than narrowed their window. A breakpoint cannot see that, so the
+  // portal header kept its full-width layout and put the account controls 39px
+  // off the right edge. The app used to pin the root to 16px and hide the whole
+  // question; it follows the reader's setting now, which is what makes this
+  // worth checking.
+  const cdp = await context.newCDPSession(page);
+  await cdp.send('Page.setFontSizes', { fontSizes: { standard: 32, fixed: 32 } });
+  for (const route of accessibilityRoutes) {
+    await page.goto(`${baseURL}${route}`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(400);
+    const overflow = await page.evaluate(() => ({ document: document.documentElement.scrollWidth, window: window.innerWidth, root: getComputedStyle(document.documentElement).fontSize }));
+    if (overflow.root !== '32px') {
+      layoutFailures.push(`${route} pinned its root font to ${overflow.root} instead of following the reader's 32px`);
+    }
+    if (overflow.document > overflow.window + 1) {
+      layoutFailures.push(`${route} at 32px text is ${overflow.document}px wide in a ${overflow.window}px window`);
+    }
+  }
+  await cdp.send('Page.setFontSizes', { fontSizes: { standard: 16, fixed: 16 } });
   await page.setViewportSize({ width: 1440, height: 900 });
   if (layoutFailures.length > 0) throw new Error(`Horizontal overflow:\n${layoutFailures.join('\n')}`);
 
@@ -749,7 +771,7 @@ try {
   ];
   if (failures.length > 0) throw new Error(`Browser diagnostics failed:\n${failures.join('\n')}`);
 
-  console.log(`Browser smoke passed: login, RealmGuard, three Defense games, education choices, both content studios, preview, refresh, ${keyboardRoutes.length} routes with a visible focus ring on every keyboard stop, ${accessibilityRoutes.length} routes with no horizontal overflow at ${layoutWidths.join('/')}px, ${accessibilityRoutes.length} routes with no serious accessibility violation, and zero external HTTP requests (${baseURL})`);
+  console.log(`Browser smoke passed: login, RealmGuard, three Defense games, education choices, both content studios, preview, refresh, ${keyboardRoutes.length} routes with a visible focus ring on every keyboard stop, ${accessibilityRoutes.length} routes with no horizontal overflow at ${layoutWidths.join('/')}px or at twice the reader's font size, ${accessibilityRoutes.length} routes with no serious accessibility violation, and zero external HTTP requests (${baseURL})`);
   await context.close();
 } finally {
   await browser.close();

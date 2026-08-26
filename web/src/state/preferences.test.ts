@@ -39,12 +39,24 @@ describe('preferences', () => {
   });
 
   it('applies the scale and motion flag to the document', () => {
+    // A percentage rather than a pixel size: the scale multiplies whatever the
+    // reader has set as their browser's default font instead of replacing it,
+    // and 100 leaves that setting exactly as they left it.
     applyPreferences({ fontScale: 125, motion: false, theme: 'dark' });
-    expect(document.documentElement.style.fontSize).toBe('20px');
+    expect(document.documentElement.style.fontSize).toBe('125%');
     expect(document.documentElement.dataset.motion).toBe('off');
     applyPreferences({ fontScale: 100, motion: true, theme: 'dark' });
-    expect(document.documentElement.style.fontSize).toBe('16px');
+    expect(document.documentElement.style.fontSize).toBe('100%');
     expect(document.documentElement.dataset.motion).toBe('on');
+  });
+
+  it('never pins the root to an absolute size', () => {
+    // An absolute value overrode the reader's own default, so someone who had
+    // raised it for legibility opened the portal and got 16px anyway.
+    for (const fontScale of [100, 110, 125, 400, Number.NaN]) {
+      applyPreferences({ fontScale, motion: true, theme: 'light' });
+      expect(document.documentElement.style.fontSize).toMatch(/^\d+%$/);
+    }
   });
 });
 

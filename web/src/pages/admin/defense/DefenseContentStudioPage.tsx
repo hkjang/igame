@@ -620,7 +620,12 @@ export function DefenseContentStudioPage() {
           useFlexGap
           flexWrap="wrap"
           justifyContent={{ lg: "flex-end" }}
-          sx={{ flexShrink: 0 }}
+          // No flexShrink: 0 here. It stopped the title squeezing the controls,
+          // but it also let them take their max-content width and never wrap,
+          // so at twice the reader's font size this row was 1753px wide in a
+          // 1280px window. flexWrap already keeps the button whole; the row can
+          // shrink and wrap inside itself instead of growing the page.
+          sx={{ minWidth: 0 }}
         >
           <TextField
             data-testid="defense-game-select"
