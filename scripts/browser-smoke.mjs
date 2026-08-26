@@ -51,6 +51,51 @@ const accessibilityRoutes = [
  */
 const layoutWidths = [1280, 900, 768];
 
+let PNG;
+try {
+  ({ PNG } = requireFromWorkingDirectory('pngjs'));
+} catch (error) {
+  console.error('pngjs is not installed in the working directory. Install pngjs@7.0.0, then retry.');
+  throw error;
+}
+
+const relativeLuminance = ([red, green, blue]) => {
+  const channel = (value) => {
+    const scaled = value / 255;
+    return scaled <= 0.03928 ? scaled / 12.92 : ((scaled + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(red) + 0.7152 * channel(green) + 0.0722 * channel(blue);
+};
+
+const contrastRatio = (first, second) => {
+  const [lighter, darker] = first > second ? [first, second] : [second, first];
+  return (lighter + 0.05) / (darker + 0.05);
+};
+
+/**
+ * The most common rendered colour behind some text, ignoring the text itself.
+ *
+ * axe gives up on contrast whenever the ground is a gradient, an image or
+ * something overlapping, and reports those as incomplete rather than as
+ * failures — so a real failure over the home page's hero gradient went
+ * unreported. The foreground is never in doubt; it is the computed colour. Only
+ * the ground has to be read off the pixels.
+ */
+function renderedBackground(buffer, ink) {
+  const image = PNG.sync.read(buffer);
+  const counts = new Map();
+  for (let index = 0; index < image.data.length; index += 4) {
+    const pixel = [image.data[index], image.data[index + 1], image.data[index + 2]];
+    const distance = Math.abs(pixel[0] - ink[0]) + Math.abs(pixel[1] - ink[1]) + Math.abs(pixel[2] - ink[2]);
+    if (distance < 60) continue;
+    const key = pixel.join(',');
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  if (counts.size === 0) return null;
+  const [key] = [...counts.entries()].sort((left, right) => right[1] - left[1])[0];
+  return key.split(',').map(Number);
+}
+
 /**
  * Routes the keyboard sweep tabs through.
  *
@@ -758,6 +803,38 @@ try {
       const where = violation.nodes.slice(0, 3).map((node) => node.target.join(' ')).join(' | ');
       accessibilityFailures.push(`${route} [${violation.impact}] ${violation.id}: ${violation.help} — ${where}`);
     }
+    // Then settle what axe could not: measure the contrast of the text it left
+    // undecided against the pixels actually drawn behind it.
+    const undecided = report.incomplete.filter((item) => item.id === 'color-contrast').flatMap((item) => item.nodes.map((node) => node.target[0]));
+    for (const selector of undecided.slice(0, 20)) {
+      if (typeof selector !== 'string') continue;
+      const box = await page.evaluate((target) => {
+        const element = document.querySelector(target);
+        if (!element) return null;
+        const text = [...element.childNodes].filter((node) => node.nodeType === 3).map((node) => node.textContent.trim()).join('').trim();
+        if (text.length < 2) return null;
+        // A game's name drawn inside its own artwork is a logotype, and every
+        // card states the same name again as text beneath it.
+        if (element.closest('canvas, .game-art, .game-art-frame, [data-testid$="-shell"]')) return null;
+        const rect = element.getBoundingClientRect();
+        if (rect.width < 8 || rect.height < 8 || rect.top < 0 || rect.bottom > window.innerHeight || rect.left < 0 || rect.right > window.innerWidth) return null;
+        const style = getComputedStyle(element);
+        const ink = (style.color.match(/[\d.]+/g) || []).map(Number);
+        if (ink.length >= 4 && ink[3] < 0.9) return null;
+        return { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height),
+          text: text.slice(0, 24), size: parseFloat(style.fontSize), weight: Number(style.fontWeight), ink: ink.slice(0, 3) };
+      }, selector).catch(() => null);
+      if (!box) continue;
+      const shot = await page.screenshot({ clip: { x: box.x, y: box.y, width: box.width, height: box.height } });
+      const ground = renderedBackground(shot, box.ink);
+      if (!ground) continue;
+      const measured = contrastRatio(relativeLuminance(box.ink), relativeLuminance(ground));
+      const large = box.size >= 24 || (box.size >= 18.66 && box.weight >= 700);
+      const required = large ? 3 : 4.5;
+      if (measured < required) {
+        accessibilityFailures.push(`${route} [serious] color-contrast: "${box.text}" is ${measured.toFixed(2)}:1 against the pixels behind it, needs ${required}:1`);
+      }
+    }
   }
   if (accessibilityFailures.length > 0) throw new Error(`Accessibility violations:\n${accessibilityFailures.join('\n')}`);
 
@@ -771,7 +848,7 @@ try {
   ];
   if (failures.length > 0) throw new Error(`Browser diagnostics failed:\n${failures.join('\n')}`);
 
-  console.log(`Browser smoke passed: login, RealmGuard, three Defense games, education choices, both content studios, preview, refresh, ${keyboardRoutes.length} routes with a visible focus ring on every keyboard stop, ${accessibilityRoutes.length} routes with no horizontal overflow at ${layoutWidths.join('/')}px or at twice the reader's font size, ${accessibilityRoutes.length} routes with no serious accessibility violation, and zero external HTTP requests (${baseURL})`);
+  console.log(`Browser smoke passed: login, RealmGuard, three Defense games, education choices, both content studios, preview, refresh, ${keyboardRoutes.length} routes with a visible focus ring on every keyboard stop, ${accessibilityRoutes.length} routes with no horizontal overflow at ${layoutWidths.join('/')}px or at twice the reader's font size, ${accessibilityRoutes.length} routes with no serious accessibility violation and none of axe's undecided text below its contrast threshold, and zero external HTTP requests (${baseURL})`);
   await context.close();
 } finally {
   await browser.close();

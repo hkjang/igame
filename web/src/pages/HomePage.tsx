@@ -57,7 +57,10 @@ export function HomePage() {
       }}>
         <Container maxWidth="xl" sx={{ py: { xs: 6, md: 9 } }}>
           <Grid container spacing={4} alignItems="center"><Grid size={{ xs: 12, md: 8 }}>
-            <Chip icon={<WhatshotRounded />} label="오늘의 플레이" color="primary" variant="outlined" />
+            {/* A solid ground rather than the hero gradient showing through: the
+                label is primary.main, and against the lightest part of that
+                gradient it measured 4.22:1 where small text needs 4.5. */}
+            <Chip icon={<WhatshotRounded />} label="오늘의 플레이" color="primary" variant="outlined" sx={{ bgcolor: 'background.paper' }} />
             <Typography variant="h1" mt={2}>안녕하세요, {user?.display_name || user?.username}님.<br />오늘은 어떤 게임을 해볼까요?</Typography>
             <Typography color="text.secondary" mt={2} sx={{ maxWidth: 740, fontSize: '1.08rem' }}>짧은 휴식에 집중력을 리셋하고, 동료들과 건강한 기록 경쟁을 즐겨 보세요.</Typography>
             <Stack direction="row" spacing={1.5} mt={4}><Button component={RouterLink} to="/games" variant="contained" size="large" startIcon={<PlayCircleRounded />}>게임 찾기</Button><Button component={RouterLink} to="/rankings" variant="outlined" size="large" startIcon={<EmojiEventsRounded />}>이번 주 랭킹</Button></Stack>

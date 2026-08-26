@@ -52,7 +52,7 @@ gzip -dc dist/igame-v$(cat VERSION).tar.gz | docker load
 docker image inspect "igame:v$(cat VERSION)"
 ```
 
-Release workflow는 clean-load한 후보 이미지의 API smoke 직후, 앱 컨테이너를 정리하기 전에 Playwright `v1.55.0-noble` 컨테이너로 브라우저 gate를 자동 실행합니다. npm package도 `playwright@1.55.0`으로 정확히 고정하며 설치 또는 browser smoke가 실패하면 Release 게시를 중단합니다. Playwright는 제품 이미지나 repository dependency에 들어가지 않습니다. 아래 명령은 같은 gate를 QA host에서 수동 재현하는 방법입니다. 서비스 페이지가 로그인부터 RealmGuard와 Defense Series 세 게임 canvas, 교육 선택, 각 Designer/Studio와 연습 preview의 deep refresh까지 외부 HTTP 요청·console/page/request 오류 없이 동작하는지 검사합니다. 편집 화면은 앞선 API smoke가 남긴 editable draft를 반드시 열어 유효한 JSON과 활성화된 저장 버튼을 확인하며, invalid JSON 또는 빈 데이터 상태가 렌더링되면 실패합니다. 마지막으로 포털·관리자 20개 route에 axe-core 접근성 검사를 실행해 serious·critical 위반이 하나라도 있으면 실패합니다.
+Release workflow는 clean-load한 후보 이미지의 API smoke 직후, 앱 컨테이너를 정리하기 전에 Playwright `v1.55.0-noble` 컨테이너로 브라우저 gate를 자동 실행합니다. npm package도 `playwright@1.55.0`으로 정확히 고정하며 설치 또는 browser smoke가 실패하면 Release 게시를 중단합니다. Playwright는 제품 이미지나 repository dependency에 들어가지 않습니다. 아래 명령은 같은 gate를 QA host에서 수동 재현하는 방법입니다. 서비스 페이지가 로그인부터 RealmGuard와 Defense Series 세 게임 canvas, 교육 선택, 각 Designer/Studio와 연습 preview의 deep refresh까지 외부 HTTP 요청·console/page/request 오류 없이 동작하는지 검사합니다. 편집 화면은 앞선 API smoke가 남긴 editable draft를 반드시 열어 유효한 JSON과 활성화된 저장 버튼을 확인하며, invalid JSON 또는 빈 데이터 상태가 렌더링되면 실패합니다. 마지막으로 포털·관리자 20개 route에 axe-core 접근성 검사를 실행해 serious·critical 위반이 하나라도 있으면 실패하며, axe가 그라디언트·겹침 때문에 판단을 보류한 텍스트는 실제 렌더된 픽셀에서 대비를 측정해 기준 미달이면 실패합니다. 같은 20개 route를 1280·900·768px과 독자 기본 글꼴 2배에서 다시 훑어 가로 넘침을 검사하고, 4개 route는 키보드 Tab으로 모든 정지 지점에 포커스 표시가 보이는지 확인합니다.
 
 ```bash
 export IGAME_BASE_URL='http://127.0.0.1:8080'
@@ -68,7 +68,7 @@ docker run --rm --network host \
   -v /tmp/igame-v03-screenshots:/screenshots \
   -v "$PWD:/work:ro" -w /tmp \
   mcr.microsoft.com/playwright:v1.55.0-noble \
-  bash -lc 'mkdir -p browser-smoke && cd browser-smoke && npm init -y >/dev/null && npm install --silent --no-save playwright@1.55.0 @axe-core/playwright@4.13.0 && node /work/scripts/browser-smoke.mjs'
+  bash -lc 'mkdir -p browser-smoke && cd browser-smoke && npm init -y >/dev/null && npm install --silent --no-save playwright@1.55.0 @axe-core/playwright@4.13.0 pngjs@7.0.0 && node /work/scripts/browser-smoke.mjs'
 unset IGAME_PASSWORD
 ```
 
