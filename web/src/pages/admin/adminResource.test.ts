@@ -192,3 +192,31 @@ describe('buildPayload', () => {
     expect(payload.starts_at).toBe(new Date('2026-09-01T09:00').toISOString());
   });
 });
+
+describe('display of a moment in time', () => {
+  const { display } = __testing;
+  const scheduled = { key: 'starts_at', label: '시작일', type: 'date' as const };
+  const recorded = { key: 'created_at', label: '시각' };
+
+  // display returns an element for a timestamp so it can hold itself on one
+  // line; the text is what these assert on.
+  const textOf = (value: unknown, field?: Parameters<typeof display>[1]) => {
+    const rendered = display(value, field) as { props?: { children?: unknown } };
+    return String(rendered?.props?.children ?? rendered);
+  };
+
+  it('drops the seconds a scheduled field can never carry', () => {
+    // The input that sets it holds whole minutes, so :00 is all it can say.
+    expect(textOf('2026-09-01T09:00:00+09:00', scheduled)).not.toMatch(/9:00:00/);
+    expect(textOf('2026-09-01T09:00:00+09:00', scheduled)).toMatch(/9:00/);
+  });
+
+  it('keeps the seconds where the second is the point', () => {
+    // The audit log answers "when exactly did this happen".
+    expect(textOf('2026-08-27T06:03:38.512+09:00', recorded)).toMatch(/:38/);
+  });
+
+  it('shows an unparseable value rather than Invalid Date', () => {
+    expect(display('2026-13-45T99:99:99Z', recorded)).toBe('2026-13-45T99:99:99Z');
+  });
+});

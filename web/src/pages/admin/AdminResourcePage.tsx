@@ -203,7 +203,21 @@ function display(value: unknown, field?: Field, lookups?: LookupOptions): React.
     );
   }
   if (typeof value === 'object') return JSON.stringify(value);
-  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) return new Date(value).toLocaleString('ko-KR');
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
+    const moment = new Date(value);
+    if (Number.isNaN(moment.getTime())) return value;
+    // A field declared as a date is scheduled to the minute — the input that
+    // sets it cannot express more — so its seconds are always :00 and cost two
+    // columns their width for nothing. Everything else that happens to look
+    // like a timestamp keeps them: the audit log's 시각 is the one place the
+    // second something happened is the point.
+    // nowrap: a moment in time is one token to a reader. The audit list broke
+    // "2026. 8. 27. 오후 12:15:01" across three lines, which is the column you
+    // scan to compare one row against the next.
+    return <Box component="span" sx={{ whiteSpace: 'nowrap' }}>{field?.type === 'date'
+      ? moment.toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })
+      : moment.toLocaleString('ko-KR')}</Box>;
+  }
   return String(value);
 }
 
