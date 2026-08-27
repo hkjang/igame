@@ -278,7 +278,7 @@ func (s *Server) startGameSession(w http.ResponseWriter, r *http.Request) {
 	// Serialize replacement of the single active session for this user/game pair.
 	_, err = tx.Exec(r.Context(), `SELECT pg_advisory_xact_lock(hashtextextended($1::text||':'||$2::text,0))`, p.UserID, gameID)
 	if err == nil {
-		_, err = tx.Exec(r.Context(), `UPDATE game_sessions SET status='abandoned',ended_at=now(),duration_ms=GREATEST(0,extract(epoch FROM(now()-started_at))*1000)::bigint WHERE user_id=$1 AND game_id=$2 AND status='active'`, p.UserID, gameID)
+		_, err = tx.Exec(r.Context(), `UPDATE game_sessions SET status='abandoned',ended_at=clock_timestamp(),duration_ms=GREATEST(0,extract(epoch FROM(clock_timestamp()-started_at))*1000)::bigint WHERE user_id=$1 AND game_id=$2 AND status='active'`, p.UserID, gameID)
 	}
 	if err == nil {
 		err = tx.QueryRow(r.Context(), `INSERT INTO game_sessions(user_id,game_id,season_id,session_token_hash,client_info,realmguard_content_version_id,defense_content_version_id)
@@ -446,7 +446,7 @@ func (s *Server) finishGameSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var status string
-	err := s.DB.QueryRow(r.Context(), `UPDATE game_sessions SET status='finished',ended_at=COALESCE(ended_at,now()),duration_ms=COALESCE(duration_ms,GREATEST(0,extract(epoch FROM(now()-started_at))*1000)::bigint),result=result||$4 WHERE id=$1 AND user_id=$2 AND status IN ('active','finished') AND session_token_hash=$3 RETURNING status`, id, p.UserID, hash[:], in.Result).Scan(&status)
+	err := s.DB.QueryRow(r.Context(), `UPDATE game_sessions SET status='finished',ended_at=COALESCE(ended_at,clock_timestamp()),duration_ms=COALESCE(duration_ms,GREATEST(0,extract(epoch FROM(clock_timestamp()-started_at))*1000)::bigint),result=result||$4 WHERE id=$1 AND user_id=$2 AND status IN ('active','finished') AND session_token_hash=$3 RETURNING status`, id, p.UserID, hash[:], in.Result).Scan(&status)
 	if err != nil {
 		writeError(w, 409, "invalid_session", "session or token not found")
 		return
@@ -544,7 +544,7 @@ func (s *Server) submitScore(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 409, "duplicate_score", "a score was already submitted for this session")
 		return
 	}
-	_, err = tx.Exec(r.Context(), `UPDATE game_sessions SET status='finished',ended_at=COALESCE(ended_at,now()),duration_ms=COALESCE(duration_ms,$2),result=result||jsonb_build_object('score',$3::bigint) WHERE id=$1`, in.SessionID, duration, in.Score)
+	_, err = tx.Exec(r.Context(), `UPDATE game_sessions SET status='finished',ended_at=COALESCE(ended_at,clock_timestamp()),duration_ms=COALESCE(duration_ms,$2),result=result||jsonb_build_object('score',$3::bigint) WHERE id=$1`, in.SessionID, duration, in.Score)
 	if err != nil {
 		s.dbError(w, r, err)
 		return
