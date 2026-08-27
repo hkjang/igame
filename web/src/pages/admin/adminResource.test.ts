@@ -205,15 +205,21 @@ describe('display of a moment in time', () => {
     return String(rendered?.props?.children ?? rendered);
   };
 
+  // Which hour these render as depends on the machine's timezone and how they
+  // are punctuated on its locale, and neither is what these assert on. What is
+  // being asserted is how many parts the clock has: two for a schedule, three
+  // where the second is the point. Reading the hour back is what made this pass
+  // on a KST laptop and fail on a UTC runner.
+  const clockParts = (text: string) => text.match(/\d{1,2}:\d{2}(:\d{2})?/)?.[0].split(':').length ?? 0;
+
   it('drops the seconds a scheduled field can never carry', () => {
     // The input that sets it holds whole minutes, so :00 is all it can say.
-    expect(textOf('2026-09-01T09:00:00+09:00', scheduled)).not.toMatch(/9:00:00/);
-    expect(textOf('2026-09-01T09:00:00+09:00', scheduled)).toMatch(/9:00/);
+    expect(clockParts(textOf('2026-09-01T09:00:00+09:00', scheduled))).toBe(2);
   });
 
   it('keeps the seconds where the second is the point', () => {
     // The audit log answers "when exactly did this happen".
-    expect(textOf('2026-08-27T06:03:38.512+09:00', recorded)).toMatch(/:38/);
+    expect(clockParts(textOf('2026-08-27T06:03:38.512+09:00', recorded))).toBe(3);
   });
 
   it('shows an unparseable value rather than Invalid Date', () => {
