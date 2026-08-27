@@ -437,7 +437,6 @@ type createRealmGuardVersionInput struct {
 	AssetVersion string `json:"asset_version,omitempty"`
 }
 
-
 // realmGuardContentVersionBase strips the `-r<n>` suffix a saved draft carries.
 func realmGuardContentVersionBase(value string) string {
 	if index := strings.Index(value, "-r"); index >= 0 {
