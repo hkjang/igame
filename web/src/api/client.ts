@@ -222,6 +222,6 @@ export const api = {
   adminCreate: <T>(resource: string, input: unknown) => request<T>(`/api/v1/admin/${resource}`, { method: 'POST', body: JSON.stringify(input) }),
   adminUpdate: <T>(resource: string, id: string, input: unknown) => request<T>(`/api/v1/admin/${resource}/${encodeURIComponent(id)}`, { method: resource === 'users' ? 'PATCH' : 'PUT', body: JSON.stringify(input) }),
   adminDelete: (resource: string, id: string) => request<void>(`/api/v1/admin/${resource}/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  adminSettings: () => request<{ settings: Record<string, Record<string, unknown>>; updated_at?: Record<string, string> }>('/api/v1/admin/settings'),
+  adminSettings: () => request<{ settings: Record<string, Record<string, unknown>>; updated_at?: Record<string, string>; secrets?: Record<string, Record<string, boolean>> }>('/api/v1/admin/settings'),
   saveAdminSetting: (key: string, value: unknown) => request<Record<string, unknown>>(`/api/v1/admin/settings/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify(['oidc', 'ai'].includes(key) ? value : { value }) }),
 };

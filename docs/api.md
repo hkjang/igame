@@ -88,7 +88,7 @@
 | GET | `/api/v1/admin/status` | admin/operator, 설치 상태 조회: 서비스 버전·timezone·공개 URL, DB 도달 여부·지연·pool 사용량, 정책 5종 on/off, 게임별 게시 콘텐츠 버전, 증가형 table의 통계 기반 행 수 추정 |
 | GET | `/api/v1/admin/audit` | admin session 또는 admin 역할 + `admin:*` 키, 감사 조회. `limit`(기본 50, 최대 200)·`offset`·`q`를 받으며 응답에 필터 적용 후 전체 건수 `total`을 함께 반환합니다. `q`는 수행자 아이디·작업·대상 유형·대상 ID·IP를 부분 일치로 검색합니다. `format=csv`를 붙이면 같은 `q` 조건의 **전체 기록**을 UTF-8 BOM CSV로 스트리밍하며(`limit`/`offset` 무시), 내보내기 자체도 `audit.export`로 감사에 남습니다 |
 
-OIDC client secret과 AI API key는 write-only입니다. 설정 조회 응답은 원문 대신 `client_secret_configured` 또는 `api_key_configured` 상태를 반환합니다.
+OIDC client secret과 AI API key는 write-only입니다. 설정 조회는 원문 대신 빈 문자열을 돌려주고, 값이 저장되어 있는지는 `GET /api/v1/admin/settings` 응답의 `secrets` map(`{"oidc":{"client_secret":true}}` 형태)이 설정 값 **바깥**에서 알려줍니다. 단건 조회(`GET /api/v1/admin/settings/oidc`, `.../ai`)는 `client_secret_configured`·`api_key_configured`를 같은 방식으로 값 옆에 둡니다. 설정 값 안에는 그 설정이 실제로 가진 field만 들어가므로, 조회 응답을 그대로 저장 요청 본문으로 되돌려 보낼 수 있습니다. `oidc`와 `ai` 저장은 모르는 field를 거부하므로(claim 이름 오타가 조용히 무시되지 않도록), 이 왕복 규칙이 곧 계약입니다. `scripts/smoke-settings.sh`가 릴리스마다 이를 검사합니다.
 
 개인 키 생성·변경·회전·폐기와 로컬 비밀번호 변경은 로그인된 브라우저 session에서만 허용되며, 개인 API 키로 키나 비밀번호를 관리할 수 없습니다. 관리자 API를 개인 키로 호출하려면 관리자 역할과 `admin:*` scope가 모두 필요합니다. 기존에 발급된 키도 매 요청 시 저장 scope와 현재 전역 허용 목록·현재 역할 정책의 교집합만 유효하므로, 관리자가 권한을 제거하거나 사용자 역할을 바꾸면 즉시 축소 적용됩니다. `profile:write`는 `profile:read`와 별도이며 기존 키의 저장 scope에 자동 추가되지 않습니다. 개인 변경 API가 필요한 사용자는 관리자가 역할 정책에 허용한 뒤 브라우저 개인화 페이지에서 명시적으로 scope를 추가하거나 새 키를 발급합니다.
 

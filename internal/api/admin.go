@@ -30,6 +30,15 @@ func (s *Server) listSettings(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 	items := map[string]any{}
 	updated := map[string]time.Time{}
+	// Whether a secret is already stored is reported beside the settings, never
+	// inside them. Writing `client_secret_configured` into the OIDC value made
+	// this endpoint hand out an object its own PUT refuses: the settings page
+	// edits what it was given and sends the whole thing back, and
+	// putOIDCSetting decodes into oidcSetting with unknown fields disallowed.
+	// Every attempt to save a Keycloak connection therefore failed with
+	// `json: unknown field "client_secret_configured"`. What this endpoint
+	// returns for a setting is now exactly what that setting will accept.
+	secrets := map[string]map[string]bool{}
 	for rows.Next() {
 		var key string
 		var raw json.RawMessage
@@ -41,13 +50,18 @@ func (s *Server) listSettings(w http.ResponseWriter, r *http.Request) {
 		var value any
 		_ = json.Unmarshal(raw, &value)
 		if m, ok := value.(map[string]any); ok {
-			if _, exists := m["client_secret"]; exists {
-				m["client_secret"] = ""
-				m["client_secret_configured"] = secretConfigured(raw, "client_secret")
-			}
-			if _, exists := m["api_key"]; exists {
-				m["api_key"] = ""
-				m["api_key_configured"] = secretConfigured(raw, "api_key")
+			// The same list the audit trail redacts by: a setting that grows a
+			// password or a token is covered without an edit here, where before
+			// only client_secret and api_key were held back.
+			for field := range settingSecretKeys {
+				if _, exists := m[field]; !exists {
+					continue
+				}
+				m[field] = ""
+				if secrets[key] == nil {
+					secrets[key] = map[string]bool{}
+				}
+				secrets[key][field] = secretConfigured(raw, field)
 			}
 		}
 		items[key] = value
@@ -57,7 +71,7 @@ func (s *Server) listSettings(w http.ResponseWriter, r *http.Request) {
 		s.dbError(w, r, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"settings": items, "updated_at": updated})
+	writeJSON(w, 200, map[string]any{"settings": items, "updated_at": updated, "secrets": secrets})
 }
 
 func secretConfigured(raw []byte, key string) bool {

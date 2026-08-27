@@ -339,6 +339,8 @@ fi
 if ! grep -Fq 'scripts/smoke-realmguard.sh' "${REPO_DIR}/.github/workflows/release.yml" \
   || ! grep -Fq 'scripts/smoke-authz.sh' "${REPO_DIR}/.github/workflows/release.yml" \
   || ! grep -Fq 'access.denied' "${REPO_DIR}/scripts/smoke-authz.sh" \
+  || ! grep -Fq 'scripts/smoke-settings.sh' "${REPO_DIR}/.github/workflows/release.yml" \
+  || ! grep -Fq 'endswith("_configured")' "${REPO_DIR}/scripts/smoke-settings.sh" \
   || ! grep -Fq 'mcr.microsoft.com/playwright:v1.55.0-noble' "${REPO_DIR}/.github/workflows/release.yml" \
   || ! grep -Fq 'node /work/scripts/browser-smoke.mjs' "${REPO_DIR}/.github/workflows/release.yml" \
   || ! grep -Fq 'IGAME_REQUIRE_DESIGNER_DRAFT=true' "${REPO_DIR}/.github/workflows/release.yml" \
