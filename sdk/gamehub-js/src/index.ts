@@ -192,7 +192,10 @@ export class GameHubClient {
   async unlockAchievement(code: string, metadata: Record<string, unknown> = {}): Promise<unknown> {
     return this.request('/api/v1/me/achievements', {
       method: 'POST',
-      body: JSON.stringify({ code, game_id: this.gameId, session_id: this.currentSession?.id, session_token: this.currentSession?.session_token, metadata }),
+      // No game_id: the endpoint reads the game from the session, and rejects
+      // a body carrying a field it does not know — so every call sending one
+      // failed with 400 invalid_json.
+      body: JSON.stringify({ code, session_id: this.currentSession?.id, session_token: this.currentSession?.session_token, metadata }),
     });
   }
 
@@ -299,11 +302,22 @@ export class GameHubClient {
       const body = contentType.includes('application/json') ? await response.json() : await response.text();
       if (!response.ok) {
         const envelope = body as ApiEnvelope<T>;
-        throw new GameHubError(envelope?.error?.message ?? `Request failed (${response.status})`, {
-          status: response.status,
-          code: envelope?.error?.code,
-          details: body,
-        });
+        // A score that was stored but not verified answers 422 with the score
+        // rather than with an error, so the message used to read "Request
+        // failed (422)" while the server had already said duration_too_short.
+        const stored = (body as { score?: { verified?: boolean; rejection_reason?: string } })?.score;
+        const unverified = stored && stored.verified === false ? stored : undefined;
+        throw new GameHubError(
+          envelope?.error?.message
+            ?? (unverified
+              ? `score recorded but not verified: ${unverified.rejection_reason || 'no reason given'}`
+              : `Request failed (${response.status})`),
+          {
+            status: response.status,
+            code: envelope?.error?.code ?? (unverified ? unverified.rejection_reason : undefined),
+            details: body,
+          },
+        );
       }
       if (response.status === 204) return undefined as T;
       return unwrap<T>(body as ApiEnvelope<T> | T);
