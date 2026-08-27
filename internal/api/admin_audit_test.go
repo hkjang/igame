@@ -52,3 +52,45 @@ func TestAuditUserChangeRecordsWhatMoved(t *testing.T) {
 		})
 	}
 }
+
+// These settings decide who may sign in and with what role, and whether changes
+// need review at all. The audit row used to say only which setting was written.
+func TestAuditSettingChangeNamesWhatMoved(t *testing.T) {
+	before := []byte(`{"enabled":true,"admin_groups":["ops"],"client_secret":"old","issuer":"https://a"}`)
+	after := []byte(`{"enabled":false,"admin_groups":["ops","everyone"],"client_secret":"new","issuer":"https://a"}`)
+	changes := auditSettingChange(before, after)
+
+	if _, untouched := changes["issuer"]; untouched {
+		t.Fatal("a field that did not move should not be recorded")
+	}
+	enabled, ok := changes["enabled"].(map[string]any)
+	if !ok || enabled["from"] != true || enabled["to"] != false {
+		t.Fatalf("enabled recorded as %v, want true -> false", changes["enabled"])
+	}
+	if _, ok := changes["admin_groups"].(map[string]any); !ok {
+		t.Fatalf("granting a group admin was not recorded: %v", changes["admin_groups"])
+	}
+	// The value must never reach a table that is exported to CSV.
+	if changes["client_secret"] != "replaced" {
+		t.Fatalf("client_secret recorded as %v, want the word replaced", changes["client_secret"])
+	}
+}
+
+func TestAuditSettingChangeRecordsRemovalAndNoChange(t *testing.T) {
+	removed := auditSettingChange([]byte(`{"issuer":"https://a","api_key":"k"}`), []byte(`{}`))
+	issuer, ok := removed["issuer"].(map[string]any)
+	if !ok || issuer["from"] != "https://a" || issuer["to"] != nil {
+		t.Fatalf("a removed field recorded as %v", removed["issuer"])
+	}
+	if removed["api_key"] != "removed" {
+		t.Fatalf("a removed secret recorded as %v, want the word removed", removed["api_key"])
+	}
+	same := auditSettingChange([]byte(`{"enabled":true}`), []byte(`{"enabled":true}`))
+	if same["changed"] != "nothing" {
+		t.Fatalf("an unchanged write recorded as %v", same)
+	}
+	notObject := auditSettingChange([]byte(`{}`), []byte(`"a string"`))
+	if notObject["changed"] != "value is not an object" {
+		t.Fatalf("a non-object value recorded as %v", notObject)
+	}
+}

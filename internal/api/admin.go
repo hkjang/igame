@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -115,13 +116,21 @@ func (s *Server) putSetting(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p, _ := principalFrom(r)
-	_, err := s.DB.Exec(r.Context(), `INSERT INTO system_settings(key,value,updated_by) VALUES($1,$2,$3) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_by=excluded.updated_by,updated_at=now()`, key, wrapper.Value, p.UserID)
+	// The previous value comes back with the write. These settings decide who
+	// may sign in and with what role, and whether changes need review at all;
+	// an entry saying only "setting.update oidc" cannot answer what was turned
+	// off or which group was granted admin.
+	var previous json.RawMessage
+	err := s.DB.QueryRow(r.Context(), `WITH before AS (SELECT value FROM system_settings WHERE key=$1)
+		INSERT INTO system_settings(key,value,updated_by) VALUES($1,$2,$3)
+		ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_by=excluded.updated_by,updated_at=now()
+		RETURNING COALESCE((SELECT value FROM before),'{}'::jsonb)`, key, wrapper.Value, p.UserID).Scan(&previous)
 	if err != nil {
 		s.dbError(w, r, err)
 		return
 	}
 	s.invalidateSetting(key)
-	s.audit(r, "setting.update", "setting", key, nil)
+	s.audit(r, "setting.update", "setting", key, auditSettingChange(previous, wrapper.Value))
 	writeJSON(w, 200, map[string]any{"key": key, "value": wrapper.Value})
 }
 
@@ -293,7 +302,11 @@ func (s *Server) putOIDCSetting(w http.ResponseWriter, r *http.Request) {
 	}
 	s.invalidateSetting("oidc")
 	s.invalidateOIDCProviders()
-	s.audit(r, "oidc.update", "setting", "oidc", map[string]any{"enabled": in.Enabled, "issuer": in.Issuer, "client_id": in.ClientID})
+	// admin_groups decides who becomes an admin at their next sign-in, and the
+	// entry recorded only enabled, issuer and client_id — so granting a whole
+	// group administrator was invisible. The previous value is already in hand.
+	previousOIDC, _ := json.Marshal(old)
+	s.audit(r, "oidc.update", "setting", "oidc", auditSettingChange(previousOIDC, raw))
 	in.ClientSecret = ""
 	writeJSON(w, 200, map[string]any{"setting": in, "client_secret_configured": configured, "redirect_uri": s.requestBaseURL(r) + "/api/v1/auth/oidc/callback"})
 }
@@ -792,4 +805,56 @@ func auditUserChange(wasRole, nowRole, wasStatus, nowStatus string, passwordRese
 		detail["changed"] = "profile fields only"
 	}
 	return detail
+}
+
+// settingSecretKeys are values that must never be copied into an audit row. A
+// reader needs to know the secret was replaced, not what it was replaced with.
+var settingSecretKeys = map[string]bool{
+	"client_secret": true,
+	"api_key":       true,
+	"password":      true,
+	"secret":        true,
+	"token":         true,
+}
+
+// auditSettingChange names the fields a setting write moved, with what they held
+// before and after.
+//
+// Recording nothing left an auditor unable to tell an approval policy being
+// switched off from a claim mapping being corrected. Recording the whole value
+// would copy the OIDC client secret and the AI API key into a table that is
+// exported to CSV.
+func auditSettingChange(before, after json.RawMessage) map[string]any {
+	var was, now map[string]any
+	_ = json.Unmarshal(before, &was)
+	if json.Unmarshal(after, &now) != nil {
+		return map[string]any{"changed": "value is not an object"}
+	}
+	changes := map[string]any{}
+	seen := map[string]bool{}
+	for key, value := range now {
+		seen[key] = true
+		if reflect.DeepEqual(was[key], value) {
+			continue
+		}
+		if settingSecretKeys[key] {
+			changes[key] = "replaced"
+			continue
+		}
+		changes[key] = map[string]any{"from": was[key], "to": value}
+	}
+	for key, value := range was {
+		if seen[key] {
+			continue
+		}
+		if settingSecretKeys[key] {
+			changes[key] = "removed"
+			continue
+		}
+		changes[key] = map[string]any{"from": value, "to": nil}
+	}
+	if len(changes) == 0 {
+		return map[string]any{"changed": "nothing"}
+	}
+	return changes
 }

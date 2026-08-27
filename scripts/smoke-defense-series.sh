@@ -674,7 +674,10 @@ run_verified_battle() {
       | .id
     ' "${config_file}")
 
-    wait_at_least_ms "${minimum_milestone_ms}"
+    # The threshold plus a margin. The server measures the gap between the two
+    # receipt times, and both are transaction-start stamps: under load the pair
+    # can compress below the gap the client actually left.
+    wait_at_least_ms $((minimum_milestone_ms + 1000))
     cumulative_hist="$(jq --compact-output --arg stage "${stage_id}" --argjson wave "${wave}" '
       [.content.waves[] | select(.stage_id == $stage and .number <= $wave) | .entries[]]
       | reduce .[] as $entry ({}; .[$entry.enemy] = ((.[$entry.enemy] // 0) + $entry.count))
@@ -704,7 +707,9 @@ run_verified_battle() {
   ((required_wall_ms < 1000)) && required_wall_ms=1000
   required_wall_seconds=$(((required_wall_ms + 999) / 1000))
   ((required_wall_seconds < 1)) && required_wall_seconds=1
-  wait_until_epoch_ms $((battle_started_epoch * 1000 + required_wall_seconds * 1000))
+  # A second of margin, which the whole-second arithmetic this replaced used
+  # to get by accident from rounding.
+  wait_until_epoch_ms $((battle_started_epoch * 1000 + required_wall_seconds * 1000 + 1000))
 
   battle_complete="$(jq --null-input --compact-output \
     --arg stage "${stage_id}" --arg hero "${hero_id}" --arg content "${content_version}" --arg policy "${policy_version}" \
@@ -943,7 +948,10 @@ run_ai_depletion_defeat() {
       sequence=$((sequence + 1))
     fi
 
-    wait_at_least_ms "${minimum_milestone_ms}"
+    # The threshold plus a margin. The server measures the gap between the two
+    # receipt times, and both are transaction-start stamps: under load the pair
+    # can compress below the gap the client actually left.
+    wait_at_least_ms $((minimum_milestone_ms + 1000))
     cumulative_spawned="$(jq --compact-output --arg stage "${stage_id}" --argjson wave "${wave}" '
       [.content.waves[] | select(.stage_id == $stage and .number <= $wave) | .entries[]]
       | reduce .[] as $entry ({}; .[$entry.enemy] = ((.[$entry.enemy] // 0) + $entry.count))
@@ -1013,7 +1021,7 @@ run_ai_depletion_defeat() {
   }
   jq --exit-status '.trust.remaining == 0 and .compute.remaining > 0 and .token.remaining > 0 and .latency.remaining > 0' <<<"${resource_state}" >/dev/null
 
-  wait_at_least_ms "${minimum_milestone_ms}"
+  wait_at_least_ms $((minimum_milestone_ms + 1000))
   battle_complete="$(jq --null-input --compact-output --arg stage "${stage_id}" --arg hero "${hero_id}" --arg content "${content_version}" --arg policy "${policy_version}" --argjson duration "${minimum_duration_ms}" --argjson health "${remaining_health}" --argjson resource "${remaining_resource}" --argjson earned "${earned_resource}" --argjson spent "${education_spent}" --argjson kills "${cumulative_kills}" --argjson escaped "${cumulative_escaped_count}" --argjson spawned "${cumulative_spawned_count}" --argjson defeated_hist "${cumulative_defeated}" --argjson escaped_hist "${cumulative_escaped}" --argjson spawned_hist "${cumulative_spawned}" --argjson state "${resource_state}" \
     '{stage_id:$stage,difficulty:"normal",duration_ms:$duration,health:$health,resource:$resource,earned_resource:$earned,spent_resource:$spent,sold_resource:0,kills:$kills,escaped:$escaped,spawned:$spawned,waves_completed:2,victory:false,hero_id:$hero,hero_level:1,content_version:$content,policy_version:$policy,defeated_by_enemy:$defeated_hist,escaped_by_enemy:$escaped_hist,spawned_by_enemy:$spawned_hist,resource_state:$state}')"
   post_telemetry "${slug}" "${session_id}" "${session_token}" defense.battle.complete "${sequence}" "${battle_complete}" >/dev/null
