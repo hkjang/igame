@@ -221,7 +221,7 @@ function toInputValue(value: unknown, type?: FieldType): unknown {
   return value;
 }
 
-function buildPayload(config: ResourceConfig, form: Row): Row {
+function buildPayload(config: ResourceConfig, form: Row, original?: Row): Row {
   const payload: Row = {};
   for (const field of config.fields) {
     if (field.readonly) continue;
@@ -231,7 +231,13 @@ function buildPayload(config: ResourceConfig, form: Row): Row {
     } else if (field.type === 'json') {
       if (typeof value === 'string') value = value.trim() ? JSON.parse(value) : {};
     } else if (field.type === 'date') {
-      value = value ? new Date(String(value)).toISOString() : undefined;
+      // A datetime-local input holds whole minutes, so a stored time carrying
+      // seconds cannot survive a trip through it. Opening a banner to fix its
+      // title and saving used to move its schedule by up to 59 seconds, which
+      // is a write nobody asked for. If the field still reads as the value it
+      // was given, send that value back untouched.
+      const untouched = original !== undefined && value === toInputValue(original[field.key], 'date');
+      value = untouched ? original[field.key] : value ? new Date(String(value)).toISOString() : undefined;
     }
     if (value === '' && !field.required) continue;
     if (value !== undefined) payload[field.key] = value;
@@ -303,7 +309,7 @@ export function AdminResourcePage({ resource }: { resource: string }) {
     if (busy || Object.keys(jsonErrors).length > 0) return;
     setBusy(true);
     try {
-      const payload = buildPayload(config, form);
+      const payload = buildPayload(config, form, editing);
       const id = String(editing?.id ?? editing?.code ?? editing?.slug ?? '');
       if (editing) await api.adminUpdate(resource, id, payload); else await api.adminCreate(resource, payload);
       setOpen(false); await result.reload(); notify(`${config.singular}을 저장했습니다.`, 'success');
@@ -386,4 +392,4 @@ export function AdminResourcePage({ resource }: { resource: string }) {
 }
 
 /** Exposed for unit tests; not part of the page's public surface. */
-export const __testing = { rowLabel, jsonFieldErrors, display, optionLabel, auditDetail, configs };
+export const __testing = { rowLabel, jsonFieldErrors, display, optionLabel, auditDetail, buildPayload, toInputValue, configs };

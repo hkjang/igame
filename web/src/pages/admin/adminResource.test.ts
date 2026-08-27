@@ -161,3 +161,34 @@ describe('auditDetail', () => {
     expect(auditDetail({ password_reset: true })).not.toBe('—');
   });
 });
+
+describe('buildPayload', () => {
+  const { buildPayload, toInputValue } = __testing;
+  const config = { title: 'x', description: 'x', singular: 'x', fields: [
+    { key: 'title', label: '제목' },
+    { key: 'starts_at', label: '노출 시작', type: 'date' as const },
+  ] };
+
+  it('leaves a date alone when the form still shows what it was given', () => {
+    // A datetime-local input holds whole minutes, so a stored time carrying
+    // seconds cannot survive a trip through it. Editing the title must not
+    // move the schedule.
+    const original = { id: '1', title: 'before', starts_at: '2026-08-27T11:14:48.277538+09:00' };
+    const form = { title: 'after', starts_at: toInputValue(original.starts_at, 'date') };
+    const payload = buildPayload(config, form, original);
+    expect(payload.starts_at).toBe(original.starts_at);
+    expect(payload.title).toBe('after');
+  });
+
+  it('sends the new time when the operator actually changes it', () => {
+    const original = { id: '1', title: 'before', starts_at: '2026-08-27T11:14:48.277538+09:00' };
+    const form = { title: 'before', starts_at: '2026-09-01T09:00' };
+    const payload = buildPayload(config, form, original);
+    expect(payload.starts_at).toBe(new Date('2026-09-01T09:00').toISOString());
+  });
+
+  it('still sends a date on a new record, where there is nothing to preserve', () => {
+    const payload = buildPayload(config, { title: 'fresh', starts_at: '2026-09-01T09:00' });
+    expect(payload.starts_at).toBe(new Date('2026-09-01T09:00').toISOString());
+  });
+});
