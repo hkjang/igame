@@ -772,12 +772,24 @@ func pageParams(r *http.Request) (limit, offset int) {
 	return
 }
 
+// safeReturnTo keeps the screen a login sends the reader back to on this
+// service. Only a path is accepted: anything naming another host is replaced
+// with the portal root.
+//
+// A protocol-relative "//host/path" carries no scheme, so it is not absolute
+// and its path still starts with a single slash — the authority hides in the
+// host instead, which is why the host is checked directly.
 func safeReturnTo(value string) string {
 	if value == "" {
 		return "/"
 	}
 	u, err := url.Parse(value)
-	if err != nil || u.IsAbs() || !strings.HasPrefix(u.Path, "/") || strings.HasPrefix(u.Path, "//") {
+	if err != nil || u.Scheme != "" || u.Opaque != "" || u.Host != "" || u.User != nil {
+		return "/"
+	}
+	// "///host" leaves an empty authority behind, and browsers read the extra
+	// slashes as the start of one anyway.
+	if !strings.HasPrefix(u.Path, "/") || strings.HasPrefix(u.Path, "//") {
 		return "/"
 	}
 	return u.String()

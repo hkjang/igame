@@ -43,3 +43,34 @@ func TestAccessDeniedDetailSaysWhoTriedWhatAndWhatWasNeeded(t *testing.T) {
 		t.Fatalf("required_roles is %v, want [admin]", detail["required_roles"])
 	}
 }
+
+// Where login sends the reader afterwards is chosen by whoever wrote the link
+// they followed. A "//host/path" value has no scheme and a path that starts
+// with one slash, so it passed the old check and left the portal: the reader
+// finished a real SSO login and landed on someone else's site, which is exactly
+// the shape a phishing link wants.
+func TestLoginOnlyReturnsToAScreenOnThisService(t *testing.T) {
+	for _, value := range []string{
+		"//evil.example/portal",
+		"///evil.example",
+		"https://evil.example/portal",
+		"http://user@evil.example/",
+		"javascript:alert(1)",
+		"mailto:someone@example.com",
+	} {
+		if got := safeReturnTo(value); got != "/" {
+			t.Fatalf("safeReturnTo(%q) is %q; login would leave the portal", value, got)
+		}
+	}
+	for value, want := range map[string]string{
+		"":                           "/",
+		"/":                          "/",
+		"/games/realmguard":          "/games/realmguard",
+		"/rankings?season=2#top":     "/rankings?season=2#top",
+		"/notices?q=%EA%B3%B5%EC%A7": "/notices?q=%EA%B3%B5%EC%A7",
+	} {
+		if got := safeReturnTo(value); got != want {
+			t.Fatalf("safeReturnTo(%q) is %q, want %q", value, got, want)
+		}
+	}
+}
