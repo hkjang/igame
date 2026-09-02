@@ -74,3 +74,25 @@ func TestLoginOnlyReturnsToAScreenOnThisService(t *testing.T) {
 		}
 	}
 }
+
+// The console search boxes are substring filters, but the term used to be
+// pasted straight between two wildcards. A single "%" or "_" then matched every
+// row, and an operator looking for "50%" or "user_id" got the whole table back
+// while the filter chip still said it was applied.
+func TestSearchPatternMatchesTheTermAndNotEveryRow(t *testing.T) {
+	for term, want := range map[string]string{
+		"":         "",
+		"admin":    "%admin%",
+		"50%":      `%50\%%`,
+		"%":        `%\%%`,
+		"_":        `%\_%`,
+		"user_id":  `%user\_id%`,
+		`C:\Users`: `%C:\\Users%`,
+		`100\%`:    `%100\\\%%`,
+		"공지":       "%공지%",
+	} {
+		if got := searchPattern(term); got != want {
+			t.Fatalf("searchPattern(%q) is %q, want %q", term, got, want)
+		}
+	}
+}

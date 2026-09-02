@@ -447,7 +447,7 @@ func (s *Server) listUsers(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	// count(*) OVER() carries the unpaged total alongside the page, so the
 	// console can say how much is there without a second round trip.
-	rows, err := s.DB.Query(r.Context(), `SELECT id,username,display_name,email,department,team,role,status,created_at,last_login_at,count(*) OVER() FROM users WHERE $1='' OR username ILIKE '%'||$1||'%' OR display_name ILIKE '%'||$1||'%' OR email ILIKE '%'||$1||'%' OR department ILIKE '%'||$1||'%' OR team ILIKE '%'||$1||'%' ORDER BY created_at DESC LIMIT $2 OFFSET $3`, q, limit, offset)
+	rows, err := s.DB.Query(r.Context(), `SELECT id,username,display_name,email,department,team,role,status,created_at,last_login_at,count(*) OVER() FROM users WHERE $1='' OR username ILIKE $1 OR display_name ILIKE $1 OR email ILIKE $1 OR department ILIKE $1 OR team ILIKE $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`, searchPattern(q), limit, offset)
 	if err != nil {
 		s.dbError(w, r, err)
 		return
@@ -538,8 +538,8 @@ func (s *Server) listAuditLogs(w http.ResponseWriter, r *http.Request) {
 	// page, so the query carries both a filter and the unpaged total.
 	rows, err := s.DB.Query(r.Context(), `SELECT a.id,a.actor_id,COALESCE(u.username,''),a.action,a.resource_type,a.resource_id,a.remote_addr,a.user_agent,a.detail,a.created_at,count(*) OVER()
 		FROM audit_logs a LEFT JOIN users u ON u.id=a.actor_id
-		WHERE $1='' OR u.username ILIKE '%'||$1||'%' OR a.action ILIKE '%'||$1||'%' OR a.resource_type ILIKE '%'||$1||'%' OR a.resource_id ILIKE '%'||$1||'%' OR a.remote_addr ILIKE '%'||$1||'%'
-		ORDER BY a.created_at DESC LIMIT $2 OFFSET $3`, q, limit, offset)
+		WHERE $1='' OR u.username ILIKE $1 OR a.action ILIKE $1 OR a.resource_type ILIKE $1 OR a.resource_id ILIKE $1 OR a.remote_addr ILIKE $1
+		ORDER BY a.created_at DESC LIMIT $2 OFFSET $3`, searchPattern(q), limit, offset)
 	if err != nil {
 		s.dbError(w, r, err)
 		return

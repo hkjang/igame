@@ -38,8 +38,8 @@ func csvSafeCell(value string) string {
 func (s *Server) exportAuditLogs(w http.ResponseWriter, r *http.Request, q string) {
 	rows, err := s.DB.Query(r.Context(), `SELECT a.id,a.actor_id,COALESCE(u.username,''),a.action,a.resource_type,a.resource_id,a.remote_addr,a.user_agent,a.detail,a.created_at
 		FROM audit_logs a LEFT JOIN users u ON u.id=a.actor_id
-		WHERE $1='' OR u.username ILIKE '%'||$1||'%' OR a.action ILIKE '%'||$1||'%' OR a.resource_type ILIKE '%'||$1||'%' OR a.resource_id ILIKE '%'||$1||'%' OR a.remote_addr ILIKE '%'||$1||'%'
-		ORDER BY a.created_at DESC`, q)
+		WHERE $1='' OR u.username ILIKE $1 OR a.action ILIKE $1 OR a.resource_type ILIKE $1 OR a.resource_id ILIKE $1 OR a.remote_addr ILIKE $1
+		ORDER BY a.created_at DESC`, searchPattern(q))
 	if err != nil {
 		s.dbError(w, r, err)
 		return

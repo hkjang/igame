@@ -772,6 +772,27 @@ func pageParams(r *http.Request) (limit, offset int) {
 	return
 }
 
+// likeEscaper defuses the three characters ILIKE reads as syntax. PostgreSQL
+// escapes LIKE patterns with a backslash by default, so the backslash itself
+// has to be doubled before it can protect the wildcards.
+var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+
+// searchPattern turns what an operator typed into a substring pattern that
+// matches that text and nothing else.
+//
+// The search boxes are plain substring filters, but the term used to be pasted
+// straight between two wildcards. A term containing % or _ — "50%", "user_id",
+// a Windows path in a user agent — then reached PostgreSQL as a wildcard of its
+// own, and a single "%" or "_" matched every row: the filter looked applied and
+// silently did nothing. An empty term stays empty so callers can keep testing
+// it to skip the filter entirely.
+func searchPattern(q string) string {
+	if q == "" {
+		return ""
+	}
+	return "%" + likeEscaper.Replace(q) + "%"
+}
+
 // safeReturnTo keeps the screen a login sends the reader back to on this
 // service. Only a path is accepted: anything naming another host is replaced
 // with the portal root.
