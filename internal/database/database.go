@@ -5,7 +5,9 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io/fs"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -35,22 +37,70 @@ func Open(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 	return pool, nil
 }
 
+// migrationFileName is the convention every schema migration follows: a
+// zero-padded number, an underscore, a lower-case name, then ".sql".
+var migrationFileName = regexp.MustCompile(`^([0-9]+)_[a-z0-9_]+\.sql$`)
+
+// migrationNames lists the schema migrations in the order they must be applied.
+//
+// The files are ordered by their number rather than by their name. Sorting the
+// names agrees with the numbers only while every number is padded to the same
+// width, so the moment a "10_x.sql" joined the existing "001_".."009_" it would
+// sort second and try to alter tables that do not exist yet — against a live
+// database, halfway through a deployment. Sorting on the parsed number instead
+// keeps the order the numbers describe no matter how they are written.
+//
+// A name that does not follow the convention, or a number used twice, is
+// refused rather than applied at a guessed position: the files are compiled in,
+// so this is a mistake in the repository that every start-up should report the
+// same way instead of one that depends on the file system.
+func migrationNames(fsys fs.FS) ([]string, error) {
+	entries, err := fs.ReadDir(fsys, ".")
+	if err != nil {
+		return nil, err
+	}
+	type migration struct {
+		number int
+		name   string
+	}
+	found := make([]migration, 0, len(entries))
+	seen := make(map[int]string, len(entries))
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".sql") {
+			continue
+		}
+		match := migrationFileName.FindStringSubmatch(name)
+		if match == nil {
+			return nil, fmt.Errorf("migration %s is not named <number>_<name>.sql", name)
+		}
+		number, err := strconv.Atoi(match[1])
+		if err != nil {
+			return nil, fmt.Errorf("migration %s has an unreadable number: %w", name, err)
+		}
+		if other, duplicate := seen[number]; duplicate {
+			return nil, fmt.Errorf("migrations %s and %s share the number %d", other, name, number)
+		}
+		seen[number] = name
+		found = append(found, migration{number: number, name: name})
+	}
+	sort.Slice(found, func(i, j int) bool { return found[i].number < found[j].number })
+	names := make([]string, 0, len(found))
+	for _, entry := range found {
+		names = append(names, entry.name)
+	}
+	return names, nil
+}
+
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	if _, err := pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
 		name text PRIMARY KEY, checksum text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())`); err != nil {
 		return fmt.Errorf("create schema migrations table: %w", err)
 	}
-	entries, err := fs.ReadDir(migrations.Files, ".")
+	names, err := migrationNames(migrations.Files)
 	if err != nil {
 		return err
 	}
-	names := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".sql") {
-			names = append(names, entry.Name())
-		}
-	}
-	sort.Strings(names)
 	for _, name := range names {
 		body, err := migrations.Files.ReadFile(name)
 		if err != nil {
