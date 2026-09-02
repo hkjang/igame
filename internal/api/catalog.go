@@ -123,7 +123,9 @@ func (s *Server) listGames(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	category := strings.TrimSpace(r.URL.Query().Get("category"))
 	favorite := r.URL.Query().Get("favorite") == "true"
-	rows, err := s.DB.Query(r.Context(), gameSelect+` WHERE g.status='active' AND ($2='' OR g.name ILIKE '%'||$2||'%' OR g.description ILIKE '%'||$2||'%' OR $2=ANY(g.tags)) AND ($3='' OR c.slug=$3) AND (NOT $4 OR EXISTS(SELECT 1 FROM favorites ff WHERE ff.game_id=g.id AND ff.user_id=$1)) ORDER BY g.name LIMIT $5 OFFSET $6`, p.UserID, q, category, favorite, limit, offset)
+	// $2 stays the literal term because the tag arm is an exact match; $3 is the
+	// same term escaped for the two substring arms next to it.
+	rows, err := s.DB.Query(r.Context(), gameSelect+` WHERE g.status='active' AND ($2='' OR g.name ILIKE $3 OR g.description ILIKE $3 OR $2=ANY(g.tags)) AND ($4='' OR c.slug=$4) AND (NOT $5 OR EXISTS(SELECT 1 FROM favorites ff WHERE ff.game_id=g.id AND ff.user_id=$1)) ORDER BY g.name LIMIT $6 OFFSET $7`, p.UserID, q, searchPattern(q), category, favorite, limit, offset)
 	if err != nil {
 		s.dbError(w, r, err)
 		return
