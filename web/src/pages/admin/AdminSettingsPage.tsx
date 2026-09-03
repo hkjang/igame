@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import AddRounded from '@mui/icons-material/AddRounded';
+import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
 import InfoOutlined from '@mui/icons-material/InfoOutlined';
 import SaveRounded from '@mui/icons-material/SaveRounded';
 import { Alert, Box, Button, Card, CardContent, Checkbox, Container, Divider, FormControlLabel, Grid, MenuItem, Stack, Switch, TextField, Typography } from '@mui/material';
@@ -77,40 +79,38 @@ function playWindows(play: Values): PlayWindow[] {
 }
 
 /**
- * The window this screen edits: the first one the policy holds.
+ * Apply an edit to one window, leaving the other windows and the rest of the
+ * policy as they are.
  *
- * A policy with no window at all allows play at every hour, so the fields have
- * to be empty for that. They used to fall back to 11:30–13:30, which read as a
- * lunch-hour rule in force above a switch that was on — while the server, given
- * no window, was letting everyone play all day.
+ * The API stores any number of windows and the server checks them all, so the
+ * screen edits them all. It used to show and save only the first, which meant
+ * checking a day here deleted the weekend rule somebody had set through the API
+ * with nothing on screen to say a window had gone.
  */
-function editedWindow(play: Values): PlayWindow {
-  return playWindows(play)[0] ?? { days: [], start: '', end: '' };
+function withWindowAt(play: Values, index: number, next: Partial<PlayWindow>): Values {
+  return { ...play, windows: playWindows(play).map((window, at) => (at === index ? { ...window, ...next } : window)) };
 }
 
-/**
- * Apply an edit to the first window, keeping every other window the policy has.
- *
- * The API stores any number of windows; this screen shows one and used to save
- * that one alone, so checking a day here deleted the rest without saying so. An
- * edit that leaves the first window with no days and no hours removes it rather
- * than storing an empty window, which the server refuses.
- */
-function withEditedWindow(play: Values, next: Partial<PlayWindow>): Values {
-  const merged = { ...editedWindow(play), ...next };
-  const rest = playWindows(play).slice(1);
-  const blank = !merged.start && !merged.end && (merged.days ?? []).length === 0;
-  return { ...play, windows: blank ? rest : [merged, ...rest] };
+/** Add an empty window for the operator to fill in. */
+function withNewWindow(play: Values): Values {
+  return { ...play, windows: [...playWindows(play), { days: [], start: '', end: '' }] };
+}
+
+/** Remove one window. A policy with none left restricts no hour at all. */
+function withoutWindowAt(play: Values, index: number): Values {
+  return { ...play, windows: playWindows(play).filter((_, at) => at !== index) };
 }
 
 /**
  * What stops this policy from being saved, said the way the screen says it, or
- * "" when nothing does. A window needs both bounds; the server refuses a half
- * written one with its own English sentence about HH:MM.
+ * "" when nothing does. A window needs both bounds, and needs them to differ:
+ * the server refuses either one with its own English sentence, and a window
+ * that ends at the minute it opens allows only that minute.
  */
 function playPolicyProblem(play: Values): string {
   for (const window of playWindows(play)) {
-    if (!window.start || !window.end) return '허용 시작과 종료 시각을 모두 입력하세요. 시간대를 없애려면 요일 선택도 함께 해제하세요.';
+    if (!window.start || !window.end) return '허용 시간대의 시작과 종료 시각을 모두 입력하세요. 쓰지 않는 시간대는 삭제하세요.';
+    if (window.start === window.end) return '시작과 종료 시각이 같은 시간대는 저장할 수 없습니다. 시각을 다시 지정하거나, 시간 제한 없이 허용하려면 그 시간대를 삭제하세요.';
   }
   return '';
 }
@@ -119,12 +119,10 @@ function GeneralSettings({ settings }: { settings: Record<string, Values> }) {
   const { notify } = useSnackbar(); const [service, setService] = useState(settings.service ?? {}); const [privacy, setPrivacy] = useState(settings.privacy ?? {}); const [play, setPlay] = useState(settings.play_policy ?? {}); const [limitsText, setLimitsText] = useState(JSON.stringify(settings.play_policy?.daily_limits ?? {}, null, 2)); const [busy, setBusy] = useState(false);
   const save = async () => { setBusy(true); try { const dailyLimits = JSON.parse(limitsText) as Record<string, number>; const playPayload = { ...play, daily_limits: dailyLimits }; const problem = playPolicyProblem(playPayload); if (problem) { notify(problem, 'error'); return; } await Promise.all([api.saveAdminSetting('service', service), api.saveAdminSetting('privacy', privacy), api.saveAdminSetting('play_policy', playPayload)]); setPlay(playPayload); notify('시스템 설정을 저장했습니다.', 'success'); } catch (cause) { notify(cause instanceof SyntaxError ? '게임별 일일 제한 JSON 형식을 확인해 주세요.' : cause instanceof Error ? cause.message : '저장하지 못했습니다.', 'error'); } finally { setBusy(false); } };
   const windows = playWindows(play);
-  const window = editedWindow(play);
-  const updateWindow = (next: Partial<PlayWindow>) => setPlay(withEditedWindow(play, next));
-  return <SettingCard title="서비스 정책" description="포털 표시, 개인정보 공개 범위와 근무시간 플레이 정책을 구성합니다." onSave={() => void save()} busy={busy}><Stack spacing={3}><Typography variant="h4">일반</Typography><Grid container spacing={2}><Grid size={{ xs: 12, sm: 6 }}><TextField label="서비스 표시 이름" value={String(service.display_name ?? 'igame')} onChange={(event) => setService({ ...service, display_name: event.target.value })} /></Grid><Grid size={{ xs: 12, sm: 6 }}><TextField label="기준 시간대" value={String(service.timezone ?? 'Asia/Seoul')} onChange={(event) => setService({ ...service, timezone: event.target.value })} /></Grid><Grid size={{ xs: 12 }}><TextField label="서비스 공개 URL" value={String(service.public_url ?? '')} onChange={(event) => setService({ ...service, public_url: event.target.value })} placeholder="https://igame.company.local" /></Grid><Grid size={{ xs: 12, sm: 6 }}><TextField label="허용 Frame Origin" multiline minRows={2} value={Array.isArray(service.allowed_frame_origins) ? service.allowed_frame_origins.join('\n') : ''} onChange={(event) => setService({ ...service, allowed_frame_origins: event.target.value.split('\n').map((item) => item.trim()).filter(Boolean) })} helperText="한 줄에 하나" /></Grid><Grid size={{ xs: 12, sm: 6 }}><TextField label="허용 Connect Origin" multiline minRows={2} value={Array.isArray(service.allowed_connect_origins) ? service.allowed_connect_origins.join('\n') : ''} onChange={(event) => setService({ ...service, allowed_connect_origins: event.target.value.split('\n').map((item) => item.trim()).filter(Boolean) })} helperText="한 줄에 하나" /></Grid></Grid><Stack><FormControlLabel control={<Switch checked={service.bootstrap_login_enabled !== false} onChange={(event) => setService({ ...service, bootstrap_login_enabled: event.target.checked })} />} label="Bootstrap 관리자 로그인 사용" /><FormControlLabel control={<Switch checked={Boolean(service.trust_proxy)} onChange={(event) => setService({ ...service, trust_proxy: event.target.checked })} />} label="신뢰 프록시 헤더 사용" /></Stack>{service.bootstrap_login_enabled === false && !settings.oidc?.enabled && <Alert severity="error">OIDC와 Bootstrap 로그인을 모두 끄면 다음 로그인부터 관리자도 접근할 수 없습니다. 먼저 OIDC 연결을 검증하세요.</Alert>}<Divider /><Typography variant="h4">개인정보와 랭킹</Typography><TextField select label="랭킹 표시 이름" value={String(privacy.ranking_name ?? 'nickname')} onChange={(event) => setPrivacy({ ...privacy, ranking_name: event.target.value })}><MenuItem value="real_name">실명</MenuItem><MenuItem value="nickname">닉네임</MenuItem></TextField><Stack direction={{ xs: 'column', sm: 'row' }}><FormControlLabel control={<Switch checked={Boolean(privacy.show_department)} onChange={(event) => setPrivacy({ ...privacy, show_department: event.target.checked })} />} label="조직명 공개" /><FormControlLabel control={<Switch checked={privacy.ranking_opt_out !== false} onChange={(event) => setPrivacy({ ...privacy, ranking_opt_out: event.target.checked })} />} label="랭킹 Opt-out 허용" /></Stack><Divider /><Typography variant="h4">플레이 시간 정책</Typography><FormControlLabel control={<Switch checked={Boolean(play.enabled)} onChange={(event) => setPlay({ ...play, enabled: event.target.checked })} />} label="게임 허용 시간 제한 사용" />{Boolean(play.enabled) && windows.length === 0 && <Alert severity="warning">허용 시간대가 비어 있어 시간 제한은 적용되지 않습니다. 아래 게임별 일일 제한만 적용됩니다.</Alert>}{windows.length > 1 && <Alert icon={<InfoOutlined />} severity="info">이 화면은 첫 번째 허용 시간대만 편집합니다. 나머지 {windows.length - 1}개 시간대는 저장해도 그대로 유지됩니다.</Alert>}<Stack direction="row" flexWrap="wrap" useFlexGap>{['일', '월', '화', '수', '목', '금', '토'].map((label, day) => <FormControlLabel key={label} control={<Checkbox checked={(window.days ?? []).includes(day)} onChange={() => updateWindow({ days: (window.days ?? []).includes(day) ? (window.days ?? []).filter((item) => item !== day) : [...(window.days ?? []), day] })} />} label={label} />)}</Stack><Typography color="text.secondary" variant="body2">요일을 선택하지 않으면 모든 요일에 적용됩니다.</Typography><Grid container spacing={2}><Grid size={{ xs: 12, sm: 6 }}><TextField label="허용 시작" type="time" value={String(window.start ?? '')} onChange={(event) => updateWindow({ start: event.target.value })} slotProps={{ inputLabel: { shrink: true } }} disabled={!play.enabled} /></Grid><Grid size={{ xs: 12, sm: 6 }}><TextField label="허용 종료" type="time" value={String(window.end ?? '')} onChange={(event) => updateWindow({ end: event.target.value })} slotProps={{ inputLabel: { shrink: true } }} disabled={!play.enabled} /></Grid></Grid><TextField label="게임별 일일 제한(분) JSON" multiline minRows={3} value={limitsText} onChange={(event) => setLimitsText(event.target.value)} helperText={'예: {"snake":10,"2048":20}'} /></Stack></SettingCard>;
+  return <SettingCard title="서비스 정책" description="포털 표시, 개인정보 공개 범위와 근무시간 플레이 정책을 구성합니다." onSave={() => void save()} busy={busy}><Stack spacing={3}><Typography variant="h4">일반</Typography><Grid container spacing={2}><Grid size={{ xs: 12, sm: 6 }}><TextField label="서비스 표시 이름" value={String(service.display_name ?? 'igame')} onChange={(event) => setService({ ...service, display_name: event.target.value })} /></Grid><Grid size={{ xs: 12, sm: 6 }}><TextField label="기준 시간대" value={String(service.timezone ?? 'Asia/Seoul')} onChange={(event) => setService({ ...service, timezone: event.target.value })} /></Grid><Grid size={{ xs: 12 }}><TextField label="서비스 공개 URL" value={String(service.public_url ?? '')} onChange={(event) => setService({ ...service, public_url: event.target.value })} placeholder="https://igame.company.local" /></Grid><Grid size={{ xs: 12, sm: 6 }}><TextField label="허용 Frame Origin" multiline minRows={2} value={Array.isArray(service.allowed_frame_origins) ? service.allowed_frame_origins.join('\n') : ''} onChange={(event) => setService({ ...service, allowed_frame_origins: event.target.value.split('\n').map((item) => item.trim()).filter(Boolean) })} helperText="한 줄에 하나" /></Grid><Grid size={{ xs: 12, sm: 6 }}><TextField label="허용 Connect Origin" multiline minRows={2} value={Array.isArray(service.allowed_connect_origins) ? service.allowed_connect_origins.join('\n') : ''} onChange={(event) => setService({ ...service, allowed_connect_origins: event.target.value.split('\n').map((item) => item.trim()).filter(Boolean) })} helperText="한 줄에 하나" /></Grid></Grid><Stack><FormControlLabel control={<Switch checked={service.bootstrap_login_enabled !== false} onChange={(event) => setService({ ...service, bootstrap_login_enabled: event.target.checked })} />} label="Bootstrap 관리자 로그인 사용" /><FormControlLabel control={<Switch checked={Boolean(service.trust_proxy)} onChange={(event) => setService({ ...service, trust_proxy: event.target.checked })} />} label="신뢰 프록시 헤더 사용" /></Stack>{service.bootstrap_login_enabled === false && !settings.oidc?.enabled && <Alert severity="error">OIDC와 Bootstrap 로그인을 모두 끄면 다음 로그인부터 관리자도 접근할 수 없습니다. 먼저 OIDC 연결을 검증하세요.</Alert>}<Divider /><Typography variant="h4">개인정보와 랭킹</Typography><TextField select label="랭킹 표시 이름" value={String(privacy.ranking_name ?? 'nickname')} onChange={(event) => setPrivacy({ ...privacy, ranking_name: event.target.value })}><MenuItem value="real_name">실명</MenuItem><MenuItem value="nickname">닉네임</MenuItem></TextField><Stack direction={{ xs: 'column', sm: 'row' }}><FormControlLabel control={<Switch checked={Boolean(privacy.show_department)} onChange={(event) => setPrivacy({ ...privacy, show_department: event.target.checked })} />} label="조직명 공개" /><FormControlLabel control={<Switch checked={privacy.ranking_opt_out !== false} onChange={(event) => setPrivacy({ ...privacy, ranking_opt_out: event.target.checked })} />} label="랭킹 Opt-out 허용" /></Stack><Divider /><Typography variant="h4">플레이 시간 정책</Typography><FormControlLabel control={<Switch checked={Boolean(play.enabled)} onChange={(event) => setPlay({ ...play, enabled: event.target.checked })} />} label="게임 허용 시간 제한 사용" />{Boolean(play.enabled) && windows.length === 0 && <Alert severity="warning">허용 시간대가 비어 있어 시간 제한은 적용되지 않습니다. 아래 게임별 일일 제한만 적용됩니다.</Alert>}{windows.map((window, index) => <Box key={index} sx={{ border: 1, borderColor: 'divider', borderRadius: 2, p: 2 }}><Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}><Typography fontWeight={800}>허용 시간대 {index + 1}</Typography><Button color="error" size="small" startIcon={<DeleteOutlineRounded />} onClick={() => setPlay(withoutWindowAt(play, index))}>삭제</Button></Stack><Stack direction="row" flexWrap="wrap" useFlexGap>{['일', '월', '화', '수', '목', '금', '토'].map((label, day) => <FormControlLabel key={label} control={<Checkbox checked={(window.days ?? []).includes(day)} onChange={() => setPlay(withWindowAt(play, index, { days: (window.days ?? []).includes(day) ? (window.days ?? []).filter((item) => item !== day) : [...(window.days ?? []), day] }))} />} label={label} />)}</Stack><Typography color="text.secondary" variant="body2" mb={1.5}>요일을 선택하지 않으면 모든 요일에 적용됩니다.</Typography><Grid container spacing={2}><Grid size={{ xs: 12, sm: 6 }}><TextField label="허용 시작" type="time" value={String(window.start ?? '')} onChange={(event) => setPlay(withWindowAt(play, index, { start: event.target.value }))} slotProps={{ inputLabel: { shrink: true } }} disabled={!play.enabled} /></Grid><Grid size={{ xs: 12, sm: 6 }}><TextField label="허용 종료" type="time" value={String(window.end ?? '')} onChange={(event) => setPlay(withWindowAt(play, index, { end: event.target.value }))} slotProps={{ inputLabel: { shrink: true } }} disabled={!play.enabled} /></Grid></Grid></Box>)}<Box><Button startIcon={<AddRounded />} onClick={() => setPlay(withNewWindow(play))}>허용 시간대 추가</Button></Box><Typography color="text.secondary" variant="body2">시간대를 여러 개 두면 그중 하나에만 들어도 게임을 열 수 있습니다. 종료가 시작보다 이르면 자정을 넘겨 다음 날까지 이어집니다.</Typography><TextField label="게임별 일일 제한(분) JSON" multiline minRows={3} value={limitsText} onChange={(event) => setLimitsText(event.target.value)} helperText={'예: {"snake":10,"2048":20}'} /></Stack></SettingCard>;
 }
 
-export const __testing = { playWindows, editedWindow, withEditedWindow, playPolicyProblem };
+export const __testing = { playWindows, withWindowAt, withNewWindow, withoutWindowAt, playPolicyProblem };
 
 export function AdminSettingsPage({ section }: { section: 'oidc' | 'ai' | 'approval' | 'api_keys' | 'general' }) {
   const result = useAsync(() => api.adminSettings(), []);

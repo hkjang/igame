@@ -352,14 +352,50 @@ func requestedRealmGuardVersionID(metadata map[string]any) (*uuid.UUID, error) {
 	return &id, nil
 }
 
+// playWindowsAllow reports whether now falls inside any of the windows, which
+// is what an enabled play policy asks before opening a game. A policy with no
+// window at all restricts no hour, so it allows every one.
+//
+// A window covers the clock times from its start through its end, both ends
+// included. A window whose two bounds are equal therefore covers the single
+// minute they name — it used to be read as the whole day instead, so a policy
+// showing 09:00 to 09:00 on the admin screen was quietly letting those days
+// through around the clock, which is the opposite of what it looks like. The
+// screen refuses to store equal bounds now; this is what the ones stored
+// before mean.
+func playWindowsAllow(windows []playWindow, now time.Time) bool {
+	if len(windows) == 0 {
+		return true
+	}
+	minutes := now.Hour()*60 + now.Minute()
+	for _, window := range windows {
+		start, startErr := clockMinutes(window.Start, false)
+		end, endErr := clockMinutes(window.End, true)
+		if startErr != nil || endErr != nil {
+			continue
+		}
+		dayAllowed := func(day time.Weekday) bool {
+			return len(window.Days) == 0 || slices.Contains(window.Days, int(day))
+		}
+		if start <= end {
+			if dayAllowed(now.Weekday()) && minutes >= start && minutes <= end {
+				return true
+			}
+			continue
+		}
+		// The days of a window that runs past midnight name the day it opens,
+		// so the hours after midnight belong to the day before.
+		if (dayAllowed(now.Weekday()) && minutes >= start) || (dayAllowed((now.Weekday()+6)%7) && minutes <= end) {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Server) playAllowed(r *http.Request, gameID uuid.UUID) (bool, string) {
 	var cfg struct {
-		Enabled bool `json:"enabled"`
-		Windows []struct {
-			Days  []int  `json:"days"`
-			Start string `json:"start"`
-			End   string `json:"end"`
-		} `json:"windows"`
+		Enabled     bool           `json:"enabled"`
+		Windows     []playWindow   `json:"windows"`
 		DailyLimits map[string]int `json:"daily_limits"`
 	}
 	if s.setting(r.Context(), "play_policy", &cfg) != nil || !cfg.Enabled {
@@ -377,29 +413,7 @@ func (s *Server) playAllowed(r *http.Request, gameID uuid.UUID) (bool, string) {
 		location = time.FixedZone("KST", 9*60*60)
 	}
 	now := s.Now().In(location)
-	inside := len(cfg.Windows) == 0
-	for _, window := range cfg.Windows {
-		start, startErr := clockMinutes(window.Start, false)
-		end, endErr := clockMinutes(window.End, true)
-		if startErr != nil || endErr != nil {
-			continue
-		}
-		minutes := now.Hour()*60 + now.Minute()
-		dayAllowed := func(day time.Weekday) bool {
-			if len(window.Days) == 0 {
-				return true
-			}
-			return slices.Contains(window.Days, int(day))
-		}
-		if start == end && dayAllowed(now.Weekday()) {
-			inside = true
-		} else if start < end && dayAllowed(now.Weekday()) && minutes >= start && minutes <= end {
-			inside = true
-		} else if start > end && ((dayAllowed(now.Weekday()) && minutes >= start) || (dayAllowed((now.Weekday()+6)%7) && minutes <= end)) {
-			inside = true
-		}
-	}
-	if !inside {
+	if !playWindowsAllow(cfg.Windows, now) {
 		return false, "game play is outside the allowed time window"
 	}
 	var slug string
