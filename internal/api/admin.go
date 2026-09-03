@@ -194,23 +194,24 @@ func validateSetting(key string, raw []byte) string {
 		}
 	case "play_policy":
 		var v struct {
-			Enabled bool `json:"enabled"`
-			Windows []struct {
-				Days  []int  `json:"days"`
-				Start string `json:"start"`
-				End   string `json:"end"`
-			} `json:"windows"`
+			Enabled     bool           `json:"enabled"`
+			Windows     []playWindow   `json:"windows"`
 			DailyLimits map[string]int `json:"daily_limits"`
 		}
 		if json.Unmarshal(raw, &v) != nil {
 			return "invalid play policy"
 		}
 		for _, window := range v.Windows {
-			if err := playWindowTime(window.Start, false); err != nil {
+			start, err := playWindowTime(window.Start, false)
+			if err != nil {
 				return "invalid play window start: " + err.Error()
 			}
-			if err := playWindowTime(window.End, true); err != nil {
+			end, err := playWindowTime(window.End, true)
+			if err != nil {
 				return "invalid play window end: " + err.Error()
+			}
+			if start == end {
+				return "play window start and end must differ; remove the window to allow play at every hour"
 			}
 			for _, day := range window.Days {
 				if day < 0 || day > 6 {
@@ -245,6 +246,16 @@ func validateSetting(key string, raw []byte) string {
 		}
 	}
 	return ""
+}
+
+// playWindow is one stretch of the week the play policy allows a game to be
+// opened in. An empty Days means every day, and the window covers the clock
+// times from Start through End; a window that ends before it starts runs past
+// midnight into the following day.
+type playWindow struct {
+	Days  []int  `json:"days"`
+	Start string `json:"start"`
+	End   string `json:"end"`
 }
 
 // clockMinutes reads a wall-clock time into minutes since midnight. It reads
@@ -283,18 +294,20 @@ func clockDigits(text string) bool {
 }
 
 // playWindowTime checks a bound of a play window the way the screen that sets
-// it will read it back. <input type="time"> shows nothing at all for a value
-// that is not exactly HH:MM, so a window stored as "9:00" reaches the next
-// administrator as an empty field above a policy that is still deciding who
-// may play. Storing only what the field can show keeps the two in agreement.
-func playWindowTime(value string, allow24 bool) error {
-	if _, err := clockMinutes(value, allow24); err != nil {
-		return err
+// it will read it back, and returns it in minutes. <input type="time"> shows
+// nothing at all for a value that is not exactly HH:MM, so a window stored as
+// "9:00" reaches the next administrator as an empty field above a policy that
+// is still deciding who may play. Storing only what the field can show keeps
+// the two in agreement.
+func playWindowTime(value string, allow24 bool) (int, error) {
+	minutes, err := clockMinutes(value, allow24)
+	if err != nil {
+		return 0, err
 	}
 	if len(value) != 5 {
-		return fmt.Errorf("time must be zero-padded, as in 09:05")
+		return 0, fmt.Errorf("time must be zero-padded, as in 09:05")
 	}
-	return nil
+	return minutes, nil
 }
 
 func (s *Server) getOIDCSetting(w http.ResponseWriter, r *http.Request) {
