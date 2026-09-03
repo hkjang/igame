@@ -166,7 +166,7 @@ Balance 조정은 신규 session부터 적용하고 진행 중인 session은 시
 
 ## Backup과 복구
 
-RealmGuard의 `realmguard_content_versions`, `realmguard_user_progress`, `realmguard_user_heroes`, `realmguard_user_skills`, `realmguard_user_loadouts`, `realmguard_results`와 연결된 `game_sessions`, `scores`, achievement/audit 및 `game_telemetry` 원장을 하나의 PostgreSQL 백업 시점으로 보존합니다. Result의 `verification_method`, `attestation`, 재현에 사용한 `ledger`, 서버 생성 암호화 proof와 telemetry의 `client_event_id`/`sequence_no`도 복구 검증 대상입니다. 별도 active-pointer table은 없고 단 하나의 `realmguard_content_versions.status='published'` row가 active version입니다. 코드 생성 graphic과 Phaser bundle은 실제 배포한 igame 서비스 이미지(현재 `igame:v0.7.4`)에 있으므로 그 이미지 archive와 checksum을 DB 복구 세트에 함께 보관합니다. RealmGuard 콘텐츠 버전 `0.3.1`과 서비스 이미지 버전을 혼동하지 않습니다. 운영자가 별도 upload 자산을 도입한 경우에만 `/app/data` snapshot도 같은 복구 시점으로 맞춥니다.
+RealmGuard의 `realmguard_content_versions`, `realmguard_user_progress`, `realmguard_user_heroes`, `realmguard_user_skills`, `realmguard_user_loadouts`, `realmguard_results`와 연결된 `game_sessions`, `scores`, achievement/audit 및 `game_telemetry` 원장을 하나의 PostgreSQL 백업 시점으로 보존합니다. Result의 `verification_method`, `attestation`, 재현에 사용한 `ledger`, 서버 생성 암호화 proof와 telemetry의 `client_event_id`/`sequence_no`도 복구 검증 대상입니다. 별도 active-pointer table은 없고 단 하나의 `realmguard_content_versions.status='published'` row가 active version입니다. 코드 생성 graphic과 Phaser bundle은 실제 배포한 igame 서비스 이미지(현재 `igame:v0.7.5`)에 있으므로 그 이미지 archive와 checksum을 DB 복구 세트에 함께 보관합니다. RealmGuard 콘텐츠 버전 `0.3.1`과 서비스 이미지 버전을 혼동하지 않습니다. 운영자가 별도 upload 자산을 도입한 경우에만 `/app/data` snapshot도 같은 복구 시점으로 맞춥니다.
 
 복구 훈련에서는 공통 [백업과 복구](backup-restore.md) 절차에 더해 다음을 확인합니다.
 

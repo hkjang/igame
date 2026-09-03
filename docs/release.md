@@ -23,9 +23,9 @@ RealmGuard 회귀 smoke는 실제 전투 하나를 끝까지 제출합니다. �
 
 Production build는 RealmGuard와 Defense Series source가 locked Phaser dependency를 실제로 import하는지, compiled asset에 네 게임 route/content가 존재하는지, `index.html`이 원격 script/stylesheet를 참조하지 않는지를 검사합니다. Web과 SDK package version은 root `VERSION`과 같아야 합니다. 최종 이미지에는 locked web package manifest/lock을 `/licenses/web`, SDK manifest/lock을 `/licenses/sdk/gamehub-js`, Phaser package metadata와 MIT license를 `/licenses/phaser`에 보관합니다. SPDX SBOM에서 정확한 Phaser·`@igame/gamehub-js` version이 식별되지 않으면 Release workflow를 중단합니다. `003_realmguard.sql`, `004_realmguard_attestation.sql`과 Defense Series schema/seed migration을 포함한 SQL migration은 Go binary에 embed됩니다. fresh DB에서 세 Defense content pack이 각각 하나의 published snapshot으로 생성되고, 기존 RealmGuard 경제 필드는 `bigint`를 유지해야 합니다.
 
-서비스 릴리스와 게임 콘텐츠는 서로 다른 수명 주기를 가집니다. `igame:v0.7.4`에는 RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`이 함께 들어갑니다. Web·SDK·이미지 버전은 root `VERSION`을 따르지만, 기존 게임 콘텐츠 버전을 서비스 버전으로 덮어쓰지 않습니다. 공식 세션은 각 게임 public config에서 읽은 immutable snapshot UUID를 사용합니다.
+서비스 릴리스와 게임 콘텐츠는 서로 다른 수명 주기를 가집니다. `igame:v0.7.5`에는 RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`이 함께 들어갑니다. Web·SDK·이미지 버전은 root `VERSION`을 따르지만, 기존 게임 콘텐츠 버전을 서비스 버전으로 덮어쓰지 않습니다. 공식 세션은 각 게임 public config에서 읽은 immutable snapshot UUID를 사용합니다.
 
-콘텐츠의 `asset_version`은 해당 immutable snapshot이 소유한 자산 metadata와 telemetry 계약을 나타냅니다. 영웅 선택 카드, HUD와 코드 생성 전장 배경 같은 서비스 공통 renderer는 서비스 버전을 따르므로, 보존된 custom snapshot은 기존 `asset_version`을 보고하면서도 `v0.7.4`의 공통 UI 개선을 사용합니다. 적·타워의 코드 생성 외형도 콘텐츠의 id와 특성에서 파생되는 공통 renderer이므로 새 콘텐츠 version을 요구하지 않습니다. 운영자가 snapshot 자체의 자산 계약을 바꿀 때만 새 콘텐츠 버전을 게시합니다.
+콘텐츠의 `asset_version`은 해당 immutable snapshot이 소유한 자산 metadata와 telemetry 계약을 나타냅니다. 영웅 선택 카드, HUD와 코드 생성 전장 배경 같은 서비스 공통 renderer는 서비스 버전을 따르므로, 보존된 custom snapshot은 기존 `asset_version`을 보고하면서도 `v0.7.5`의 공통 UI 개선을 사용합니다. 적·타워의 코드 생성 외형도 콘텐츠의 id와 특성에서 파생되는 공통 renderer이므로 새 콘텐츠 version을 요구하지 않습니다. 운영자가 snapshot 자체의 자산 계약을 바꿀 때만 새 콘텐츠 버전을 게시합니다.
 
 ## 매뉴얼 PDF 재생성
 
