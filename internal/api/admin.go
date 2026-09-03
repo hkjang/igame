@@ -206,10 +206,10 @@ func validateSetting(key string, raw []byte) string {
 			return "invalid play policy"
 		}
 		for _, window := range v.Windows {
-			if _, err := clockMinutes(window.Start, false); err != nil {
+			if err := playWindowTime(window.Start, false); err != nil {
 				return "invalid play window start: " + err.Error()
 			}
-			if _, err := clockMinutes(window.End, true); err != nil {
+			if err := playWindowTime(window.End, true); err != nil {
 				return "invalid play window end: " + err.Error()
 			}
 			for _, day := range window.Days {
@@ -247,20 +247,54 @@ func validateSetting(key string, raw []byte) string {
 	return ""
 }
 
+// clockMinutes reads a wall-clock time into minutes since midnight. It reads
+// the digits itself rather than handing each half to strconv, which accepts
+// more than a clock has: strconv reads "+9" as 9 and "0009" as 9, so "+9:+5"
+// used to enforce a window nobody wrote and no screen can show.
 func clockMinutes(value string, allow24 bool) (int, error) {
-	parts := strings.Split(value, ":")
-	if len(parts) != 2 {
+	hourText, minuteText, separated := strings.Cut(value, ":")
+	if !separated || !clockDigits(hourText) || !clockDigits(minuteText) {
 		return 0, fmt.Errorf("time must use HH:MM")
 	}
-	hour, e1 := strconv.Atoi(parts[0])
-	minute, e2 := strconv.Atoi(parts[1])
-	if e1 != nil || e2 != nil || minute < 0 || minute > 59 || hour < 0 || hour > 23 {
-		if allow24 && hour == 24 && minute == 0 && e1 == nil && e2 == nil {
-			return 1440, nil
-		}
+	hour, _ := strconv.Atoi(hourText)
+	minute, _ := strconv.Atoi(minuteText)
+	if allow24 && hour == 24 && minute == 0 {
+		return 1440, nil
+	}
+	if hour > 23 || minute > 59 {
 		return 0, fmt.Errorf("time must use 00:00 through %s", map[bool]string{true: "24:00", false: "23:59"}[allow24])
 	}
 	return hour*60 + minute, nil
+}
+
+// clockDigits reports whether text is the one or two plain digits a half of a
+// clock time is written with. A sign, a space, a third digit or a second colon
+// all mean the value came from somewhere other than the field that sets it.
+func clockDigits(text string) bool {
+	if len(text) == 0 || len(text) > 2 {
+		return false
+	}
+	for i := 0; i < len(text); i++ {
+		if text[i] < '0' || text[i] > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// playWindowTime checks a bound of a play window the way the screen that sets
+// it will read it back. <input type="time"> shows nothing at all for a value
+// that is not exactly HH:MM, so a window stored as "9:00" reaches the next
+// administrator as an empty field above a policy that is still deciding who
+// may play. Storing only what the field can show keeps the two in agreement.
+func playWindowTime(value string, allow24 bool) error {
+	if _, err := clockMinutes(value, allow24); err != nil {
+		return err
+	}
+	if len(value) != 5 {
+		return fmt.Errorf("time must be zero-padded, as in 09:05")
+	}
+	return nil
 }
 
 func (s *Server) getOIDCSetting(w http.ResponseWriter, r *http.Request) {
