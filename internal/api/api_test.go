@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -72,6 +73,46 @@ func TestLoginOnlyReturnsToAScreenOnThisService(t *testing.T) {
 		if got := safeReturnTo(value); got != want {
 			t.Fatalf("safeReturnTo(%q) is %q, want %q", value, got, want)
 		}
+	}
+}
+
+// A URL scheme is case-insensitive, so the settings screen accepts
+// "HTTPS://games.example.com" — but the checks that read the stored value ask
+// whether the string starts with "https://". The service was then served over
+// TLS while its session cookie went out without Secure and without HSTS.
+func TestCanonicalBaseURLLowercasesTheSchemeThatDecidesTLS(t *testing.T) {
+	for value, want := range map[string]string{
+		"":                             "",
+		"https://games.example.com":    "https://games.example.com",
+		"HTTPS://games.example.com":    "https://games.example.com",
+		"Https://games.example.com/":   "https://games.example.com",
+		" https://games.example.com  ": "https://games.example.com",
+		"HTTP://games.example.com":     "http://games.example.com",
+		// The host keeps whatever spelling the operator gave it; every reader of
+		// it compares hosts case-insensitively already.
+		"HTTPS://Games.Example.com/":      "https://Games.Example.com",
+		"https://games.example.com:8443/": "https://games.example.com:8443",
+	} {
+		if got := canonicalBaseURL(value); got != want {
+			t.Fatalf("canonicalBaseURL(%q) is %q, want %q", value, got, want)
+		}
+	}
+}
+
+func TestAnUppercaseSchemeStillDeclaresTLSToTheBrowser(t *testing.T) {
+	server := &Server{}
+	server.storeSetting("service", settingEntry{raw: []byte(`{"public_url":"HTTPS://games.example.com/"}`), expires: time.Now().Add(settingsTTL)})
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/games", nil)
+	if got := server.requestBaseURL(request); got != "https://games.example.com" {
+		t.Fatalf("requestBaseURL is %q, want https://games.example.com", got)
+	}
+	recorder := httptest.NewRecorder()
+	server.securityHeaders(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})).ServeHTTP(recorder, request)
+	if recorder.Header().Get("Strict-Transport-Security") == "" {
+		t.Fatal("no Strict-Transport-Security on a deployment configured for HTTPS")
 	}
 }
 

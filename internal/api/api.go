@@ -601,9 +601,29 @@ func (s *Server) requestBaseURL(r *http.Request) string {
 		PublicURL string `json:"public_url"`
 	}
 	if s.setting(r.Context(), "service", &service) == nil && service.PublicURL != "" {
-		return strings.TrimRight(service.PublicURL, "/")
+		return canonicalBaseURL(service.PublicURL)
 	}
 	return s.observedBaseURL(r)
+}
+
+// canonicalBaseURL puts a configured public URL into the single form its
+// readers expect: a lowercase scheme with no trailing slash.
+//
+// A URL scheme is case-insensitive, so "HTTPS://games.example.com" names the
+// same deployment as the lowercase spelling and the settings screen accepts it
+// — url.Parse lowercases the scheme before the check reads it. Everything that
+// consumes the stored value afterwards compares the raw string instead, and all
+// three of those comparisons test a "https://" prefix: the session cookie's
+// Secure flag, the HSTS header and the status screen's TLS indicator. One
+// capital letter therefore stripped Secure from the session cookie of a service
+// that is served over TLS, which is the one place the capital matters.
+func canonicalBaseURL(value string) string {
+	trimmed := strings.TrimRight(strings.TrimSpace(value), "/")
+	scheme, rest, separated := strings.Cut(trimmed, "://")
+	if !separated {
+		return trimmed
+	}
+	return strings.ToLower(scheme) + "://" + rest
 }
 
 // observedBaseURL is the address this particular request actually came in on.

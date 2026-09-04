@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/hkjang/igame/internal/version"
@@ -78,7 +79,7 @@ func (s *Server) adminStatus(w http.ResponseWriter, r *http.Request) {
 			// Whether HTTPS is actually declared decides the session cookie's
 			// Secure flag and HSTS, so it belongs on a status screen.
 			"public_url": service.PublicURL, "trust_proxy": service.TrustProxy,
-			"https": len(service.PublicURL) >= 8 && service.PublicURL[:8] == "https://",
+			"https": strings.HasPrefix(canonicalBaseURL(service.PublicURL), "https://"),
 		},
 		"database": database,
 		"policies": map[string]any{
