@@ -18,6 +18,10 @@ var assets embed.FS
 
 func Handler() http.Handler {
 	root, _ := fs.Sub(assets, "dist")
+	return handlerFor(root)
+}
+
+func handlerFor(root fs.FS) http.Handler {
 	index, _ := fs.ReadFile(root, "index.html")
 	files := http.FileServer(http.FS(root))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -34,11 +38,17 @@ func Handler() http.Handler {
 			serveIndex(w, r, index)
 			return
 		}
+		// Only regular files are assets. A directory would make http.FileServer
+		// answer /assets/ with an index of the whole bundle, and redirect /assets
+		// to a trailing slash; both are handled by the rules below instead.
 		if f, err := root.Open(clean); err == nil {
+			info, statErr := f.Stat()
 			_ = f.Close()
-			w.Header().Set("Cache-Control", cacheControlFor(clean))
-			files.ServeHTTP(w, r)
-			return
+			if statErr == nil && !info.IsDir() {
+				w.Header().Set("Cache-Control", cacheControlFor(clean))
+				files.ServeHTTP(w, r)
+				return
+			}
 		}
 		// Missing assets must fail loudly; only extensionless browser routes are
 		// eligible for the SPA history fallback.
