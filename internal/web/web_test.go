@@ -3,8 +3,63 @@ package web
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"testing/fstest"
 )
+
+// builtDist stands in for the bundle a frontend build writes into dist, which
+// the repository only carries as a bare index.html placeholder.
+var builtDist = fstest.MapFS{
+	"index.html":                       {Data: []byte("<!doctype html><div id=root></div>")},
+	"favicon.ico":                      {Data: []byte("icon")},
+	"assets/index-DbG3xk91.js":         {Data: []byte("console.log(1)")},
+	"assets/chunks/vendor-a1b2c3d4.js": {Data: []byte("console.log(2)")},
+}
+
+func TestDirectoriesAreNotServedAsAssets(t *testing.T) {
+	index := string(builtDist["index.html"].Data)
+	for _, requestPath := range []string{"/assets/", "/assets", "/assets/chunks/", "/assets/chunks"} {
+		request := httptest.NewRequest(http.MethodGet, requestPath, nil)
+		response := httptest.NewRecorder()
+		handlerFor(builtDist).ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("%s returned %d, want 200", requestPath, response.Code)
+		}
+		if location := response.Header().Get("Location"); location != "" {
+			t.Fatalf("%s redirected to %s", requestPath, location)
+		}
+		if body := response.Body.String(); body != index {
+			t.Fatalf("%s did not serve the SPA index: %q", requestPath, body)
+		}
+		if strings.Contains(response.Body.String(), "DbG3xk91") {
+			t.Fatalf("%s listed bundle filenames", requestPath)
+		}
+	}
+}
+
+func TestBundleFilesAreStillServed(t *testing.T) {
+	tests := map[string]string{
+		"/assets/index-DbG3xk91.js":         "public, max-age=31536000, immutable",
+		"/assets/chunks/vendor-a1b2c3d4.js": "public, max-age=31536000, immutable",
+		"/favicon.ico":                      "no-cache",
+	}
+	for requestPath, cacheControl := range tests {
+		request := httptest.NewRequest(http.MethodGet, requestPath, nil)
+		response := httptest.NewRecorder()
+		handlerFor(builtDist).ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("%s returned %d, want 200", requestPath, response.Code)
+		}
+		if got := response.Header().Get("Cache-Control"); got != cacheControl {
+			t.Fatalf("%s Cache-Control = %q, want %q", requestPath, got, cacheControl)
+		}
+		want := string(builtDist[strings.TrimPrefix(requestPath, "/")].Data)
+		if response.Body.String() != want {
+			t.Fatalf("%s served %q, want %q", requestPath, response.Body.String(), want)
+		}
+	}
+}
 
 func TestSPAFallbackDoesNotRedirect(t *testing.T) {
 	for _, path := range []string{"/", "/games/snake", "/admin/settings", "/index.html"} {
