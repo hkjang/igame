@@ -783,6 +783,29 @@ func (s *Server) rankings(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "game_required", "game_id is required")
 		return
 	}
+	group := r.URL.Query().Get("group")
+	if group == "" {
+		group = "individual"
+	}
+	if group != "individual" && group != "department" && group != "team" {
+		writeError(w, 400, "invalid_group", "group must be individual, department, or team")
+		return
+	}
+	// The privacy policy is read before anything is aggregated: a deployment
+	// that hides organization names must not hand them out through the grouped
+	// rankings either, and an unreadable policy may not be read as "public".
+	var privacy struct {
+		RankingName    string `json:"ranking_name"`
+		ShowDepartment bool   `json:"show_department"`
+	}
+	if err := s.setting(r.Context(), "privacy", &privacy); err != nil {
+		s.serverError(w, r, 503, "privacy_setting_unavailable", "privacy policy is unavailable", err)
+		return
+	}
+	if group != "individual" && !privacy.ShowDepartment {
+		writeError(w, 403, "organization_ranking_hidden", "organization rankings are disabled by the privacy policy")
+		return
+	}
 	var id uuid.UUID
 	var order, gameName, gameSlug string
 	err := s.DB.QueryRow(r.Context(), `SELECT id,score_order,name,slug FROM games WHERE id::text=$1 OR slug=$1`, gameID).Scan(&id, &order, &gameName, &gameSlug)
@@ -822,7 +845,6 @@ func (s *Server) rankings(w http.ResponseWriter, r *http.Request) {
 		direction = "ASC"
 		aggregate = "MIN"
 	}
-	group := r.URL.Query().Get("group")
 	limit, _ := pageParams(r)
 	if group == "department" || group == "team" {
 		column := "department"
@@ -857,10 +879,6 @@ func (s *Server) rankings(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]any{"items": items, "period": period, "group": group})
 		return
 	}
-	if group != "" && group != "individual" {
-		writeError(w, 400, "invalid_group", "group must be individual, department, or team")
-		return
-	}
 	query := fmt.Sprintf(`WITH best AS (SELECT u.id,u.username,u.display_name,u.nickname,u.department,u.team,%s(s.score) score FROM scores s JOIN users u ON u.id=s.user_id WHERE s.game_id=$1 AND s.verified AND s.moderation_status='valid' AND NOT u.ranking_opt_out AND ($2::timestamptz='0001-01-01' OR s.created_at >= $2) AND ($3<>'season' OR s.season_id=(SELECT id FROM seasons WHERE status='active' LIMIT 1)) GROUP BY u.id) SELECT row_number() OVER(ORDER BY score %s),id,username,display_name,nickname,department,team,score FROM best ORDER BY score %s LIMIT $4`, aggregate, direction, direction)
 	rows, err := s.DB.Query(r.Context(), query, id, since, period, limit)
 	if err != nil {
@@ -868,11 +886,6 @@ func (s *Server) rankings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-	var privacy struct {
-		RankingName    string `json:"ranking_name"`
-		ShowDepartment bool   `json:"show_department"`
-	}
-	_ = s.setting(r.Context(), "privacy", &privacy)
 	items := []map[string]any{}
 	for rows.Next() {
 		var rank int64
@@ -890,9 +903,10 @@ func (s *Server) rankings(w http.ResponseWriter, r *http.Request) {
 		if privacy.RankingName == "real_name" && display != "" {
 			name = display
 		}
-		item := map[string]any{"rank": rank, "user_id": uid, "name": name, "display_name": name, "score": score, "team": team, "game_name": gameName}
+		item := map[string]any{"rank": rank, "user_id": uid, "name": name, "display_name": name, "score": score, "game_name": gameName}
 		if privacy.ShowDepartment {
 			item["department"] = dept
+			item["team"] = team
 		}
 		items = append(items, item)
 	}
