@@ -36,11 +36,29 @@ jobs:
         run: make deps
 
       - name: Audit locked Node dependencies
+        # What ships is held to the strict line: any advisory, any severity.
         shell: bash
         run: |
           set -Eeuo pipefail
-          npm --prefix sdk/gamehub-js audit --audit-level=low
-          npm --prefix web audit --audit-level=low
+          npm --prefix sdk/gamehub-js audit --omit=dev --audit-level=low
+          npm --prefix web audit --omit=dev --audit-level=low
+
+      - name: Report advisories on the test toolchain
+        # Test-only packages ship to nobody, and a fresh advisory against one of
+        # them used to turn the branch red on a day the tree never changed - a
+        # gate no commit can pass is a gate that only teaches people to ignore
+        # it. Record what is outstanding here and raise it on its own change.
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## Advisories on dev dependencies'
+            echo
+            echo '```'
+            npm --prefix sdk/gamehub-js audit --audit-level=low 2>&1 || true
+            npm --prefix web audit --audit-level=low 2>&1 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify release contract
         run: make check-contract
