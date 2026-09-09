@@ -122,6 +122,8 @@ Content-Type: application/json
 
 정상 저장은 201, 게임에 설정된 점수·플레이 시간 규칙 위반은 422, 같은 세션의 중복 제출은 409를 반환합니다.
 
+플레이 정책(허용 시간대·일일 플레이 한도)이 세션 생성을 막으면 `403 play_policy_denied`입니다. 정책이나 그 판정에 필요한 값(서비스 시간대, 오늘의 누적 플레이 시간)을 읽지 못하면 제한이 없는 것으로 간주하지 않고 `503 play_policy_unavailable`을 반환합니다.
+
 `/api/v1/rankings`의 `group`은 `individual`(기본), `department`, `team`이며 다른 값은 `400 invalid_group`입니다. 개인정보 정책의 조직 공개(`show_department`)가 꺼져 있으면 부서·팀 랭킹은 `403 organization_ranking_hidden`으로 거부하고 개인 랭킹 항목에서도 `department`와 `team`을 내리지 않습니다. 정책을 읽지 못하면 공개로 간주하지 않고 `503 privacy_setting_unavailable`을 반환합니다.
 
 RealmGuard는 일반 점수·랭킹 endpoint를 사용하지 않습니다. `/api/v1/scores`에 RealmGuard 세션을 보내면 `409 authoritative_result_required`, `/api/v1/rankings/realmguard` 또는 `/api/v1/rankings?game_id=realmguard`는 `409 realmguard_ranking_required`를 반환합니다. 공식 랭킹은 `/api/v1/realmguard/rankings`를 사용합니다.

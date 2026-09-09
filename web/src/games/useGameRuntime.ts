@@ -30,6 +30,12 @@ export function useGameRuntime(gameId: string, authoritativePath = '/api/v1/real
         notify('관리자가 설정한 플레이 허용 시간이 아닙니다.', 'error');
         return false;
       }
+      // 플레이 정책을 확인하지 못한 것은 정책이 없는 것과 다르다. 연습 모드로
+      // 넘어가면 서버가 막으려던 시간에 그대로 게임이 열린다.
+      if (cause instanceof GameHubError && cause.code === 'play_policy_unavailable') {
+        notify('플레이 정책을 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.', 'error');
+        return false;
+      }
       notify(`${cause instanceof Error ? cause.message : '세션을 만들 수 없습니다.'} 연습 모드로 계속합니다.`, 'warning');
       return true;
     }
