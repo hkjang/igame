@@ -13,7 +13,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 [🌐 웹 쇼케이스 (한국어)](docs/index.html) · [🌐 English Showcase](docs/en/index.html) · [🎬 3분 시연 영상](docs/igame-demo.mp4)  
-[📘 공식 사용자 가이드 (PDF)](docs/igame_User_Guide.pdf) · [📗 CRU 매뉴얼 (PDF)](docs/igame_CRU_Operations_Manual.pdf) · [📙 아키텍처 백서 (PDF)](docs/igame_Architecture_and_Security_Whitepaper.pdf)
+[📘 사용자 가이드 (PDF)](docs/USER_GUIDE.pdf) · [📕 관리자 가이드 (PDF)](docs/ADMIN_GUIDE.pdf) · [📗 CRU 매뉴얼 (PDF)](docs/igame_CRU_Operations_Manual.pdf) · [📙 아키텍처 백서 (PDF)](docs/igame_Architecture_and_Security_Whitepaper.pdf)
 
 </div>
 
