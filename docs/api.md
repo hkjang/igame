@@ -122,7 +122,7 @@ Content-Type: application/json
 
 정상 저장은 201, 게임에 설정된 점수·플레이 시간 규칙 위반은 422, 같은 세션의 중복 제출은 409를 반환합니다.
 
-플레이 정책(허용 시간대·일일 플레이 한도)이 세션 생성을 막으면 `403 play_policy_denied`입니다. 정책이나 그 판정에 필요한 값(서비스 시간대, 오늘의 누적 플레이 시간)을 읽지 못하면 제한이 없는 것으로 간주하지 않고 `503 play_policy_unavailable`을 반환합니다.
+플레이 정책(허용 시간대·일일 플레이 한도)이 세션 생성을 막으면 `403 play_policy_denied`입니다. 일일 한도의 누적 시간에는 아직 끝나지 않은 세션이 시작 이후 경과한 만큼 포함되므로, 한 세션을 열어 둔 채로는 한도를 넘겨 다음 세션을 시작할 수 없습니다. 하루의 경계는 서비스 시간대의 자정이며, 그 이전에 시작한 세션은 오늘의 누적에 들어가지 않습니다. 정책이나 그 판정에 필요한 값(서비스 시간대, 오늘의 누적 플레이 시간)을 읽지 못하면 제한이 없는 것으로 간주하지 않고 `503 play_policy_unavailable`을 반환합니다.
 
 `/api/v1/rankings`의 `group`은 `individual`(기본), `department`, `team`이며 다른 값은 `400 invalid_group`입니다. 개인정보 정책의 조직 공개(`show_department`)가 꺼져 있으면 부서·팀 랭킹은 `403 organization_ranking_hidden`으로 거부하고 개인 랭킹 항목에서도 `department`와 `team`을 내리지 않습니다. 정책을 읽지 못하면 공개로 간주하지 않고 `503 privacy_setting_unavailable`을 반환합니다.
 
