@@ -6,7 +6,7 @@ IMAGE := igame:v$(VERSION)
 COMMIT := $(shell git rev-parse --short=12 HEAD 2>/dev/null || printf unknown)
 BUILD_DATE := $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 
-.PHONY: help deps fmt lint test test-race docs-pdf sdk-build web-build check-offline-bundle build docker-build smoke realmguard-smoke defense-smoke release verify-release check-contract clean
+.PHONY: help deps fmt lint test test-race test-db docs-pdf sdk-build web-build check-offline-bundle build docker-build smoke realmguard-smoke defense-smoke release verify-release check-contract clean
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*## "; printf "igame build targets:\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -33,6 +33,10 @@ test: ## Run Go, SDK, and frontend tests
 
 test-race: ## Run the Go tests under the race detector
 	go test -race ./cmd/... ./internal/... ./migrations/...
+
+test-db: ## Run the tests that need PostgreSQL; set DSN=postgres://...
+	@if [[ -z "$(DSN)" ]]; then printf 'set DSN to a database these tests may migrate and write to\n' >&2; exit 1; fi
+	IGAME_TEST_DSN="$(DSN)" go test ./internal/api/... -count=1
 
 docs-pdf: ## Rebuild the three manual PDFs from their Markdown sources
 	bash ./scripts/build-docs-pdf.sh

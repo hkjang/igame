@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -569,14 +570,32 @@ func (s *Server) updateUser(w http.ResponseWriter, r *http.Request) {
 		h := string(b)
 		hash = &h
 	}
+	// Resetting a password is how an operator takes an account back from whoever
+	// got into it, so the sessions opened with the old password must not outlive
+	// it — a stolen cookie is otherwise good for another twelve hours. The one
+	// session spared is the request's own, and only when operators reset their
+	// own password here: the self-service path in changePassword already keeps
+	// the caller signed in, and signing them out mid-change protects nobody.
+	// Role and status need no such sweep; authenticate reads both per request.
+	var keepSession []byte
+	if hash != nil {
+		if p, ok := principalFrom(r); ok && p.AuthType == "session" && p.UserID == id {
+			if cookie, cerr := r.Cookie(sessionCookie); cerr == nil && cookie.Value != "" {
+				sum := sha256.Sum256([]byte(cookie.Value))
+				keepSession = sum[:]
+			}
+		}
+	}
 	// The previous role and status come back with the new ones. Granting admin is
 	// the most consequential thing this endpoint does, and an audit entry saying
 	// only "role: admin" cannot tell a promotion from a no-op.
 	var wasRole, wasStatus, nowRole, nowStatus string
-	err := s.DB.QueryRow(r.Context(), `WITH previous AS (SELECT role, status FROM users WHERE id=$1)
+	var revoked int64
+	err := s.DB.QueryRow(r.Context(), `WITH previous AS (SELECT role, status FROM users WHERE id=$1),
+		revoked AS (DELETE FROM auth_sessions WHERE $7::text IS NOT NULL AND user_id=$1 AND token_hash IS DISTINCT FROM $8::bytea RETURNING 1)
 		UPDATE users SET display_name=COALESCE($2,display_name),department=COALESCE($3,department),team=COALESCE($4,team),role=COALESCE($5,role),status=COALESCE($6,status),password_hash=COALESCE($7,password_hash),updated_at=now() WHERE id=$1
-		RETURNING (SELECT role FROM previous),(SELECT status FROM previous),role,status`,
-		id, in.DisplayName, in.Department, in.Team, in.Role, in.Status, hash).Scan(&wasRole, &wasStatus, &nowRole, &nowStatus)
+		RETURNING (SELECT role FROM previous),(SELECT status FROM previous),role,status,(SELECT count(*) FROM revoked)`,
+		id, in.DisplayName, in.Department, in.Team, in.Role, in.Status, hash, keepSession).Scan(&wasRole, &wasStatus, &nowRole, &nowStatus, &revoked)
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeError(w, 404, "not_found", "user not found")
 		return
@@ -585,7 +604,7 @@ func (s *Server) updateUser(w http.ResponseWriter, r *http.Request) {
 		s.dbError(w, r, err)
 		return
 	}
-	s.audit(r, "user.update", "user", id.String(), auditUserChange(wasRole, nowRole, wasStatus, nowStatus, hash != nil))
+	s.audit(r, "user.update", "user", id.String(), auditUserChange(wasRole, nowRole, wasStatus, nowStatus, hash != nil, revoked))
 	w.WriteHeader(204)
 }
 
@@ -865,8 +884,11 @@ func (s *Server) deleteCategory(w http.ResponseWriter, r *http.Request) {
 // Only fields that moved are recorded, each as the value before and after, so a
 // reader can tell a promotion from a request that set the role it already had.
 // A password reset is recorded as having happened: it lets the operator sign in
-// as that person, and it used to leave no trace at all.
-func auditUserChange(wasRole, nowRole, wasStatus, nowStatus string, passwordReset bool) map[string]any {
+// as that person, and it used to leave no trace at all. It carries how many of
+// the account's sessions the reset closed, because that is the answer to the
+// question a reset is usually asked in — whether whoever was already signed in
+// is out.
+func auditUserChange(wasRole, nowRole, wasStatus, nowStatus string, passwordReset bool, sessionsRevoked int64) map[string]any {
 	detail := map[string]any{}
 	if wasRole != nowRole {
 		detail["role"] = map[string]string{"from": wasRole, "to": nowRole}
@@ -876,6 +898,7 @@ func auditUserChange(wasRole, nowRole, wasStatus, nowStatus string, passwordRese
 	}
 	if passwordReset {
 		detail["password_reset"] = true
+		detail["sessions_revoked"] = sessionsRevoked
 	}
 	if len(detail) == 0 {
 		detail["changed"] = "profile fields only"
