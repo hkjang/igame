@@ -341,8 +341,17 @@ func (s *Server) putOIDCSetting(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// The stored secret is what a submission without one falls back to, and the
+	// settings screen never receives the secret, so every ordinary save arrives
+	// without one. A read that failed is therefore not "there was no secret":
+	// keeping the zero value would write an empty client_secret over a working
+	// one and break sign-in for everybody, from a moment of database trouble
+	// that nothing else would have noticed. Only a missing row means no secret.
 	var old oidcSetting
-	_ = s.setting(r.Context(), "oidc", &old)
+	if err := s.setting(r.Context(), "oidc", &old); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		s.serverError(w, r, 503, "oidc_setting_unavailable", "current OIDC setting is unavailable", err)
+		return
+	}
 	if in.ClientSecret == "" || in.ClientSecret == "********" {
 		in.ClientSecret = old.ClientSecret
 	} else {
@@ -441,8 +450,14 @@ func (s *Server) putAISetting(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// Same as the OIDC client secret above: the screen sends no api_key, so the
+	// stored one is carried over on every save, and an unreadable current value
+	// must stop the write instead of erasing the key.
 	var old aiSetting
-	_ = s.setting(r.Context(), "ai", &old)
+	if err := s.setting(r.Context(), "ai", &old); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		s.serverError(w, r, 503, "ai_setting_unavailable", "current AI setting is unavailable", err)
+		return
+	}
 	if in.APIKey == "" || in.APIKey == "********" {
 		in.APIKey = old.APIKey
 	} else {
