@@ -450,7 +450,14 @@ func (s *Server) playAllowed(r *http.Request, gameID uuid.UUID, gameSlug string)
 	}
 	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location).UTC()
 	var used int64
-	if err := s.DB.QueryRow(r.Context(), `SELECT COALESCE(sum(duration_ms),0) FROM game_sessions WHERE user_id=$1 AND game_id=$2 AND started_at>=$3`, mustPrincipal(r).UserID, gameID, dayStart).Scan(&used); err != nil {
+	// duration_ms is only written when a session ends, so summing it alone
+	// counted the session the player is in right now as zero minutes. The limit
+	// is checked when a session starts, and the session open at that moment is
+	// precisely the one the sum dropped, so every day let one more session
+	// through than the limit allows. An open session counts the time since it
+	// started, the same reckoning that finishing a session and abandoning one
+	// for a new one already write into duration_ms.
+	if err := s.DB.QueryRow(r.Context(), `SELECT COALESCE(sum(CASE WHEN status='active' THEN COALESCE(duration_ms,GREATEST(0,extract(epoch FROM(clock_timestamp()-started_at))*1000)::bigint) ELSE COALESCE(duration_ms,0) END),0) FROM game_sessions WHERE user_id=$1 AND game_id=$2 AND started_at>=$3`, mustPrincipal(r).UserID, gameID, dayStart).Scan(&used); err != nil {
 		return false, "", fmt.Errorf("sum today's play time: %w", err)
 	}
 	if used >= int64(limit)*60000 {
