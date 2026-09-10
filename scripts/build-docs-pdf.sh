@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# Rebuilds the three enterprise manuals under docs/ from their Markdown sources.
+# Rebuilds the enterprise manuals under docs/ from their Markdown sources.
+#
+# The user and administrator guides are not built here. They embed screen
+# captures and are produced by the shared guide tool instead — see
+# docs/USER_GUIDE.md and scripts/capture-guide-screenshots.sh.
 #
 # The published PDFs previously came from a pipeline that was never committed,
 # so they could not be regenerated when the product changed. This script is that
@@ -19,7 +23,6 @@ readonly BUILD_DATE
 
 # source markdown : output pdf : footer title
 readonly MANUALS=(
-  "guide.md:igame_User_Guide.pdf:사용자 가이드"
   "cru-manual.md:igame_CRU_Operations_Manual.pdf:CRU 운영 매뉴얼"
   "architecture.md:igame_Architecture_and_Security_Whitepaper.pdf:아키텍처 및 보안 백서"
 )

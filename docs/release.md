@@ -29,7 +29,7 @@ Production build는 RealmGuard와 Defense Series source가 locked Phaser depende
 
 ## 매뉴얼 PDF 재생성
 
-`docs/`의 세 PDF는 `docs/guide.md`, `docs/cru-manual.md`, `docs/architecture.md`에서 생성합니다. 이전에는 생성 파이프라인이 저장소에 없어 제품이 바뀌어도 다시 만들 수 없었습니다.
+`docs/`의 두 PDF는 `docs/cru-manual.md`와 `docs/architecture.md`에서 생성합니다. 이전에는 생성 파이프라인이 저장소에 없어 제품이 바뀌어도 다시 만들 수 없었습니다. 사용자 가이드와 관리자 가이드는 이 파이프라인이 아니라 화면 캡처를 함께 싣는 공용 가이드 도구로 만듭니다 — [사용자 가이드](USER_GUIDE.md) 참조.
 
 ```bash
 make docs-pdf
