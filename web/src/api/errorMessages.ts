@@ -61,6 +61,10 @@ const USER_FACING_MESSAGES: Record<string, string> = {
   ai_upstream_unavailable: 'AI 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.',
   max_tokens_exceeded: '요청한 토큰 수가 허용 한도를 초과했습니다.',
 
+  // 설정 저장 — 저장된 비밀값을 읽지 못하면 지우지 않고 거부한다.
+  oidc_setting_unavailable: '현재 저장된 OIDC 설정을 읽지 못해 저장하지 않았습니다. 잠시 후 다시 시도해 주세요.',
+  ai_setting_unavailable: '현재 저장된 AI 설정을 읽지 못해 저장하지 않았습니다. 잠시 후 다시 시도해 주세요.',
+
   // 검토와 승인
   team_required: '검토하려면 팀 정보가 필요합니다. 서비스 관리자에게 문의하세요.',
   different_team: '같은 팀에서 작성한 요청만 검토할 수 있습니다.',
