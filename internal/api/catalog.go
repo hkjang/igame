@@ -3,6 +3,7 @@ package api
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -247,8 +248,13 @@ func (s *Server) startGameSession(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "invalid_metadata", "defense_content_version_id is only valid for Defense Series games")
 		return
 	}
-	if ok, msg := s.playAllowed(r, gameID); !ok {
-		writeError(w, 403, "play_policy_denied", msg)
+	allowed, denial, err := s.playAllowed(r, gameID, gameSlug)
+	if err != nil {
+		s.serverError(w, r, 503, "play_policy_unavailable", "play policy is unavailable", err)
+		return
+	}
+	if !allowed {
+		writeError(w, 403, "play_policy_denied", denial)
 		return
 	}
 	var recentStarts int
@@ -392,19 +398,41 @@ func playWindowsAllow(windows []playWindow, now time.Time) bool {
 	return false
 }
 
-func (s *Server) playAllowed(r *http.Request, gameID uuid.UUID) (bool, string) {
+// playAllowed reports whether the caller may open the game right now. Every
+// read it depends on used to be discarded, and each one failed towards "go
+// ahead": an unreadable policy was indistinguishable from a disabled one, so a
+// moment of database trouble lifted the time windows and the daily limits
+// together; a failed slug lookup asked DailyLimits[""] and found no limit; and
+// a failed sum counted as no play at all, which no limit can ever reach. A
+// policy that cannot be evaluated now refuses the session instead of quietly
+// suspending itself, and the reason reaches the log. The slug is the one the
+// caller already read, so the lookup that could fail is gone entirely.
+func (s *Server) playAllowed(r *http.Request, gameID uuid.UUID, gameSlug string) (bool, string, error) {
 	var cfg struct {
 		Enabled     bool           `json:"enabled"`
 		Windows     []playWindow   `json:"windows"`
 		DailyLimits map[string]int `json:"daily_limits"`
 	}
-	if s.setting(r.Context(), "play_policy", &cfg) != nil || !cfg.Enabled {
-		return true, ""
+	// An absent key is a deployment that never stored a policy, which restricts
+	// nothing. Any other failure means the policy is unknown, not absent.
+	if err := s.setting(r.Context(), "play_policy", &cfg); err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return false, "", fmt.Errorf("read play policy: %w", err)
+		}
+		return true, "", nil
+	}
+	if !cfg.Enabled {
+		return true, "", nil
 	}
 	var service struct {
 		Timezone string `json:"timezone"`
 	}
-	_ = s.setting(r.Context(), "service", &service)
+	// Both halves of the policy are decided in the service time zone, so an
+	// unknown zone cannot be replaced by the default without moving the very
+	// hours the policy names.
+	if err := s.setting(r.Context(), "service", &service); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return false, "", fmt.Errorf("read service settings: %w", err)
+	}
 	if service.Timezone == "" {
 		service.Timezone = "Asia/Seoul"
 	}
@@ -414,21 +442,21 @@ func (s *Server) playAllowed(r *http.Request, gameID uuid.UUID) (bool, string) {
 	}
 	now := s.Now().In(location)
 	if !playWindowsAllow(cfg.Windows, now) {
-		return false, "game play is outside the allowed time window"
+		return false, "game play is outside the allowed time window", nil
 	}
-	var slug string
-	_ = s.DB.QueryRow(r.Context(), `SELECT slug FROM games WHERE id=$1`, gameID).Scan(&slug)
-	limit := cfg.DailyLimits[slug]
+	limit := cfg.DailyLimits[gameSlug]
 	if limit <= 0 {
-		return true, ""
+		return true, "", nil
 	}
 	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location).UTC()
 	var used int64
-	_ = s.DB.QueryRow(r.Context(), `SELECT COALESCE(sum(duration_ms),0) FROM game_sessions WHERE user_id=$1 AND game_id=$2 AND started_at>=$3`, mustPrincipal(r).UserID, gameID, dayStart).Scan(&used)
-	if used >= int64(limit)*60000 {
-		return false, "daily play limit reached"
+	if err := s.DB.QueryRow(r.Context(), `SELECT COALESCE(sum(duration_ms),0) FROM game_sessions WHERE user_id=$1 AND game_id=$2 AND started_at>=$3`, mustPrincipal(r).UserID, gameID, dayStart).Scan(&used); err != nil {
+		return false, "", fmt.Errorf("sum today's play time: %w", err)
 	}
-	return true, ""
+	if used >= int64(limit)*60000 {
+		return false, "daily play limit reached", nil
+	}
+	return true, "", nil
 }
 func mustPrincipal(r *http.Request) Principal { p, _ := principalFrom(r); return p }
 

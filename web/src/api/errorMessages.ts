@@ -42,6 +42,7 @@ const USER_FACING_MESSAGES: Record<string, string> = {
   session_rate_limited: '세션을 너무 자주 시작했습니다. 잠시 후 다시 시도해 주세요.',
   duplicate_score: '이 세션의 점수는 이미 기록되었습니다.',
   play_policy_denied: '지금은 플레이할 수 있는 시간이 아니거나 오늘의 플레이 한도를 초과했습니다.',
+  play_policy_unavailable: '플레이 정책을 확인할 수 없어 게임을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.',
   authoritative_result_required: '이 게임의 기록은 게임 화면을 통해서만 저장됩니다.',
   defense_authoritative_result_required: '이 게임의 기록은 게임 화면을 통해서만 저장됩니다.',
   hero_locked: '아직 해금되지 않은 영웅입니다.',
