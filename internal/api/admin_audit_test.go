@@ -16,32 +16,33 @@ func TestAuditUserChangeRecordsWhatMoved(t *testing.T) {
 	}{
 		{
 			"a promotion says where it came from",
-			auditUserChange("user", "admin", "active", "active", false),
+			auditUserChange("user", "admin", "active", "active", false, 0),
 			map[string]any{"role": map[string]string{"from": "user", "to": "admin"}},
 		},
 		{
 			"setting the role it already had is not a change",
-			auditUserChange("admin", "admin", "active", "active", false),
+			auditUserChange("admin", "admin", "active", "active", false, 0),
 			map[string]any{"changed": "profile fields only"},
 		},
 		{
 			"locking an account is recorded",
-			auditUserChange("user", "user", "active", "disabled", false),
+			auditUserChange("user", "user", "active", "disabled", false, 0),
 			map[string]any{"status": map[string]string{"from": "active", "to": "disabled"}},
 		},
 		{
 			// It lets the operator sign in as that person, and it left no trace.
-			"a password reset is recorded on its own",
-			auditUserChange("user", "user", "active", "active", true),
-			map[string]any{"password_reset": true},
+			"a password reset is recorded with the sessions it closed",
+			auditUserChange("user", "user", "active", "active", true, 2),
+			map[string]any{"password_reset": true, "sessions_revoked": int64(2)},
 		},
 		{
 			"a demotion and a lock in one request record both",
-			auditUserChange("admin", "user", "active", "disabled", true),
+			auditUserChange("admin", "user", "active", "disabled", true, 0),
 			map[string]any{
-				"role":           map[string]string{"from": "admin", "to": "user"},
-				"status":         map[string]string{"from": "active", "to": "disabled"},
-				"password_reset": true,
+				"role":             map[string]string{"from": "admin", "to": "user"},
+				"status":           map[string]string{"from": "active", "to": "disabled"},
+				"password_reset":   true,
+				"sessions_revoked": int64(0),
 			},
 		},
 	} {

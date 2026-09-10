@@ -102,6 +102,14 @@ make docker-build
 make smoke
 ```
 
+일부 동작은 PostgreSQL이 판정합니다. 해당 테스트는 `IGAME_TEST_DSN`이 있을 때만 실행되며, 지정한 데이터베이스에 마이그레이션을 적용하고 데이터를 씁니다 — 버려도 되는 데이터베이스를 주세요.
+
+```bash
+docker run -d --rm --name igame-test-db -e POSTGRES_PASSWORD=igame -e POSTGRES_USER=igame -e POSTGRES_DB=igame -p 15432:5432 postgres:17-alpine
+make test-db DSN='postgres://igame:igame@127.0.0.1:15432/igame?sslmode=disable'
+docker rm -f igame-test-db
+```
+
 릴리스 이미지는 `VERSION`을 기준으로 만듭니다. 결과물 `dist/igame-v<version>.tar.gz`는 별도 tar 포장 없이 `docker save igame:v<version> | gzip`의 출력입니다.
 
 서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.7.8`으로 정렬됩니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
