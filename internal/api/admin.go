@@ -16,11 +16,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/hkjang/igame/internal/tracking"
 	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
-var editableSettings = map[string]bool{"service": true, "approval": true, "privacy": true, "play_policy": true, "api_keys": true}
+var editableSettings = map[string]bool{"service": true, "approval": true, "privacy": true, "play_policy": true, "api_keys": true, "tracking": true}
 
 func (s *Server) listSettings(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.DB.Query(r.Context(), `SELECT key,value,updated_at FROM system_settings ORDER BY key`)
@@ -224,6 +225,14 @@ func validateSetting(key string, raw []byte) string {
 			if strings.TrimSpace(slug) == "" || minutes < 0 || minutes > 1440 {
 				return "daily limit for " + slug + " must be between 0 and 1440 minutes"
 			}
+		}
+	case "tracking":
+		var v tracking.Config
+		if json.Unmarshal(raw, &v) != nil {
+			return "invalid tracking setting"
+		}
+		if err := v.Normalized().Validate(); err != nil {
+			return err.Error()
 		}
 	case "api_keys":
 		var v apiKeyPolicy

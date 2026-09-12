@@ -36,6 +36,7 @@ const ROUTE_TITLES: Array<[RegExp, string]> = [
   [/^\/admin\/security$/, 'OIDC·보안 설정'],
   [/^\/admin\/ai$/, 'AI 설정'],
   [/^\/admin\/settings$/, '시스템 설정'],
+  [/^\/admin\/tracking$/, '방문 추적 설정'],
 ];
 
 /** Resolves the page name for a pathname, falling back for unmapped routes. */

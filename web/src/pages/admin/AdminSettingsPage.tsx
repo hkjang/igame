@@ -11,6 +11,7 @@ import { useAsync } from '../../hooks/useAsync';
 import { useSnackbar } from '../../state/SnackbarContext';
 import { ReviewQueue } from '../../components/ReviewQueue';
 import { useRetainFocus } from '../../hooks/useRetainFocus';
+import { TrackingSettings } from './TrackingSettings';
 
 type Values = Record<string, unknown>;
 const allPermissions = ['api:access', 'mcp:access', 'games:read', 'sessions:write', 'scores:write', 'rankings:read', 'profile:read', 'profile:write', 'ai:invoke', 'workflow:write', 'admin:*'];
@@ -124,9 +125,9 @@ function GeneralSettings({ settings }: { settings: Record<string, Values> }) {
 
 export const __testing = { playWindows, withWindowAt, withNewWindow, withoutWindowAt, playPolicyProblem };
 
-export function AdminSettingsPage({ section }: { section: 'oidc' | 'ai' | 'approval' | 'api_keys' | 'general' }) {
+export function AdminSettingsPage({ section }: { section: 'oidc' | 'ai' | 'approval' | 'api_keys' | 'general' | 'tracking' }) {
   const result = useAsync(() => api.adminSettings(), []);
-  const title = { oidc: 'OIDC · 보안', ai: 'AI 설정', approval: '검토·승인', api_keys: '키 권한', general: '시스템 설정' }[section];
+  const title = { oidc: 'OIDC · 보안', ai: 'AI 설정', approval: '검토·승인', api_keys: '키 권한', general: '시스템 설정', tracking: '방문 추적' }[section];
   const revision = result.data?.updated_at ? JSON.stringify(result.data.updated_at) : 'initial';
-  return <Container maxWidth="lg" sx={{ py: { xs: 3, lg: 5 } }}><Typography variant="h1" sx={{ fontSize: { xs: '2.1rem', lg: '3rem' } }}>{title}</Typography><Typography color="text.secondary" mt={1} mb={3}>환경변수 변경 없이 관리자 페이지에서 운영 정책을 안전하게 관리합니다.</Typography>{result.loading ? <LoadingScreen /> : result.error ? <ErrorPanel error={result.error} retry={() => void result.reload()} /> : result.data && (section === 'oidc' ? <OIDCSettings key={revision} initial={result.data.settings.oidc ?? {}} secretStored={Boolean(result.data.secrets?.oidc?.client_secret)} /> : section === 'ai' ? <AISettings key={revision} initial={result.data.settings.ai ?? {}} secretStored={Boolean(result.data.secrets?.ai?.api_key)} /> : section === 'approval' ? <ApprovalSettings key={revision} initial={result.data.settings.approval ?? {}} /> : section === 'api_keys' ? <KeyPolicySettings key={revision} initial={result.data.settings.api_keys ?? {}} /> : <GeneralSettings key={revision} settings={result.data.settings} />)}</Container>;
+  return <Container maxWidth="lg" sx={{ py: { xs: 3, lg: 5 } }}><Typography variant="h1" sx={{ fontSize: { xs: '2.1rem', lg: '3rem' } }}>{title}</Typography><Typography color="text.secondary" mt={1} mb={3}>환경변수 변경 없이 관리자 페이지에서 운영 정책을 안전하게 관리합니다.</Typography>{result.loading ? <LoadingScreen /> : result.error ? <ErrorPanel error={result.error} retry={() => void result.reload()} /> : result.data && (section === 'oidc' ? <OIDCSettings key={revision} initial={result.data.settings.oidc ?? {}} secretStored={Boolean(result.data.secrets?.oidc?.client_secret)} /> : section === 'ai' ? <AISettings key={revision} initial={result.data.settings.ai ?? {}} secretStored={Boolean(result.data.secrets?.ai?.api_key)} /> : section === 'approval' ? <ApprovalSettings key={revision} initial={result.data.settings.approval ?? {}} /> : section === 'api_keys' ? <KeyPolicySettings key={revision} initial={result.data.settings.api_keys ?? {}} /> : section === 'tracking' ? <TrackingSettings key={revision} initial={result.data.settings.tracking ?? {}} /> : <GeneralSettings key={revision} settings={result.data.settings} />)}</Container>;
 }

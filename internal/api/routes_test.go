@@ -123,7 +123,7 @@ func TestEveryAuthenticatedRouteHasADeliberateAPIKeyScope(t *testing.T) {
 	err := chi.Walk(router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
 		route = strings.TrimSuffix(route, "/*")
 		if !strings.HasPrefix(route, "/api/v1/") || strings.HasPrefix(route, "/api/v1/auth/") ||
-			route == "/api/v1/version" || route == "/api/v1/public/config" {
+			route == "/api/v1/version" || route == "/api/v1/public/config" || route == cspReportPath {
 			return nil
 		}
 		key := method + " " + route

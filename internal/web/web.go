@@ -16,13 +16,31 @@ import (
 //go:embed dist
 var assets embed.FS
 
+// IndexRewriter adjusts the SPA shell for one request before it is sent. The
+// tracking snippet is inserted this way: the shell is small and served with
+// no-store, so rewriting it per request costs nothing worth caching, and the
+// per-request nonce it carries could not be cached anyway.
+type IndexRewriter func(r *http.Request, index []byte) []byte
+
 func Handler() http.Handler {
-	root, _ := fs.Sub(assets, "dist")
-	return handlerFor(root)
+	return HandlerWith(nil)
 }
 
-func handlerFor(root fs.FS) http.Handler {
-	index, _ := fs.ReadFile(root, "index.html")
+// HandlerWith serves the SPA with rewrite applied to every copy of the shell.
+// A nil rewrite serves the shell as built.
+func HandlerWith(rewrite IndexRewriter) http.Handler {
+	root, _ := fs.Sub(assets, "dist")
+	return handlerFor(root, rewrite)
+}
+
+func handlerFor(root fs.FS, rewrite IndexRewriter) http.Handler {
+	built, _ := fs.ReadFile(root, "index.html")
+	shell := func(r *http.Request) []byte {
+		if rewrite == nil {
+			return built
+		}
+		return rewrite(r, built)
+	}
 	files := http.FileServer(http.FS(root))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -35,7 +53,7 @@ func handlerFor(root fs.FS) http.Handler {
 			return
 		}
 		if clean == "." || clean == "index.html" {
-			serveIndex(w, r, index)
+			serveIndex(w, r, shell(r))
 			return
 		}
 		// Only regular files are assets. A directory would make http.FileServer
@@ -56,7 +74,7 @@ func handlerFor(root fs.FS) http.Handler {
 			http.NotFound(w, r)
 			return
 		}
-		serveIndex(w, r, index)
+		serveIndex(w, r, shell(r))
 	})
 }
 

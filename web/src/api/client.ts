@@ -113,6 +113,17 @@ async function list<T>(path: string): Promise<ApiList<T>> {
   return Array.isArray(body) ? { items: body } : body;
 }
 
+/** One origin the content security policy refused while tracking was on. */
+export interface TrackingViolation {
+  origin: string;
+  directive: string;
+  page: string;
+  count: number;
+  first_seen: string;
+  last_seen: string;
+  allowed: boolean;
+}
+
 export interface StreamOptions {
   signal?: AbortSignal;
   onToken: (text: string) => void;
@@ -224,4 +235,6 @@ export const api = {
   adminDelete: (resource: string, id: string) => request<void>(`/api/v1/admin/${resource}/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   adminSettings: () => request<{ settings: Record<string, Record<string, unknown>>; updated_at?: Record<string, string>; secrets?: Record<string, Record<string, boolean>> }>('/api/v1/admin/settings'),
   saveAdminSetting: (key: string, value: unknown) => request<Record<string, unknown>>(`/api/v1/admin/settings/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify(['oidc', 'ai'].includes(key) ? value : { value }) }),
+  trackingViolations: () => list<TrackingViolation>('/api/v1/admin/tracking/violations').then((page) => page.items),
+  clearTrackingViolations: () => request<void>('/api/v1/admin/tracking/violations', { method: 'DELETE' }),
 };

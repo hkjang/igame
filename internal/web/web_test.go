@@ -22,7 +22,7 @@ func TestDirectoriesAreNotServedAsAssets(t *testing.T) {
 	for _, requestPath := range []string{"/assets/", "/assets", "/assets/chunks/", "/assets/chunks"} {
 		request := httptest.NewRequest(http.MethodGet, requestPath, nil)
 		response := httptest.NewRecorder()
-		handlerFor(builtDist).ServeHTTP(response, request)
+		handlerFor(builtDist, nil).ServeHTTP(response, request)
 		if response.Code != http.StatusOK {
 			t.Fatalf("%s returned %d, want 200", requestPath, response.Code)
 		}
@@ -47,7 +47,7 @@ func TestBundleFilesAreStillServed(t *testing.T) {
 	for requestPath, cacheControl := range tests {
 		request := httptest.NewRequest(http.MethodGet, requestPath, nil)
 		response := httptest.NewRecorder()
-		handlerFor(builtDist).ServeHTTP(response, request)
+		handlerFor(builtDist, nil).ServeHTTP(response, request)
 		if response.Code != http.StatusOK {
 			t.Fatalf("%s returned %d, want 200", requestPath, response.Code)
 		}
@@ -103,5 +103,26 @@ func TestCacheControlOnlyPinsHashedBundleAssets(t *testing.T) {
 		if got := cacheControlFor(name); got != want {
 			t.Fatalf("cacheControlFor(%q)=%q, want %q", name, got, want)
 		}
+	}
+}
+
+func TestIndexRewriterSeesEveryCopyOfTheShell(t *testing.T) {
+	rewrite := func(r *http.Request, index []byte) []byte {
+		return append(append([]byte{}, index...), []byte("<!--"+r.URL.Path+"-->")...)
+	}
+	for _, requestPath := range []string{"/", "/index.html", "/games/snake", "/assets/"} {
+		request := httptest.NewRequest(http.MethodGet, requestPath, nil)
+		response := httptest.NewRecorder()
+		handlerFor(builtDist, rewrite).ServeHTTP(response, request)
+		if !strings.HasSuffix(response.Body.String(), "<!--"+requestPath+"-->") {
+			t.Fatalf("%s served an unrewritten shell: %q", requestPath, response.Body.String())
+		}
+	}
+	// Bundle files are not the shell and must reach the browser byte for byte.
+	request := httptest.NewRequest(http.MethodGet, "/assets/index-DbG3xk91.js", nil)
+	response := httptest.NewRecorder()
+	handlerFor(builtDist, rewrite).ServeHTTP(response, request)
+	if response.Body.String() != "console.log(1)" {
+		t.Fatalf("asset was rewritten: %q", response.Body.String())
 	}
 }

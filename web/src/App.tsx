@@ -89,6 +89,7 @@ export function App() {
         <Route path="security" element={adminOnly(<AdminSettingsPage section="oidc" />)} />
         <Route path="ai" element={adminOnly(<AdminSettingsPage section="ai" />)} />
         <Route path="settings" element={adminOnly(<AdminSettingsPage section="general" />)} />
+        <Route path="tracking" element={adminOnly(<AdminSettingsPage section="tracking" />)} />
       </Route>
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
