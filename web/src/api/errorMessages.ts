@@ -65,6 +65,8 @@ const USER_FACING_MESSAGES: Record<string, string> = {
   // 설정 저장 — 저장된 비밀값을 읽지 못하면 지우지 않고 거부한다.
   oidc_setting_unavailable: '현재 저장된 OIDC 설정을 읽지 못해 저장하지 않았습니다. 잠시 후 다시 시도해 주세요.',
   ai_setting_unavailable: '현재 저장된 AI 설정을 읽지 못해 저장하지 않았습니다. 잠시 후 다시 시도해 주세요.',
+  tracking_setting_unavailable: '현재 저장된 방문 추적 설정을 읽지 못해 저장하지 않았습니다. 잠시 후 다시 시도해 주세요.',
+  invalid_origin: '허용할 출처는 https://host 형태여야 합니다.',
 
   // 검토와 승인
   team_required: '검토하려면 팀 정보가 필요합니다. 서비스 관리자에게 문의하세요.',

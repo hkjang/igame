@@ -24,6 +24,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 	"github.com/hkjang/igame/internal/secretbox"
+	"github.com/hkjang/igame/internal/tracking"
 	"github.com/hkjang/igame/internal/version"
 	"github.com/hkjang/igame/internal/web"
 	"github.com/jackc/pgx/v5"
@@ -48,6 +49,7 @@ type Server struct {
 	providerMu    sync.RWMutex
 	providerCache map[string]providerEntry
 	logins        loginThrottle
+	violations    *tracking.Recorder
 	draining      chan struct{}
 	drainOnce     sync.Once
 }
@@ -66,7 +68,7 @@ func (s *Server) Drain() {
 func New(db *pgxpool.Pool, secrets *secretbox.Box, log *slog.Logger) *Server {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil // offline installations do not inherit ambient proxy variables
-	return &Server{DB: db, Secrets: secrets, Log: log, HTTP: &http.Client{Transport: transport, Timeout: 30 * time.Second}, Now: func() time.Time { return time.Now().UTC() }, draining: make(chan struct{})}
+	return &Server{DB: db, Secrets: secrets, Log: log, HTTP: &http.Client{Transport: transport, Timeout: 30 * time.Second}, Now: func() time.Time { return time.Now().UTC() }, violations: tracking.NewRecorder(nil), draining: make(chan struct{})}
 }
 
 type Principal struct {
@@ -105,6 +107,7 @@ func (s *Server) Router() http.Handler {
 	r.Get("/api/v1/auth/oidc/login", s.oidcLogin)
 	r.Get("/api/v1/auth/oidc/start", s.oidcLogin)
 	r.Get("/api/v1/auth/oidc/callback", s.oidcCallback)
+	r.Post(cspReportPath, s.receiveCSPReport)
 
 	r.Group(func(a chi.Router) {
 		a.Use(s.requireAuth)
@@ -179,6 +182,9 @@ func (s *Server) Router() http.Handler {
 			admin.With(s.requireRole("admin")).Put("/oidc", s.putOIDCSetting)
 			admin.With(s.requireRole("admin")).Get("/ai", s.getAISetting)
 			admin.With(s.requireRole("admin")).Put("/ai", s.putAISetting)
+			admin.With(s.requireRole("admin")).Get("/tracking/violations", s.listTrackingViolations)
+			admin.With(s.requireRole("admin")).Delete("/tracking/violations", s.clearTrackingViolations)
+			admin.With(s.requireRole("admin")).Post("/tracking/allow", s.allowTrackingHost)
 			admin.Get("/games", s.adminListGames)
 			admin.Post("/games", s.createGame)
 			admin.Put("/games/{id}", s.updateGame)
@@ -250,7 +256,10 @@ func (s *Server) Router() http.Handler {
 	// JSON-RPC authentication errors rather than REST errors.
 	r.With(s.requireMCPAuth).Get("/mcp", s.mcpGet)
 	r.With(s.requireMCPAuth).Post("/mcp", s.mcpPost)
-	r.Mount("/", web.Handler())
+	// The same-origin Momento proxy sits beside the SPA so the snippet can load
+	// the tracker and post events without an external origin in the policy.
+	r.Handle(tracking.ProxyPrefix+"/*", http.HandlerFunc(s.proxyMomento))
+	r.Mount("/", web.HandlerWith(s.rewriteIndex))
 	return r
 }
 
@@ -281,6 +290,12 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 				w.Header().Set("Strict-Transport-Security", "max-age=31536000")
 			}
 		}
+		// Responses nobody renders get a policy that loads nothing at all.
+		if !pagePath(r.URL.Path) {
+			w.Header().Set("Content-Security-Policy", nonPagePolicy)
+			next.ServeHTTP(w, r)
+			return
+		}
 		frames := []string{"'self'"}
 		connect := []string{"'self'"}
 		for _, candidate := range policy.AllowedFrameOrigins {
@@ -293,7 +308,19 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 				connect = append(connect, origin)
 			}
 		}
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src "+strings.Join(connect, " ")+"; frame-src "+strings.Join(frames, " ")+"; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'")
+		// A page that carries the tracking snippet gets a nonce of its own. The
+		// same value goes into the policy here and onto the snippet's script
+		// tags when the shell is served, so inline tracking code runs without
+		// 'unsafe-inline' ever entering the policy.
+		config := s.trackingConfig(r.Context())
+		nonce := ""
+		if config.Active(r.URL.Path) {
+			if generated, err := randomToken(16); err == nil {
+				nonce = generated
+				r = r.WithContext(context.WithValue(r.Context(), nonceKey, nonce))
+			}
+		}
+		w.Header().Set("Content-Security-Policy", pagePolicy(config, r.URL.Path, nonce, frames, connect))
 		next.ServeHTTP(w, r)
 	})
 }
@@ -323,6 +350,13 @@ func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
 func (s *Server) csrfProtection(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions || strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		// A policy violation report carries no credentials and changes nothing
+		// but a bounded in-memory list, and browsers send it with whatever
+		// Origin they see fit.
+		if r.URL.Path == cspReportPath {
 			next.ServeHTTP(w, r)
 			return
 		}

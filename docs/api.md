@@ -66,6 +66,10 @@
 | GET | `/api/v1/admin/analytics` | 관리자/운영자 session 또는 `admin:*`, DAU/WAU/MAU 등 |
 | GET | `/api/v1/admin/settings` | admin session 또는 admin 역할 + `admin:*` 키, 전체 설정 조회 |
 | GET/PUT | `/api/v1/admin/settings/{key}` | admin session 또는 admin 역할 + `admin:*` 키, 일반 설정 조회/변경 |
+| GET/DELETE | `/api/v1/admin/tracking/violations` | admin, 방문 추적이 켜진 동안 브라우저가 신고한 차단 출처 목록 조회/비우기 |
+| POST | `/api/v1/admin/tracking/allow` | admin, `{"origin":"https://host"}`를 `tracking.allowed_hosts`에 더한다 |
+| POST | `/api/v1/tracking/csp-report` | 인증 없음, 브라우저의 CSP 위반 신고(`application/csp-report`). 항상 `204` |
+| ANY | `/momento/*` | 인증 없음, `tracking` 설정이 Momento + 같은 오리진 프록시일 때만 수집기로 중계. 그 외 `404` |
 | GET/PUT | `/api/v1/admin/oidc` | admin session 또는 admin 역할 + `admin:*` 키, OIDC 설정 |
 | GET/PUT | `/api/v1/admin/ai` | admin session 또는 admin 역할 + `admin:*` 키, AI 설정 |
 | GET/POST/PUT/DELETE | `/api/v1/admin/{games,categories,seasons,events,achievements}` | 카탈로그와 참여 콘텐츠 관리 |

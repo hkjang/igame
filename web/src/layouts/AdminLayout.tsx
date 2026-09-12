@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import AnalyticsRounded from '@mui/icons-material/AnalyticsRounded';
 import ApprovalRounded from '@mui/icons-material/ApprovalRounded';
 import ArticleRounded from '@mui/icons-material/ArticleRounded';
+import TrackChangesRounded from '@mui/icons-material/TrackChangesRounded';
 import ViewCarouselRounded from '@mui/icons-material/ViewCarouselRounded';
 import AutoAwesomeRounded from '@mui/icons-material/AutoAwesomeRounded';
 import CategoryRounded from '@mui/icons-material/CategoryRounded';
@@ -50,6 +51,7 @@ const menu: Array<{ to: string; label: string; icon: React.ReactNode; end?: bool
   { to: '/admin/security', label: 'OIDC·보안', icon: <SecurityRounded />, adminOnly: true },
   { to: '/admin/ai', label: 'AI 설정', icon: <AutoAwesomeRounded />, adminOnly: true },
   { to: '/admin/settings', label: '시스템 설정', icon: <SettingsRounded />, adminOnly: true },
+  { to: '/admin/tracking', label: '방문 추적', icon: <TrackChangesRounded />, adminOnly: true },
 ];
 
 export function AdminLayout() {
