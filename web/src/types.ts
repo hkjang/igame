@@ -20,6 +20,8 @@ export interface PublicConfig {
   version: string;
   oidc_enabled: boolean;
   oidc_login_url: string;
+  /** Try a silent (prompt=none) sign-in before showing the login screen. */
+  oidc_auto_login?: boolean;
   bootstrap_login_enabled?: boolean;
   approval_enabled?: boolean;
   ai_enabled?: boolean;

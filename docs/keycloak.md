@@ -41,6 +41,7 @@ igame은 issuer의 `/.well-known/openid-configuration`을 이용해 authorizatio
 | 관리자 그룹 | `admin` 역할로 매핑할 Keycloak group 값 목록 |
 | 운영자 그룹 | `operator` 역할로 매핑할 Keycloak group 값 목록 |
 | 팀장 그룹 | `manager` 역할로 매핑할 Keycloak group 값 목록 |
+| 자동 로그인 | 기본 꺼짐. 켜면 Keycloak에 이미 로그인한 사람은 `prompt=none`으로 로그인 화면 없이 입장합니다. 동작과 루프 방지 규칙은 [관리자 가이드](ADMIN_GUIDE.md)의 OIDC·보안 항목을 보세요 |
 
 서비스 공개 URL과 허용 origin은 별도의 **시스템 설정 → 서비스**에서 관리합니다. 설정한 `public_url`이 redirect URI의 기준이며, 비어 있으면 요청 scheme/host를 사용합니다. 신뢰할 수 있는 reverse proxy 뒤에서는 `trust_proxy`를 켜고 `X-Forwarded-Host`와 `X-Forwarded-Proto`를 정확히 전달해야 합니다.
 

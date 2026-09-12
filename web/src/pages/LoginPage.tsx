@@ -6,6 +6,7 @@ import { alpha } from '@mui/material/styles';
 import { Alert, Box, Button, Card, CardContent, CircularProgress, Divider, Stack, TextField, Typography } from '@mui/material';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../state/AuthContext';
+import { loginDestination, ssoLoginHref } from './loginDestination';
 import { titleForPath } from './routeTitles';
 
 export function LoginPage() {
@@ -19,8 +20,8 @@ export function LoginPage() {
   const passwordRef = useRef<HTMLInputElement>(null);
   // Where the visitor was headed before RequireAuth sent them here — a screen
   // whose session expired under them, or a deep link they followed logged out.
-  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? '/';
-  const destination = from === '/' ? '' : titleForPath(from);
+  const from = loginDestination(location.state, location.search);
+  const destination = from === '/' ? '' : titleForPath(from.split('?')[0]);
   if (user) return <Navigate to={from} replace />;
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setSubmitting(true); setError('');
@@ -51,7 +52,7 @@ export function LoginPage() {
               that was open a moment ago. */}
           {destination && <Alert severity="info" sx={{ mb: 2 }}>로그인하면 <strong>{destination}</strong> 화면으로 돌아갑니다.</Alert>}
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-          {config.oidc_enabled && <Button fullWidth size="large" variant="contained" endIcon={<ArrowForwardRounded />} href={config.oidc_login_url || '/api/v1/auth/oidc/login'}>사내 SSO로 계속</Button>}
+          {config.oidc_enabled && <Button fullWidth size="large" variant="contained" endIcon={<ArrowForwardRounded />} href={ssoLoginHref(config.oidc_login_url || '/api/v1/auth/oidc/login', from)}>사내 SSO로 계속</Button>}
           {config.oidc_enabled && config.bootstrap_login_enabled !== false && <Divider sx={{ my: 3 }}>또는 관리자 로그인</Divider>}
           {config.bootstrap_login_enabled !== false && <Box component="form" onSubmit={(event) => void submit(event)}><Stack spacing={2}>
             <TextField label="관리자 아이디" autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} required inputProps={{ minLength: 1 }} />

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -35,6 +36,10 @@ type oidcSetting struct {
 	AdminGroups      []string `json:"admin_groups,omitempty"`
 	ManagerGroups    []string `json:"manager_groups,omitempty"`
 	OperatorGroups   []string `json:"operator_groups,omitempty"`
+	// AutoLogin lets the portal sign a visitor in silently (prompt=none) when
+	// the identity provider still holds a session for them. Off by default:
+	// a fresh installation must behave exactly as before.
+	AutoLogin bool `json:"auto_login"`
 }
 
 func (o *oidcSetting) defaults() {
@@ -74,9 +79,13 @@ func (s *Server) publicConfig(w http.ResponseWriter, r *http.Request) {
 	if configured, ok := service["bootstrap_login_enabled"].(bool); ok {
 		bootstrapEnabled = configured
 	}
+	// oidc_auto_login tells the portal whether to try a silent sign-in before
+	// it shows the login screen. It is published only alongside an enabled
+	// provider so the browser never attempts a flow the server would refuse.
 	writeJSON(w, 200, map[string]any{
 		"name": serviceName, "display_name": firstString(service["display_name"], "iGame"), "version": versionString(),
-		"oidc_enabled": oidcCfg.Enabled, "oidc_login_url": "/api/v1/auth/oidc/login", "ai_enabled": aiCfg.Enabled, "approval_enabled": approvalCfg.Enabled, "bootstrap_login_enabled": bootstrapEnabled,
+		"oidc_enabled": oidcCfg.Enabled, "oidc_login_url": "/api/v1/auth/oidc/login", "oidc_auto_login": oidcCfg.Enabled && oidcCfg.AutoLogin,
+		"ai_enabled": aiCfg.Enabled, "approval_enabled": approvalCfg.Enabled, "bootstrap_login_enabled": bootstrapEnabled,
 	})
 }
 
@@ -224,21 +233,60 @@ func (s *Server) oidcLogin(w http.ResponseWriter, r *http.Request) {
 	verifier := oauth2.GenerateVerifier()
 	stateHash := sha256.Sum256([]byte(state))
 	returnTo := safeReturnTo(r.URL.Query().Get("return_to"))
-	_, err = s.DB.Exec(r.Context(), `INSERT INTO oidc_flows(state_hash,nonce,code_verifier,return_to,expires_at) VALUES($1,$2,$3,$4,now()+interval '10 minutes')`, stateHash[:], nonce, verifier, returnTo)
+	silent := silentLoginRequested(r, cfg)
+	_, err = s.DB.Exec(r.Context(), `INSERT INTO oidc_flows(state_hash,nonce,code_verifier,return_to,silent,expires_at) VALUES($1,$2,$3,$4,$5,now()+interval '10 minutes')`, stateHash[:], nonce, verifier, returnTo, silent)
 	if err != nil {
 		s.dbError(w, r, err)
 		return
 	}
 	oauthCfg := oauth2.Config{ClientID: cfg.ClientID, ClientSecret: cfg.ClientSecret, Endpoint: provider.Endpoint(), RedirectURL: s.requestBaseURL(r) + "/api/v1/auth/oidc/callback", Scopes: cfg.Scopes}
-	http.Redirect(w, r, oauthCfg.AuthCodeURL(state, oidc.Nonce(nonce), oauth2.S256ChallengeOption(verifier)), http.StatusFound)
+	options := []oauth2.AuthCodeOption{oidc.Nonce(nonce), oauth2.S256ChallengeOption(verifier)}
+	if silent {
+		options = append(options, oauth2.SetAuthURLParam("prompt", "none"))
+	}
+	http.Redirect(w, r, oauthCfg.AuthCodeURL(state, options...), http.StatusFound)
+}
+
+// silentLoginRequested reports whether this login should ask the provider for
+// prompt=none, which never renders a screen: an existing provider session
+// answers with a code at once, and no session answers with login_required.
+//
+// The request alone cannot choose this. Anybody can append ?prompt=none to a
+// link, and a silent attempt is what sends a signed-out visitor bouncing back
+// to the login screen — so the redirect only exists where the administrator
+// turned auto_login on. Otherwise the parameter is ignored and the visitor
+// gets the ordinary login.
+func silentLoginRequested(r *http.Request, cfg oidcSetting) bool {
+	return cfg.AutoLogin && r.URL.Query().Get("prompt") == "none"
+}
+
+// silentRefusalPath is where a silent attempt lands when the provider had no
+// session. The sso=none marker is the third guard against a redirect loop:
+// even with sessionStorage cleared in between, the portal sees it in the
+// address and does not try again. return_to rides along so the deep link the
+// visitor followed survives the detour through the login screen.
+func silentRefusalPath(returnTo string) string {
+	path := "/login?sso=none"
+	if returnTo = safeReturnTo(returnTo); returnTo != "/" {
+		path += "&return_to=" + url.QueryEscape(returnTo)
+	}
+	return path
 }
 
 func (s *Server) oidcCallback(w http.ResponseWriter, r *http.Request) {
+	state := r.URL.Query().Get("state")
 	if providerError := r.URL.Query().Get("error"); providerError != "" {
+		// A silent attempt reports "no session" as an error parameter; it is
+		// the ordinary answer for a signed-out visitor, not a failure. The flow
+		// row says whether this login was silent, and it is consumed either
+		// way so the state cannot be replayed.
+		if silent, returnTo := s.consumeRefusedFlow(r, state); silent {
+			http.Redirect(w, r, silentRefusalPath(returnTo), http.StatusFound)
+			return
+		}
 		writeError(w, 401, "oidc_error", providerError)
 		return
 	}
-	state := r.URL.Query().Get("state")
 	code := r.URL.Query().Get("code")
 	if state == "" || code == "" {
 		writeError(w, 400, "invalid_callback", "missing code or state")
@@ -333,6 +381,20 @@ func (s *Server) oidcCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, safeReturnTo(returnTo), http.StatusFound)
+}
+
+// consumeRefusedFlow deletes the flow the provider refused and reports whether
+// it was a silent one. An unknown, expired or missing state is not silent: a
+// caller who did not start a flow cannot be steered into the silent landing.
+func (s *Server) consumeRefusedFlow(r *http.Request, state string) (silent bool, returnTo string) {
+	if state == "" {
+		return false, "/"
+	}
+	stateHash := sha256.Sum256([]byte(state))
+	if err := s.DB.QueryRow(r.Context(), `DELETE FROM oidc_flows WHERE state_hash=$1 AND expires_at>now() RETURNING silent,return_to`, stateHash[:]).Scan(&silent, &returnTo); err != nil {
+		return false, "/"
+	}
+	return silent, returnTo
 }
 
 func claimString(claims map[string]any, key string) string {
