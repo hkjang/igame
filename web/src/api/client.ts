@@ -113,6 +113,26 @@ async function list<T>(path: string): Promise<ApiList<T>> {
   return Array.isArray(body) ? { items: body } : body;
 }
 
+/** One attempt to send a notification mail; the body is never recorded. */
+export interface MailDelivery {
+  id: string;
+  event: string;
+  recipient: string;
+  subject: string;
+  resource_type?: string;
+  resource_id?: string;
+  status: 'queued' | 'sent' | 'failed';
+  attempts: number;
+  error_message?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MailDeliveryPage {
+  items: MailDelivery[];
+  summary: { total: number; status: Record<string, number> };
+}
+
 /** One origin the content security policy refused while tracking was on. */
 export interface TrackingViolation {
   origin: string;
@@ -234,7 +254,9 @@ export const api = {
   adminUpdate: <T>(resource: string, id: string, input: unknown) => request<T>(`/api/v1/admin/${resource}/${encodeURIComponent(id)}`, { method: resource === 'users' ? 'PATCH' : 'PUT', body: JSON.stringify(input) }),
   adminDelete: (resource: string, id: string) => request<void>(`/api/v1/admin/${resource}/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   adminSettings: () => request<{ settings: Record<string, Record<string, unknown>>; updated_at?: Record<string, string>; secrets?: Record<string, Record<string, boolean>> }>('/api/v1/admin/settings'),
-  saveAdminSetting: (key: string, value: unknown) => request<Record<string, unknown>>(`/api/v1/admin/settings/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify(['oidc', 'ai'].includes(key) ? value : { value }) }),
+  saveAdminSetting: (key: string, value: unknown) => request<Record<string, unknown>>(`/api/v1/admin/settings/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify(['oidc', 'ai', 'mail'].includes(key) ? value : { value }) }),
+  mailDeliveries: (status = '') => request<MailDeliveryPage>(`/api/v1/admin/mail/deliveries${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+  sendTestMail: (recipient: string) => request<{ sent: boolean; recipient: string }>('/api/v1/admin/mail/test', { method: 'POST', body: JSON.stringify({ recipient }) }),
   trackingViolations: () => list<TrackingViolation>('/api/v1/admin/tracking/violations').then((page) => page.items),
   clearTrackingViolations: () => request<void>('/api/v1/admin/tracking/violations', { method: 'DELETE' }),
 };

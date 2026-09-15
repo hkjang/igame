@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -11,6 +12,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hkjang/igame/internal/mail"
+	"github.com/jackc/pgx/v5"
 )
 
 func (s *Server) serviceLocation(ctx context.Context) *time.Location {
@@ -649,16 +652,17 @@ func (s *Server) moderateRanking(w http.ResponseWriter, r *http.Request) {
 	if !verified && reason == "" {
 		reason = "moderated_" + status
 	}
-	tag, err := s.DB.Exec(r.Context(), `UPDATE scores SET moderation_status=$2,verified=$3,rejection_reason=$4 WHERE id=$1`, id, status, verified, reason)
+	moderated, err := s.moderateScore(r.Context(), id, status, verified, reason)
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, 404, "not_found", "ranking record not found")
+		return
+	}
 	if err != nil {
 		s.dbError(w, r, err)
 		return
 	}
-	if tag.RowsAffected() == 0 {
-		writeError(w, 404, "not_found", "ranking record not found")
-		return
-	}
 	s.audit(r, "ranking.moderate", "score", id.String(), map[string]any{"status": status, "reason": reason})
+	s.notifyScoreOwner(r, id, moderated, status, reason)
 	writeJSON(w, 200, map[string]any{"item": map[string]any{"id": id, "status": status, "verified": verified, "rejection_reason": reason}})
 }
 func (s *Server) excludeRanking(w http.ResponseWriter, r *http.Request) {
@@ -666,17 +670,48 @@ func (s *Server) excludeRanking(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	tag, err := s.DB.Exec(r.Context(), `UPDATE scores SET moderation_status='excluded',verified=false,rejection_reason='moderated_excluded' WHERE id=$1`, id)
+	moderated, err := s.moderateScore(r.Context(), id, "excluded", false, "moderated_excluded")
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, 404, "not_found", "ranking record not found")
+		return
+	}
 	if err != nil {
 		s.dbError(w, r, err)
 		return
 	}
-	if tag.RowsAffected() == 0 {
-		writeError(w, 404, "not_found", "ranking record not found")
+	s.audit(r, "ranking.exclude", "score", id.String(), nil)
+	s.notifyScoreOwner(r, id, moderated, "excluded", "moderated_excluded")
+	w.WriteHeader(204)
+}
+
+// moderatedScore is what a moderation write hands back: whose score it was,
+// what it was worth, and whether the write actually changed its standing.
+type moderatedScore struct {
+	owner    uuid.UUID
+	game     string
+	score    int64
+	previous string
+}
+
+// moderateScore writes the moderation status and returns the previous one
+// alongside the owner, so the caller can tell a change from a repeat of the
+// same decision. pgx.ErrNoRows means there is no such score.
+func (s *Server) moderateScore(ctx context.Context, id uuid.UUID, status string, verified bool, reason string) (moderatedScore, error) {
+	var m moderatedScore
+	err := s.DB.QueryRow(ctx, `WITH previous AS (SELECT moderation_status FROM scores WHERE id=$1)
+		UPDATE scores sc SET moderation_status=$2,verified=$3,rejection_reason=$4 FROM games g WHERE sc.id=$1 AND g.id=sc.game_id
+		RETURNING sc.user_id,g.name,sc.score,(SELECT moderation_status FROM previous)`, id, status, verified, reason).Scan(&m.owner, &m.game, &m.score, &m.previous)
+	return m, err
+}
+
+// notifyScoreOwner tells a player that an operator changed the standing of
+// their score — but only when it changed. Confirming an exclusion that was
+// already in place is not news.
+func (s *Server) notifyScoreOwner(r *http.Request, id uuid.UUID, m moderatedScore, status, reason string) {
+	if m.previous == status {
 		return
 	}
-	s.audit(r, "ranking.exclude", "score", id.String(), nil)
-	w.WriteHeader(204)
+	s.notifyMail(r, mail.RankingModerated(m.game, m.score, status, reason, id.String()), []uuid.UUID{m.owner})
 }
 
 func (s *Server) analyticsData(ctx context.Context) (map[string]any, error) {

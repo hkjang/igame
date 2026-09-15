@@ -85,6 +85,16 @@ func main() {
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Error("graceful shutdown failed", "error", err)
 	}
+	// The relay is given the same grace the requests had: a notification the
+	// last request queued is sent before the database goes away with the
+	// deferred Close above.
+	waited := make(chan struct{})
+	go func() { service.WaitForMail(); close(waited) }()
+	select {
+	case <-waited:
+	case <-shutdownCtx.Done():
+		log.Warn("notification mail still in flight at shutdown")
+	}
 }
 
 // checkHealth is used by the package-free runtime image. It deliberately runs

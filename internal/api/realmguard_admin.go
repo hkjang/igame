@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/hkjang/igame/internal/mail"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -842,6 +843,9 @@ func (s *Server) approveRealmGuardVersion(w http.ResponseWriter, r *http.Request
 		auditAction = "realmguard.version.reject"
 	}
 	s.audit(r, auditAction, "realmguard_content_version", id.String(), map[string]any{"decision": in.Decision, "comment": in.Comment})
+	if version.CreatedBy != nil {
+		s.notifyMail(r, mail.ApprovalDecided(principalLabel(p), "RealmGuard 콘텐츠", versionTitle(version.VersionNo, version.Label), in.Decision, in.Comment, "realmguard_content_version", id.String(), "/admin/realmguard"), []uuid.UUID{*version.CreatedBy})
+	}
 	writeJSON(w, 200, map[string]any{"version": realmGuardVersionJSON(version), "decision": in.Decision, "approved": in.Decision == "approved", "rejected": in.Decision == "rejected"})
 }
 
@@ -906,6 +910,7 @@ func (s *Server) publishRealmGuardVersion(w http.ResponseWriter, r *http.Request
 		}
 		version.Status, version.RequestedAt = "pending_approval", &requestedAt
 		s.audit(r, "realmguard.version.publish_request", "realmguard_content_version", id.String(), nil)
+		s.notifyReviewers(r, s.creatorTeam(r.Context(), version.CreatedBy), false, mail.ApprovalRequested(principalLabel(p), "RealmGuard 콘텐츠", versionTitle(version.VersionNo, version.Label), "realmguard_content_version", id.String(), "/admin/realmguard"))
 		writeJSON(w, 202, map[string]any{"version": realmGuardVersionJSON(version), "published": false, "approval_required": true})
 		return
 	}

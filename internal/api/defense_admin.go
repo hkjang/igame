@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/hkjang/igame/internal/mail"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -609,6 +610,9 @@ func (s *Server) reviewDefenseVersion(w http.ResponseWriter, r *http.Request) {
 		action = "defense.version.reject"
 	}
 	s.audit(r, action, "defense_content_version", id.String(), map[string]any{"decision": in.Decision, "comment": in.Comment})
+	if version.CreatedBy != nil {
+		s.notifyMail(r, mail.ApprovalDecided(principalLabel(p), "Defense 콘텐츠", versionTitle(version.VersionNo, version.Label), in.Decision, in.Comment, "defense_content_version", id.String(), "/admin/defense"), []uuid.UUID{*version.CreatedBy})
+	}
 	writeJSON(w, 200, map[string]any{"version": defenseVersionJSON(version), "decision": in.Decision, "approved": in.Decision == "approved", "rejected": in.Decision == "rejected"})
 }
 
@@ -671,6 +675,7 @@ func (s *Server) publishDefenseVersion(w http.ResponseWriter, r *http.Request) {
 		}
 		version.Status = "pending_approval"
 		s.audit(r, "defense.version.publish_request", "defense_content_version", version.ID.String(), map[string]any{"game": slug})
+		s.notifyReviewers(r, s.creatorTeam(r.Context(), version.CreatedBy), false, mail.ApprovalRequested(principalLabel(p), "Defense 콘텐츠 ("+slug+")", versionTitle(version.VersionNo, version.Label), "defense_content_version", version.ID.String(), "/admin/defense"))
 		writeJSON(w, 202, map[string]any{"version": defenseVersionJSON(version), "published": false, "approval_required": true})
 		return
 	}

@@ -68,6 +68,13 @@ const USER_FACING_MESSAGES: Record<string, string> = {
   tracking_setting_unavailable: '현재 저장된 방문 추적 설정을 읽지 못해 저장하지 않았습니다. 잠시 후 다시 시도해 주세요.',
   invalid_origin: '허용할 출처는 https://host 형태여야 합니다.',
 
+  // 메일 알림
+  mail_setting_unavailable: '현재 저장된 메일 설정을 읽지 못해 저장하지 않았습니다. 잠시 후 다시 시도해 주세요.',
+  invalid_mail: '메일 설정이 올바르지 않습니다. 릴레이 주소, 보내는 주소, 보안 방식을 확인하세요.',
+  mail_disabled: '메일 알림이 꺼져 있습니다. 먼저 켜고 저장한 뒤 시험 발송하세요.',
+  mail_unavailable: '이 서버에는 메일 서비스가 구성되지 않았습니다.',
+  invalid_recipient: '받는 사람은 이메일 주소여야 합니다.',
+
   // 검토와 승인
   team_required: '검토하려면 팀 정보가 필요합니다. 서비스 관리자에게 문의하세요.',
   different_team: '같은 팀에서 작성한 요청만 검토할 수 있습니다.',
