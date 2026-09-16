@@ -4,15 +4,29 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 )
 
 // auditCSVHeader names the columns in the exported audit trail.
 var auditCSVHeader = []string{"id", "created_at", "actor_username", "actor_id", "action", "resource_type", "resource_id", "remote_addr", "user_agent", "detail"}
+
+// auditTruncatedAction is the action of the closing record an export writes
+// when it stops before the trail ends, so the file cannot pass for complete.
+const auditTruncatedAction = "export.truncated"
+
+// auditRows is the slice of pgx.Rows the export reads. Naming it lets a test
+// feed the writer a cursor that fails part-way without a database behind it.
+type auditRows interface {
+	Next() bool
+	Scan(dest ...any) error
+	Err() error
+}
 
 // csvSafeCell defuses a value a spreadsheet would otherwise run as a formula.
 //
@@ -56,11 +70,41 @@ func (s *Server) exportAuditLogs(w http.ResponseWriter, r *http.Request, q strin
 	// and these exports contain Korean action descriptions.
 	_, _ = w.Write([]byte{0xEF, 0xBB, 0xBF})
 
+	exported, err := writeAuditCSV(w, rows, location, s.Now(), middleware.GetReqID(r.Context()))
+	if err != nil {
+		s.logRequestError(r, fmt.Errorf("audit export: %w", err))
+		// Reading the whole audit trail is itself worth recording, and so is
+		// the fact that this read did not get the whole of it.
+		s.audit(r, "audit.export", "audit_log", "csv", map[string]any{"query": q, "rows": exported, "truncated": true})
+		// The status line already promised a file, so the one signal left
+		// that the client did not get one is to drop the connection before
+		// the final chunk: a browser then reports a failed download instead
+		// of filing a partial trail away as the whole of it. Non-browser
+		// clients keep what arrived, which ends in the truncation record.
+		panic(http.ErrAbortHandler)
+	}
+	s.audit(r, "audit.export", "audit_log", "csv", map[string]any{"query": q, "rows": exported})
+}
+
+// writeAuditCSV writes the header and one record per row, flushing as it goes,
+// and reports how many rows were written.
+//
+// When the cursor fails part-way the file is closed with an export.truncated
+// record naming how many rows preceded it and the request to look up in the
+// server log, and the failure is returned for the caller to record.
+func writeAuditCSV(w io.Writer, rows auditRows, location *time.Location, now time.Time, requestID string) (int, error) {
 	writer := csv.NewWriter(w)
 	if err := writer.Write(auditCSVHeader); err != nil {
-		return
+		return 0, err
+	}
+	flush := func() {
+		writer.Flush()
+		if flusher, ok := w.(http.Flusher); ok {
+			flusher.Flush()
+		}
 	}
 	exported := 0
+	var failure error
 	for rows.Next() {
 		var id int64
 		var actor *uuid.UUID
@@ -68,9 +112,7 @@ func (s *Server) exportAuditLogs(w http.ResponseWriter, r *http.Request, q strin
 		var detail json.RawMessage
 		var created time.Time
 		if err := rows.Scan(&id, &actor, &username, &action, &typ, &rid, &remote, &agent, &detail, &created); err != nil {
-			// The response is already committed, so the truncated file is
-			// flushed and the fault recorded for the operator to find.
-			s.logRequestError(r, fmt.Errorf("audit export scan: %w", err))
+			failure = fmt.Errorf("scan: %w", err)
 			break
 		}
 		actorID := ""
@@ -90,21 +132,26 @@ func (s *Server) exportAuditLogs(w http.ResponseWriter, r *http.Request, q strin
 			csvSafeCell(strings.TrimSpace(string(detail))),
 		}
 		if err := writer.Write(record); err != nil {
-			return
+			return exported, err
 		}
 		exported++
 		// Flushing periodically keeps a long export moving instead of buffering.
 		if exported%500 == 0 {
-			writer.Flush()
-			if flusher, ok := w.(http.Flusher); ok {
-				flusher.Flush()
-			}
+			flush()
 		}
 	}
-	if err := rows.Err(); err != nil {
-		s.logRequestError(r, fmt.Errorf("audit export: %w", err))
+	if failure == nil {
+		if err := rows.Err(); err != nil {
+			failure = err
+		}
 	}
-	writer.Flush()
-	// Reading the whole audit trail is itself worth recording.
-	s.audit(r, "audit.export", "audit_log", "csv", map[string]any{"query": q, "rows": exported})
+	if failure != nil {
+		detail, _ := json.Marshal(map[string]any{"rows": exported, "request_id": requestID, "reason": "the database stopped answering before the export completed; see the server log"})
+		_ = writer.Write([]string{"", now.In(location).Format(time.RFC3339), "", "", auditTruncatedAction, "audit_log", "csv", "", "", string(detail)})
+	}
+	flush()
+	if failure == nil {
+		failure = writer.Error()
+	}
+	return exported, failure
 }
