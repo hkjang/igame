@@ -108,7 +108,9 @@ func (s *Server) oidcProvider(ctx context.Context, issuer string) (*oidc.Provide
 	if ok && now.Before(entry.expires) {
 		return entry.provider, nil
 	}
-	provider, err := oidc.NewProvider(ctx, issuer)
+	// The provider outlives this request and fetches signing keys with the
+	// context it was created under, so that context must not be a request's.
+	provider, err := oidc.NewProvider(context.WithoutCancel(ctx), issuer)
 	if err != nil {
 		return nil, err
 	}

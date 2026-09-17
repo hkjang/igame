@@ -21,7 +21,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var editableSettings = map[string]bool{"service": true, "approval": true, "privacy": true, "play_policy": true, "api_keys": true, "tracking": true}
+var editableSettings = map[string]bool{"service": true, "approval": true, "privacy": true, "play_policy": true, "api_keys": true, "tracking": true, "mcp": true}
 
 func (s *Server) listSettings(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.DB.Query(r.Context(), `SELECT key,value,updated_at FROM system_settings ORDER BY key`)
@@ -131,6 +131,14 @@ func (s *Server) putSetting(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "invalid_setting", err)
 		return
 	}
+	if key == "mcp" {
+		var stored mcpSetting
+		_ = json.Unmarshal(wrapper.Value, &stored)
+		if err := s.validateMCPSetting(r.Context(), stored); err != "" {
+			writeError(w, 400, "invalid_setting", err)
+			return
+		}
+	}
 	p, _ := principalFrom(r)
 	// The previous value comes back with the write. These settings decide who
 	// may sign in and with what role, and whether changes need review at all;
@@ -233,6 +241,14 @@ func validateSetting(key string, raw []byte) string {
 		}
 		if err := v.Normalized().Validate(); err != nil {
 			return err.Error()
+		}
+	case "mcp":
+		var v mcpSetting
+		if json.Unmarshal(raw, &v) != nil {
+			return "invalid MCP setting"
+		}
+		if err := validMCPSetting(v); err != "" {
+			return err
 		}
 	case "api_keys":
 		var v apiKeyPolicy
