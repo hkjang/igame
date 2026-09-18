@@ -108,6 +108,10 @@ func (s *Server) Router() http.Handler {
 	r.Get("/api/v1/auth/oidc/start", s.oidcLogin)
 	r.Get("/api/v1/auth/oidc/callback", s.oidcCallback)
 	r.Post(cspReportPath, s.receiveCSPReport)
+	// RFC 9728: where a refused MCP client learns which authorization server
+	// to sign in with. Both spellings, unauthenticated, bare JSON.
+	r.Get("/.well-known/oauth-protected-resource", s.protectedResourceMetadata)
+	r.Get("/.well-known/oauth-protected-resource/mcp", s.protectedResourceMetadata)
 
 	r.Group(func(a chi.Router) {
 		a.Use(s.requireAuth)
@@ -392,6 +396,10 @@ func (s *Server) requireAuth(next http.Handler) http.Handler {
 	})
 }
 
+// errNoCredentials is the request that carried nothing to authenticate with —
+// the ordinary anonymous request, not a fault.
+var errNoCredentials = errors.New("no credentials")
+
 func (s *Server) authenticate(r *http.Request) (Principal, error) {
 	if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
 		key := strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
@@ -401,7 +409,7 @@ func (s *Server) authenticate(r *http.Request) (Principal, error) {
 	}
 	cookie, err := r.Cookie(sessionCookie)
 	if err != nil || cookie.Value == "" {
-		return Principal{}, errors.New("no credentials")
+		return Principal{}, errNoCredentials
 	}
 	hash := sha256.Sum256([]byte(cookie.Value))
 	var p Principal
@@ -455,7 +463,7 @@ func (s *Server) requireRole(roles ...string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			p, _ := principalFrom(r)
-			if !allowed[p.Role] || (p.AuthType == "api_key" && !p.Can("admin:*")) {
+			if !allowed[p.Role] || (p.AuthType != "session" && !p.Can("admin:*")) {
 				s.recordAccessDenied(r, roles)
 				writeError(w, 403, "forbidden", "insufficient role or API key scope")
 				return
@@ -573,7 +581,9 @@ func (s *Server) enforceAPIKeyPermissions(next http.Handler) http.Handler {
 }
 
 func (p Principal) Can(permission string) bool {
-	if p.Role == "admin" && p.AuthType != "api_key" {
+	// An administrator's session may do anything; an administrator's key or
+	// SSO token may do only what it was scoped to.
+	if p.Role == "admin" && p.AuthType == "session" {
 		return true
 	}
 	for _, have := range p.Permissions {

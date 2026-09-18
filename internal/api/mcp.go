@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 )
 
 const mcpProtocolVersion = "2025-11-25"
@@ -43,18 +45,50 @@ func (s *Server) requireMCPAuth(next http.Handler) http.Handler {
 			writeRPC(w, http.StatusForbidden, rpcResponse{JSONRPC: "2.0", Error: &rpcError{Code: -32001, Message: "origin not allowed"}}, false)
 			return
 		}
-		p, err := s.authenticate(r)
+		// SSO settings that cannot be read leave the SSO door shut for this
+		// request and the key door open: a key needs nothing from them.
+		oauth, cfgErr := s.mcpOAuthConfig(r)
+		if cfgErr != nil {
+			s.logRequestError(r, cfgErr)
+			oauth = mcpOAuthConfig{Inactive: "settings unavailable"}
+		}
+		p, err := s.authenticateMCP(r, oauth)
 		if err != nil {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="igame-mcp", scope="mcp:access"`)
-			writeRPC(w, 401, rpcResponse{JSONRPC: "2.0", Error: &rpcError{Code: -32000, Message: "authentication required"}}, false)
+			// A token that was presented and refused gets the reason; it is
+			// what the operator finishing the Keycloak setup reads. A refusal
+			// that folds several causes into one message (the verifier's) keeps
+			// the exact cause in the log, where the same operator looks next.
+			// Anything else is the answer it always was.
+			var refusal *mcpRefusal
+			refused := errors.As(err, &refusal)
+			message := "authentication required"
+			if refused {
+				message = refusal.Message
+				if refusal.Cause != nil {
+					s.logRequestError(r, err)
+				}
+			} else if !errors.Is(err, errNoCredentials) && !errors.Is(err, pgx.ErrNoRows) {
+				s.logRequestError(r, err)
+			}
+			w.Header().Set("WWW-Authenticate", mcpChallenge(oauth, s.requestBaseURL(r), refused))
+			writeRPC(w, 401, rpcResponse{JSONRPC: "2.0", Error: &rpcError{Code: -32000, Message: message}}, false)
 			return
 		}
-		if p.AuthType == "api_key" && !p.Can("mcp:access") {
-			writeRPC(w, 403, rpcResponse{JSONRPC: "2.0", Error: &rpcError{Code: -32002, Message: "API key requires mcp:access"}}, false)
+		if p.AuthType != "session" && !p.Can("mcp:access") {
+			writeRPC(w, 403, rpcResponse{JSONRPC: "2.0", Error: &rpcError{Code: -32002, Message: credentialName(p) + " requires mcp:access"}}, false)
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), principalKey, p)))
 	})
+}
+
+// credentialName is how a permission refusal names what the caller holds: a
+// personal key carries its own scopes, an SSO token the administrator's.
+func credentialName(p Principal) string {
+	if p.AuthType == "oauth" {
+		return "SSO token (mcp.oauth.scopes)"
+	}
+	return "API key"
 }
 
 // mcpKeepAlive stays under the idle timeout a reverse proxy is likely to apply
@@ -200,8 +234,8 @@ func (s *Server) callMCPTool(r *http.Request, name string, args map[string]any) 
 	case "score_submit":
 		permission = "scores:write"
 	}
-	if p.AuthType == "api_key" && !p.Can(permission) {
-		return nil, fmt.Errorf("API key requires %s", permission)
+	if p.AuthType != "session" && !p.Can(permission) {
+		return nil, fmt.Errorf("%s requires %s", credentialName(p), permission)
 	}
 	switch name {
 	case "profile_get":

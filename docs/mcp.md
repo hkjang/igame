@@ -8,7 +8,31 @@ igame은 같은 서비스의 `/mcp`에서 MCP Streamable HTTP를 제공합니다
 
 서버는 개인 키의 owner, scope, 만료, 폐기와 호출 tool의 추가 scope를 검사합니다. 기존 키도 매 요청 시 저장 scope와 현재 전역 허용 목록·현재 역할 정책의 교집합만 인정하므로 관리자 정책 축소나 역할 변경이 즉시 반영됩니다. 키 원문은 발급 때 한 번만 표시됩니다. 회전 API는 새 키를 발급하는 동시에 이전 키를 폐기하므로 consumer를 원자적으로 교체하거나 새 키를 별도로 만든 뒤 전환해야 합니다. 관리자 페이지에서 역할별 허용 scope와 최대 유효기간을 바꿀 수 있습니다.
 
-MCP 사양의 OAuth 자동 discovery가 필요한 client와 Keycloak Bearer token 직접 인증은 현재 범위에 포함되지 않습니다. 사내 client에는 미리 발급한 개인 키를 안전한 credential store로 전달합니다.
+관리자가 MCP SSO(OAuth)를 켠 배포에서는 개인 키 없이 Keycloak 액세스 토큰으로도 `/mcp`에 들어올 수 있습니다 — 아래 [키 없이 SSO로 연결](#키-없이-sso로-연결)을 보세요. 켜지 않은 배포는 전과 같이 개인 키만 받습니다. 사내 자동화 client에는 미리 발급한 개인 키를 안전한 credential store로 전달합니다.
+
+## 키 없이 SSO로 연결
+
+MCP 인가 규격(2025-06-18 이후)은 OAuth 2.1입니다. 관리자가 `/admin/security`에서 **MCP SSO (OAuth)** 를 켜 두었다면, 키를 만들 필요 없이 MCP client에 **MCP 주소 하나**만 넣으면 됩니다:
+
+```
+https://igame.company.local/mcp
+```
+
+client는 첫 요청의 401에 붙은 `WWW-Authenticate: Bearer resource_metadata="…/.well-known/oauth-protected-resource/mcp"`를 따라 메타데이터를 읽고, 거기 적힌 Keycloak으로 로그인 화면을 띄운 뒤(이미 Keycloak에 로그인돼 있으면 거의 보이지 않습니다) 액세스 토큰을 받아 이후 요청에 `Authorization: Bearer <token>`으로 보냅니다. 서버는 토큰을 저장하지 않고 매 요청 서명·발급자·만료·대상을 검사합니다.
+
+알아 둘 것:
+
+- **웹으로 먼저 한 번 로그인해 두어야 합니다.** 토큰으로 계정을 만들지 않으며, 등록되지 않았거나 비활성인 계정은 `no active igame account is linked to this SSO identity; sign in to the web portal once first`로 거부됩니다.
+- SSO로 들어온 주체의 권한은 관리자가 정한 범위(기본 `mcp:access games:read rankings:read profile:read`)이며, 개인 키와 같은 역할 정책을 탑니다. `game_session_start`·`score_submit`처럼 쓰기 권한이 필요한 tool은 관리자가 범위에 `sessions:write`·`scores:write`를 더했을 때만 됩니다.
+- 토큰은 `/mcp`에서만 통합니다. REST API·SDK는 계속 개인 키(또는 브라우저 세션)를 씁니다.
+- Keycloak에서 로그아웃해도 이미 받은 토큰은 만료(보통 몇 분)까지 유효합니다.
+- 거부되면 JSON-RPC `error.message`가 이유를 말합니다. `token was not issued for this server (aud=…, azp=…)`는 관리자가 허용 대상이나 Audience 매퍼를 아직 잇지 않은 것이므로 그 메시지를 관리자에게 전달하세요.
+
+메타데이터는 인증 없이 확인할 수 있습니다:
+
+```bash
+curl -s https://igame.company.local/.well-known/oauth-protected-resource/mcp
+```
 
 ## 연결
 

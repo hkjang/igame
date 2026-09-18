@@ -62,7 +62,7 @@ client secret은 로그, 지원 번들, API 응답에 포함되면 안 됩니다
 
 ## MCP 접근
 
-현재 `/mcp` 자동화 인증은 개인화 페이지에서 발급한 범위 제한 개인 API 키를 사용합니다. Keycloak은 브라우저 SSO와 사용자 provisioning을 담당하며 Keycloak access token을 MCP Bearer token으로 직접 받지 않습니다.
+`/mcp` 자동화 인증은 기본적으로 개인화 페이지에서 발급한 범위 제한 개인 API 키를 사용합니다. 관리자가 `/admin/security`의 **MCP SSO (OAuth)** 카드를 켜면 같은 issuer가 발급한 Keycloak access token으로도 `/mcp`에 들어올 수 있습니다 — 이때 igame은 리소스 서버로서 토큰의 서명(JWKS)·issuer·만료·대상(`aud`/`azp`)만 검사하고, 웹 로그인으로 이미 등록된 활성 계정에만 맵니다. MCP 클라이언트용 공개 클라이언트와 Audience 매퍼 설정은 [관리자 가이드 3.4](ADMIN_GUIDE.md#34-mcp-sso-oauth--키-없이-keycloak-토큰으로-mcp-열기)를 보세요. 토큰은 `/mcp`에서만 통하며 REST·관리 API는 받지 않습니다.
 
 ## 장애 복구
 
