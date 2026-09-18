@@ -55,13 +55,18 @@ func (s *Server) requireMCPAuth(next http.Handler) http.Handler {
 		p, err := s.authenticateMCP(r, oauth)
 		if err != nil {
 			// A token that was presented and refused gets the reason; it is
-			// what the operator finishing the Keycloak setup reads. Anything
-			// else is the answer it always was.
+			// what the operator finishing the Keycloak setup reads. A refusal
+			// that folds several causes into one message (the verifier's) keeps
+			// the exact cause in the log, where the same operator looks next.
+			// Anything else is the answer it always was.
 			var refusal *mcpRefusal
 			refused := errors.As(err, &refusal)
 			message := "authentication required"
 			if refused {
 				message = refusal.Message
+				if refusal.Cause != nil {
+					s.logRequestError(r, err)
+				}
 			} else if !errors.Is(err, errNoCredentials) && !errors.Is(err, pgx.ErrNoRows) {
 				s.logRequestError(r, err)
 			}

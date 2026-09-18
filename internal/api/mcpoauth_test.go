@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/hmac"
 	"crypto/rand"
@@ -8,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -248,26 +250,34 @@ func TestMCPChallengePointsAtMetadataOnlyOnMCP(t *testing.T) {
 }
 
 // Every way a token can be wrong is refused before any account is looked up,
-// and the audience refusal says what was seen and what to write down.
+// and the audience refusal says what was seen and what to write down. The
+// verifier's refusal folds four causes into one message, so the exact cause
+// goes to the log; a refusal whose message already says everything logs
+// nothing.
 func TestMCPOAuthRefusesTokensItCannotTrust(t *testing.T) {
 	idp := newFakeIdP(t)
 	other := newFakeIdP(t)
 	s := mcpOAuthServer(t, idp, `{"oauth":{"enabled":true}}`)
+	var log bytes.Buffer
+	s.Log = slog.New(slog.NewTextHandler(&log, nil))
 	cases := []struct {
-		name, token, want string
+		name, token, want, logged string
 	}{
-		{"for another application", idp.sign(t, idp.claims("subject", nil)), `aud=[account], azp="claude-mcp"`},
-		{"expired", idp.sign(t, idp.claims("subject", map[string]any{"exp": time.Now().Add(-time.Minute).Unix()})), "not valid"},
-		{"not yet valid", idp.sign(t, idp.claims("subject", map[string]any{"nbf": time.Now().Add(time.Hour).Unix()})), "not valid"},
-		{"other issuer", other.sign(t, other.claims("subject", map[string]any{"iss": other.URL})), "not valid"},
-		{"forged issuer", other.sign(t, other.claims("subject", map[string]any{"iss": idp.URL})), "not valid"},
-		{"HS256", idp.signHS256(t, idp.claims("subject", nil)), "not valid"},
-		{"ID token", idp.sign(t, idp.claims("subject", map[string]any{"typ": "ID", "aud": "igame-web"})), "ID token"},
-		{"sender-constrained", idp.sign(t, idp.claims("subject", map[string]any{"cnf": map[string]any{"jkt": "x"}, "aud": "https://games.example.test/mcp"})), "cnf"},
-		{"no subject", idp.sign(t, idp.claims("", map[string]any{"aud": "https://games.example.test/mcp"})), "subject"},
+		{"for another application", idp.sign(t, idp.claims("subject", nil)), `aud=[account], azp="claude-mcp"`, ""},
+		{"expired", idp.sign(t, idp.claims("subject", map[string]any{"exp": time.Now().Add(-time.Minute).Unix()})), "not valid", "token is expired"},
+		{"not yet valid", idp.sign(t, idp.claims("subject", map[string]any{"nbf": time.Now().Add(time.Hour).Unix()})), "not valid", "before the nbf"},
+		// Another issuer's key fails the signature before the issuer is even
+		// compared; a shared-secret algorithm is refused by name.
+		{"other issuer", other.sign(t, other.claims("subject", map[string]any{"iss": other.URL})), "not valid", "failed to verify signature"},
+		{"forged issuer", other.sign(t, other.claims("subject", map[string]any{"iss": idp.URL})), "not valid", "failed to verify signature"},
+		{"HS256", idp.signHS256(t, idp.claims("subject", nil)), "not valid", "unexpected signature algorithm"},
+		{"ID token", idp.sign(t, idp.claims("subject", map[string]any{"typ": "ID", "aud": "igame-web"})), "ID token", ""},
+		{"sender-constrained", idp.sign(t, idp.claims("subject", map[string]any{"cnf": map[string]any{"jkt": "x"}, "aud": "https://games.example.test/mcp"})), "cnf", ""},
+		{"no subject", idp.sign(t, idp.claims("", map[string]any{"aud": "https://games.example.test/mcp"})), "subject", ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			log.Reset()
 			recorder, message := rpcCall(t, s, tc.token)
 			if recorder.Code != 401 {
 				t.Fatalf("answered %d: %s", recorder.Code, recorder.Body.String())
@@ -277,6 +287,12 @@ func TestMCPOAuthRefusesTokensItCannotTrust(t *testing.T) {
 			}
 			if got := recorder.Header().Get("WWW-Authenticate"); !strings.Contains(got, `error="invalid_token"`) || !strings.Contains(got, "resource_metadata=") {
 				t.Fatalf("WWW-Authenticate = %q, want invalid_token beside the metadata", got)
+			}
+			switch {
+			case tc.logged == "" && strings.Contains(log.String(), "request failed"):
+				t.Fatalf("a refusal that says everything to the client was logged as well: %s", log.String())
+			case tc.logged != "" && (!strings.Contains(log.String(), "request failed") || !strings.Contains(log.String(), tc.logged) || !strings.Contains(log.String(), "path=/mcp")):
+				t.Fatalf("log does not name the cause %q:\n%s", tc.logged, log.String())
 			}
 		})
 	}
