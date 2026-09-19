@@ -1749,12 +1749,14 @@ func (s *Server) defenseRankings(w http.ResponseWriter, r *http.Request) {
 	}
 	limit, _ := pageParams(r)
 	items := []map[string]any{}
+	// Ties are broken on the row's own identifier, as in the catalog rankings,
+	// so a tied page reads the same way on every request.
 	if group == "department" || group == "team" {
 		column := "department"
 		if group == "team" {
 			column = "team"
 		}
-		query := fmt.Sprintf(`WITH user_best AS (SELECT u.id,u.%s group_name,max(dr.score) score FROM defense_results dr JOIN users u ON u.id=dr.user_id JOIN game_sessions gs ON gs.id=dr.session_id WHERE dr.game_id=$1 AND dr.content_version_id=$2 AND dr.verified AND NOT u.ranking_opt_out AND ($3::timestamptz='0001-01-01' OR dr.created_at >= $3) AND ($4<>'season' OR gs.season_id=(SELECT id FROM seasons WHERE status='active' LIMIT 1)) AND u.%s<>'' GROUP BY u.id,u.%s), totals AS (SELECT group_name,sum(score) score,count(*) members FROM user_best GROUP BY group_name) SELECT row_number() OVER(ORDER BY score DESC),group_name,score,members FROM totals ORDER BY score DESC LIMIT $5`, column, column, column)
+		query := fmt.Sprintf(`WITH user_best AS (SELECT u.id,u.%s group_name,max(dr.score) score FROM defense_results dr JOIN users u ON u.id=dr.user_id JOIN game_sessions gs ON gs.id=dr.session_id WHERE dr.game_id=$1 AND dr.content_version_id=$2 AND dr.verified AND NOT u.ranking_opt_out AND ($3::timestamptz='0001-01-01' OR dr.created_at >= $3) AND ($4<>'season' OR gs.season_id=(SELECT id FROM seasons WHERE status='active' LIMIT 1)) AND u.%s<>'' GROUP BY u.id,u.%s), totals AS (SELECT group_name,sum(score) score,count(*) members FROM user_best GROUP BY group_name) SELECT row_number() OVER(ORDER BY score DESC,group_name),group_name,score,members FROM totals ORDER BY score DESC,group_name LIMIT $5`, column, column, column)
 		rows, err := s.DB.Query(r.Context(), query, gameID, version.ID, since, period, limit)
 		if err != nil {
 			s.dbError(w, r, err)
@@ -1778,7 +1780,7 @@ func (s *Server) defenseRankings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		rows, err := s.DB.Query(r.Context(), `WITH best AS (SELECT u.id,u.username,u.display_name,u.nickname,u.department,u.team,max(dr.score) score FROM defense_results dr JOIN users u ON u.id=dr.user_id JOIN game_sessions gs ON gs.id=dr.session_id WHERE dr.game_id=$1 AND dr.content_version_id=$2 AND dr.verified AND NOT u.ranking_opt_out AND ($3::timestamptz='0001-01-01' OR dr.created_at >= $3) AND ($4<>'season' OR gs.season_id=(SELECT id FROM seasons WHERE status='active' LIMIT 1)) GROUP BY u.id) SELECT row_number() OVER(ORDER BY score DESC),id,username,display_name,nickname,department,team,score FROM best ORDER BY score DESC LIMIT $5`, gameID, version.ID, since, period, limit)
+		rows, err := s.DB.Query(r.Context(), `WITH best AS (SELECT u.id,u.username,u.display_name,u.nickname,u.department,u.team,max(dr.score) score FROM defense_results dr JOIN users u ON u.id=dr.user_id JOIN game_sessions gs ON gs.id=dr.session_id WHERE dr.game_id=$1 AND dr.content_version_id=$2 AND dr.verified AND NOT u.ranking_opt_out AND ($3::timestamptz='0001-01-01' OR dr.created_at >= $3) AND ($4<>'season' OR gs.season_id=(SELECT id FROM seasons WHERE status='active' LIMIT 1)) GROUP BY u.id) SELECT row_number() OVER(ORDER BY score DESC,id),id,username,display_name,nickname,department,team,score FROM best ORDER BY score DESC,id LIMIT $5`, gameID, version.ID, since, period, limit)
 		if err != nil {
 			s.dbError(w, r, err)
 			return
