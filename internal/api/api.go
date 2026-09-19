@@ -23,6 +23,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
+	"github.com/hkjang/igame/internal/mail"
 	"github.com/hkjang/igame/internal/secretbox"
 	"github.com/hkjang/igame/internal/tracking"
 	"github.com/hkjang/igame/internal/version"
@@ -50,6 +51,7 @@ type Server struct {
 	providerCache map[string]providerEntry
 	logins        loginThrottle
 	violations    *tracking.Recorder
+	mailer        *mail.Service
 	draining      chan struct{}
 	drainOnce     sync.Once
 }
@@ -68,7 +70,21 @@ func (s *Server) Drain() {
 func New(db *pgxpool.Pool, secrets *secretbox.Box, log *slog.Logger) *Server {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil // offline installations do not inherit ambient proxy variables
-	return &Server{DB: db, Secrets: secrets, Log: log, HTTP: &http.Client{Transport: transport, Timeout: 30 * time.Second}, Now: func() time.Time { return time.Now().UTC() }, violations: tracking.NewRecorder(nil), draining: make(chan struct{})}
+	s := &Server{DB: db, Secrets: secrets, Log: log, HTTP: &http.Client{Transport: transport, Timeout: 30 * time.Second}, Now: func() time.Time { return time.Now().UTC() }, violations: tracking.NewRecorder(nil), draining: make(chan struct{})}
+	// Notification mail reads its setting through the same cache as every
+	// other setting and borrows the users table for addresses; it keeps no
+	// list of its own.
+	s.mailer = mail.NewService(db, s.mailConfig, s.lookupEmails, log)
+	return s
+}
+
+// WaitForMail blocks until the notification mails still being sent have
+// reached the relay or given up. Shutdown calls it after the listener has
+// closed so a mail queued by the last request is not lost with the process.
+func (s *Server) WaitForMail() {
+	if s.mailer != nil {
+		s.mailer.Wait()
+	}
 }
 
 type Principal struct {
@@ -185,6 +201,8 @@ func (s *Server) Router() http.Handler {
 			admin.With(s.requireRole("admin")).Get("/tracking/violations", s.listTrackingViolations)
 			admin.With(s.requireRole("admin")).Delete("/tracking/violations", s.clearTrackingViolations)
 			admin.With(s.requireRole("admin")).Post("/tracking/allow", s.allowTrackingHost)
+			admin.With(s.requireRole("admin")).Get("/mail/deliveries", s.listMailDeliveries)
+			admin.With(s.requireRole("admin")).Post("/mail/test", s.sendTestMail)
 			admin.Get("/games", s.adminListGames)
 			admin.Post("/games", s.createGame)
 			admin.Put("/games/{id}", s.updateGame)

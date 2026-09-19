@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hkjang/igame/internal/mail"
 )
 
 type seasonInput struct {
@@ -550,7 +551,37 @@ func (s *Server) createWorkflowRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(r, "workflow.submit", "workflow_request", id.String(), map[string]any{"action": in.Action})
+	// The people who can approve this are told now; otherwise the request sits
+	// in a queue nobody opens until the requester asks in person.
+	s.notifyReviewers(r, p.Team, !cfg.ManagerRequired, mail.ApprovalRequested(principalLabel(p), workflowKind(in), workflowTitle(in), "workflow_request", id.String(), "/reviews"))
 	writeJSON(w, 202, map[string]any{"request": map[string]any{"id": id, "status": "pending", "approval_required": true}})
+}
+
+// workflowKind and workflowTitle name a request the way the mail about it
+// will: "게임 등록 'Snake'" rather than an action, a type and a uuid.
+func workflowKind(in workflowInput) string {
+	if in.Action == "update" {
+		return "게임 수정"
+	}
+	return "게임 등록"
+}
+
+func workflowTitle(in workflowInput) string {
+	var game struct {
+		Name string `json:"name"`
+		Slug string `json:"slug"`
+	}
+	_ = json.Unmarshal(in.Payload, &game)
+	if name := strings.TrimSpace(game.Name); name != "" {
+		return name
+	}
+	if slug := strings.TrimSpace(game.Slug); slug != "" {
+		return slug
+	}
+	if in.ResourceID != nil {
+		return in.ResourceID.String()
+	}
+	return "(제목 없음)"
 }
 func allowedWorkflowAction(action, typ string) bool {
 	return (typ == "game" && (action == "create" || action == "update"))
@@ -774,5 +805,6 @@ func (s *Server) reviewWorkflowRequest(w http.ResponseWriter, r *http.Request) {
 		status = "applied"
 	}
 	s.audit(r, "workflow.review", "workflow_request", id.String(), map[string]any{"decision": in.Decision})
+	s.notifyMail(r, mail.ApprovalDecided(principalLabel(p), workflowKind(input), workflowTitle(input), status, in.Comment, "workflow_request", id.String(), "/reviews"), []uuid.UUID{requesterID})
 	writeJSON(w, 200, map[string]any{"id": id, "status": status})
 }

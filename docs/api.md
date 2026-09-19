@@ -65,7 +65,9 @@
 | GET | `/api/v1/admin/dashboard` | 관리자/운영자 session 또는 `admin:*`, 운영 요약 |
 | GET | `/api/v1/admin/analytics` | 관리자/운영자 session 또는 `admin:*`, DAU/WAU/MAU 등 |
 | GET | `/api/v1/admin/settings` | admin session 또는 admin 역할 + `admin:*` 키, 전체 설정 조회 |
-| GET/PUT | `/api/v1/admin/settings/{key}` | admin session 또는 admin 역할 + `admin:*` 키, 일반 설정 조회/변경 |
+| GET/PUT | `/api/v1/admin/settings/{key}` | admin session 또는 admin 역할 + `admin:*` 키, 일반 설정 조회/변경. `mail`은 `oidc`·`ai`처럼 본문을 wrapper 없이 받고 `password`를 돌려주지 않는다(`password_configured`) |
+| GET | `/api/v1/admin/mail/deliveries` | admin, 메일 발송 기록(최신순, `?status=sent|failed|queued`, `?limit=`). 본문은 기록되지 않는다 |
+| POST | `/api/v1/admin/mail/test` | admin, `{"recipient":"me@corp"}`(비우면 본인 이메일)로 저장된 설정으로 시험 발송. 꺼져 있으면 `409 mail_disabled`, 릴레이가 거부하면 `502 mail_send_failed`에 릴레이의 대답 |
 | GET/DELETE | `/api/v1/admin/tracking/violations` | admin, 방문 추적이 켜진 동안 브라우저가 신고한 차단 출처 목록 조회/비우기 |
 | POST | `/api/v1/admin/tracking/allow` | admin, `{"origin":"https://host"}`를 `tracking.allowed_hosts`에 더한다 |
 | POST | `/api/v1/tracking/csp-report` | 인증 없음, 브라우저의 CSP 위반 신고(`application/csp-report`). 항상 `204` |

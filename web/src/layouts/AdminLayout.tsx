@@ -22,6 +22,7 @@ import SettingsRounded from '@mui/icons-material/SettingsRounded';
 import TuneRounded from '@mui/icons-material/TuneRounded';
 import CastleRounded from '@mui/icons-material/CastleRounded';
 import ShieldRounded from '@mui/icons-material/ShieldRounded';
+import MailOutlineRounded from '@mui/icons-material/MailOutlineRounded';
 import { alpha } from '@mui/material/styles';
 import { AppBar, Box, Divider, Drawer, IconButton, List, ListItemButton, ListItemIcon, ListItemText, Stack, Toolbar, Typography } from '@mui/material';
 import { Link as RouterLink, NavLink, Outlet } from 'react-router-dom';
@@ -52,6 +53,7 @@ const menu: Array<{ to: string; label: string; icon: React.ReactNode; end?: bool
   { to: '/admin/ai', label: 'AI 설정', icon: <AutoAwesomeRounded />, adminOnly: true },
   { to: '/admin/settings', label: '시스템 설정', icon: <SettingsRounded />, adminOnly: true },
   { to: '/admin/tracking', label: '방문 추적', icon: <TrackChangesRounded />, adminOnly: true },
+  { to: '/admin/mail', label: '메일 알림', icon: <MailOutlineRounded />, adminOnly: true },
 ];
 
 export function AdminLayout() {

@@ -93,6 +93,10 @@ func (s *Server) getSetting(w http.ResponseWriter, r *http.Request) {
 		s.getAISetting(w, r)
 		return
 	}
+	if key == "mail" {
+		s.getMailSetting(w, r)
+		return
+	}
 	var raw json.RawMessage
 	var at time.Time
 	err := s.DB.QueryRow(r.Context(), `SELECT value,updated_at FROM system_settings WHERE key=$1`, key).Scan(&raw, &at)
@@ -111,6 +115,10 @@ func (s *Server) putSetting(w http.ResponseWriter, r *http.Request) {
 	}
 	if key == "ai" {
 		s.putAISetting(w, r)
+		return
+	}
+	if key == "mail" {
+		s.putMailSetting(w, r)
 		return
 	}
 	if !editableSettings[key] {
