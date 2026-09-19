@@ -881,12 +881,15 @@ func (s *Server) rankings(w http.ResponseWriter, r *http.Request) {
 		aggregate = "MIN"
 	}
 	limit, _ := pageParams(r)
+	// Ties are broken on the row's own identifier so the order among equal
+	// scores is defined: without it the aggregate hands rows over in hash
+	// order, and a tied podium reshuffles whenever an unrelated score lands.
 	if group == "department" || group == "team" {
 		column := "department"
 		if group == "team" {
 			column = "team"
 		}
-		query := fmt.Sprintf(`WITH user_best AS (SELECT u.id,u.%s group_name,%s(s.score) score FROM scores s JOIN users u ON u.id=s.user_id WHERE s.game_id=$1 AND s.verified AND s.moderation_status='valid' AND NOT u.ranking_opt_out AND ($2::timestamptz='0001-01-01' OR s.created_at >= $2) AND ($3<>'season' OR s.season_id=(SELECT id FROM seasons WHERE status='active' LIMIT 1)) AND u.%s<>'' GROUP BY u.id,u.%s), group_totals AS (SELECT group_name,SUM(score) score,COUNT(*) members FROM user_best GROUP BY group_name) SELECT row_number() OVER(ORDER BY score %s),group_name,score,members FROM group_totals ORDER BY score %s LIMIT $4`, column, aggregate, column, column, direction, direction)
+		query := fmt.Sprintf(`WITH user_best AS (SELECT u.id,u.%s group_name,%s(s.score) score FROM scores s JOIN users u ON u.id=s.user_id WHERE s.game_id=$1 AND s.verified AND s.moderation_status='valid' AND NOT u.ranking_opt_out AND ($2::timestamptz='0001-01-01' OR s.created_at >= $2) AND ($3<>'season' OR s.season_id=(SELECT id FROM seasons WHERE status='active' LIMIT 1)) AND u.%s<>'' GROUP BY u.id,u.%s), group_totals AS (SELECT group_name,SUM(score) score,COUNT(*) members FROM user_best GROUP BY group_name) SELECT row_number() OVER(ORDER BY score %s,group_name),group_name,score,members FROM group_totals ORDER BY score %s,group_name LIMIT $4`, column, aggregate, column, column, direction, direction)
 		rows, err := s.DB.Query(r.Context(), query, id, since, period, limit)
 		if err != nil {
 			s.dbError(w, r, err)
@@ -914,7 +917,7 @@ func (s *Server) rankings(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]any{"items": items, "period": period, "group": group})
 		return
 	}
-	query := fmt.Sprintf(`WITH best AS (SELECT u.id,u.username,u.display_name,u.nickname,u.department,u.team,%s(s.score) score FROM scores s JOIN users u ON u.id=s.user_id WHERE s.game_id=$1 AND s.verified AND s.moderation_status='valid' AND NOT u.ranking_opt_out AND ($2::timestamptz='0001-01-01' OR s.created_at >= $2) AND ($3<>'season' OR s.season_id=(SELECT id FROM seasons WHERE status='active' LIMIT 1)) GROUP BY u.id) SELECT row_number() OVER(ORDER BY score %s),id,username,display_name,nickname,department,team,score FROM best ORDER BY score %s LIMIT $4`, aggregate, direction, direction)
+	query := fmt.Sprintf(`WITH best AS (SELECT u.id,u.username,u.display_name,u.nickname,u.department,u.team,%s(s.score) score FROM scores s JOIN users u ON u.id=s.user_id WHERE s.game_id=$1 AND s.verified AND s.moderation_status='valid' AND NOT u.ranking_opt_out AND ($2::timestamptz='0001-01-01' OR s.created_at >= $2) AND ($3<>'season' OR s.season_id=(SELECT id FROM seasons WHERE status='active' LIMIT 1)) GROUP BY u.id) SELECT row_number() OVER(ORDER BY score %s,id),id,username,display_name,nickname,department,team,score FROM best ORDER BY score %s,id LIMIT $4`, aggregate, direction, direction)
 	rows, err := s.DB.Query(r.Context(), query, id, since, period, limit)
 	if err != nil {
 		s.dbError(w, r, err)

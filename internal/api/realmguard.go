@@ -1790,6 +1790,8 @@ func (s *Server) realmGuardRankings(w http.ResponseWriter, r *http.Request) {
 	}
 	stageID, heroID := r.URL.Query().Get("stage_id"), r.URL.Query().Get("hero_id")
 	limit, _ := pageParams(r)
+	// Every ranking below breaks ties on the row's own identifier, as the
+	// catalog rankings do, so a tied page reads the same way on every request.
 	if group == "department" && metric == "stars" {
 		s.realmGuardDepartmentStars(w, r, version, mode, difficulty, stageID, heroID, period, since, limit)
 		return
@@ -1810,7 +1812,7 @@ func (s *Server) realmGuardRankings(w http.ResponseWriter, r *http.Request) {
 			AND ($3='' OR rr.difficulty=$3) AND ($4='' OR rr.stage_id=$4) AND ($5='' OR rr.hero_id=$5)
 			AND ($6::timestamptz='0001-01-01' OR rr.created_at>=$6) AND ($7<>'season' OR s.season_id=(SELECT id FROM seasons WHERE status='active' LIMIT 1)) AND u.department<>'' GROUP BY u.id,u.department),
 			department_totals AS (SELECT department,SUM(score) score,COUNT(*) members FROM user_best GROUP BY department)
-			SELECT row_number() OVER(ORDER BY score DESC),department,score,members FROM department_totals ORDER BY score DESC LIMIT $8`, version.ID, mode, difficulty, stageID, heroID, since, period, limit)
+			SELECT row_number() OVER(ORDER BY score DESC,department),department,score,members FROM department_totals ORDER BY score DESC,department LIMIT $8`, version.ID, mode, difficulty, stageID, heroID, since, period, limit)
 		if queryErr != nil {
 			s.dbError(w, r, queryErr)
 			return
@@ -1842,7 +1844,7 @@ func (s *Server) realmGuardRankings(w http.ResponseWriter, r *http.Request) {
 			AND ($3='' OR rr.difficulty=$3) AND ($4='' OR rr.stage_id=$4) AND ($5='' OR rr.hero_id=$5)
 			AND ($6::timestamptz='0001-01-01' OR rr.created_at>=$6) AND ($7<>'season' OR s.season_id=(SELECT id FROM seasons WHERE status='active' LIMIT 1)) GROUP BY u.id,rr.hero_id),
 			hero_totals AS (SELECT hero_id,SUM(score) score,COUNT(*) members FROM user_best GROUP BY hero_id)
-			SELECT row_number() OVER(ORDER BY score DESC),hero_id,score,members FROM hero_totals ORDER BY score DESC LIMIT $8`, version.ID, mode, difficulty, stageID, heroID, since, period, limit)
+			SELECT row_number() OVER(ORDER BY score DESC,hero_id),hero_id,score,members FROM hero_totals ORDER BY score DESC,hero_id LIMIT $8`, version.ID, mode, difficulty, stageID, heroID, since, period, limit)
 		if queryErr != nil {
 			s.dbError(w, r, queryErr)
 			return
@@ -1874,7 +1876,7 @@ func (s *Server) realmGuardRankings(w http.ResponseWriter, r *http.Request) {
 		AND ($3='' OR rr.difficulty=$3) AND ($4='' OR rr.stage_id=$4) AND ($5='' OR rr.hero_id=$5)
 		AND ($6::timestamptz='0001-01-01' OR rr.created_at>=$6) AND ($7<>'season' OR s.season_id=(SELECT id FROM seasons WHERE status='active' LIMIT 1))
 		ORDER BY u.id,rr.score DESC,rr.created_at ASC)
-		SELECT row_number() OVER(ORDER BY score DESC,created_at),id,username,display_name,nickname,department,stage_id,hero_id,difficulty,score,stars,duration_ms,created_at FROM best ORDER BY score DESC,created_at LIMIT $8`, version.ID, mode, difficulty, stageID, heroID, since, period, limit)
+		SELECT row_number() OVER(ORDER BY score DESC,created_at,id),id,username,display_name,nickname,department,stage_id,hero_id,difficulty,score,stars,duration_ms,created_at FROM best ORDER BY score DESC,created_at,id LIMIT $8`, version.ID, mode, difficulty, stageID, heroID, since, period, limit)
 	if err != nil {
 		s.dbError(w, r, err)
 		return
@@ -1935,7 +1937,7 @@ func (s *Server) realmGuardDepartmentStars(w http.ResponseWriter, r *http.Reques
 		GROUP BY rr.user_id,u.department,rr.stage_id),
 		user_total AS (SELECT user_id,department,SUM(stars) stars FROM user_stage GROUP BY user_id,department),
 		department_total AS (SELECT department,SUM(stars) stars,COUNT(*) members FROM user_total GROUP BY department)
-		SELECT row_number() OVER(ORDER BY stars DESC),department,stars,members FROM department_total WHERE stars>0 ORDER BY stars DESC LIMIT $8`, version.ID, mode, difficulty, stageID, heroID, since, period, limit)
+		SELECT row_number() OVER(ORDER BY stars DESC,department),department,stars,members FROM department_total WHERE stars>0 ORDER BY stars DESC,department LIMIT $8`, version.ID, mode, difficulty, stageID, heroID, since, period, limit)
 	if err != nil {
 		s.dbError(w, r, err)
 		return

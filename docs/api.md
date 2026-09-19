@@ -132,6 +132,8 @@ Content-Type: application/json
 
 `/api/v1/rankings`의 `group`은 `individual`(기본), `department`, `team`이며 다른 값은 `400 invalid_group`입니다. 개인정보 정책의 조직 공개(`show_department`)가 꺼져 있으면 부서·팀 랭킹은 `403 organization_ranking_hidden`으로 거부하고 개인 랭킹 항목에서도 `department`와 `team`을 내리지 않습니다. 정책을 읽지 못하면 공개로 간주하지 않고 `503 privacy_setting_unavailable`을 반환합니다.
 
+세 랭킹 endpoint 모두 `rank`는 응답 행 순서와 같고, 점수(또는 `stars`)가 같은 행은 항상 정해진 순서로 옵니다 — 개인은 `user_id`, 부서·팀·영웅은 이름 오름차순이며 RealmGuard 개인 랭킹은 먼저 세운 기록(`created_at`)이 앞섭니다. 같은 점수의 순서는 다른 사람이 점수를 올려도 바뀌지 않습니다.
+
 RealmGuard는 일반 점수·랭킹 endpoint를 사용하지 않습니다. `/api/v1/scores`에 RealmGuard 세션을 보내면 `409 authoritative_result_required`, `/api/v1/rankings/realmguard` 또는 `/api/v1/rankings?game_id=realmguard`는 `409 realmguard_ranking_required`를 반환합니다. 공식 랭킹은 `/api/v1/realmguard/rankings`를 사용합니다.
 
 Defense Series도 일반 점수·랭킹 endpoint를 사용하지 않습니다. 세 game session은 `defense_content_version_id`로 published snapshot을 pin하고 `/api/v1/defense/{slug}/results`와 `/api/v1/defense/{slug}/rankings`만 사용합니다. 다른 slug의 전용 경로, 일반 `/api/v1/scores`, `/api/v1/rankings/{gameId}`를 이용한 우회는 각각 `409 defense_authoritative_result_required` 또는 `409 defense_ranking_required`로 거부합니다.
