@@ -461,7 +461,9 @@ func (s *Server) unlockAchievement(w http.ResponseWriter, r *http.Request) {
 	}
 	hash := sha256.Sum256([]byte(in.SessionToken))
 	var achievementID uuid.UUID
-	err := s.DB.QueryRow(r.Context(), `SELECT a.id FROM achievements a JOIN game_sessions gs ON gs.game_id=a.game_id WHERE a.code=$1 AND a.active AND COALESCE((a.criteria->>'client_unlockable')::boolean,false) AND gs.id=$2 AND gs.user_id=$3 AND gs.session_token_hash=$4 AND gs.status IN ('active','finished')`, in.Code, in.SessionID, p.UserID, hash[:]).Scan(&achievementID)
+	// An achievement bound to a game is unlocked only from a session of that
+	// game; a portal-wide one (game_id NULL) from a session of any game.
+	err := s.DB.QueryRow(r.Context(), `SELECT a.id FROM achievements a JOIN game_sessions gs ON (a.game_id IS NULL OR gs.game_id=a.game_id) WHERE a.code=$1 AND a.active AND COALESCE((a.criteria->>'client_unlockable')::boolean,false) AND gs.id=$2 AND gs.user_id=$3 AND gs.session_token_hash=$4 AND gs.status IN ('active','finished')`, in.Code, in.SessionID, p.UserID, hash[:]).Scan(&achievementID)
 	if err != nil {
 		writeError(w, 403, "achievement_not_unlockable", "achievement cannot be unlocked by this session")
 		return
