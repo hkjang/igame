@@ -36,7 +36,7 @@ test-race: ## Run the Go tests under the race detector
 
 test-db: ## Run the tests that need PostgreSQL; set DSN=postgres://...
 	@if [[ -z "$(DSN)" ]]; then printf 'set DSN to a database these tests may migrate and write to\n' >&2; exit 1; fi
-	IGAME_TEST_DSN="$(DSN)" go test ./internal/api/... -count=1
+	IGAME_TEST_DSN="$(DSN)" go test ./internal/api/... ./internal/database/... -count=1
 
 docs-pdf: ## Rebuild the manual PDFs from their Markdown sources
 	bash ./scripts/build-docs-pdf.sh

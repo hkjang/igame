@@ -104,9 +104,14 @@ make smoke
 
 일부 동작은 PostgreSQL이 판정합니다. 해당 테스트는 `IGAME_TEST_DSN`이 있을 때만 실행되며, 지정한 데이터베이스에 마이그레이션을 적용하고 데이터를 씁니다 — 버려도 되는 데이터베이스를 주세요.
 
+`make test-db`는 API와 database 패키지를 함께 실행합니다. database 테스트는 실제 embedded migration의 체크섬 거부, DDL·이력의 원자적 롤백, 재실행 안전성을 검증하며, 테스트마다 UUID 기반 전용 스키마와 모든 연결에 같은 `search_path`를 지정한 pool을 사용합니다. 종료 시 pool을 닫고 자기 스키마만 삭제하며 `public`으로 폴백하지 않습니다. API 테스트는 기본 스키마를 사용하므로 전체 DB가 일회용이어야 합니다. 테스트 계정에는 스키마 생성·삭제 및 테이블·함수·트리거 생성 권한이 필요하며, DB 전역 `pgcrypto` 확장은 관리자가 아래처럼 애플리케이션 테이블이 없는 전용 확장 스키마에 미리 한 번 설치해야 합니다. 이 확장 스키마도 테스트 연결의 검색 경로에 포함됩니다(테스트에서 삭제하지 않음). DSN이 설정된 뒤의 연결·권한·SQL 오류는 skip이 아닌 실패입니다.
+
 ```bash
 docker run -d --rm --name igame-test-db -e POSTGRES_PASSWORD=igame -e POSTGRES_USER=igame -e POSTGRES_DB=igame -p 15432:5432 postgres:17-alpine
-make test-db DSN='postgres://igame:igame@127.0.0.1:15432/igame?sslmode=disable'
+# pg_isready가 성공한 뒤 확장을 준비합니다.
+docker exec igame-test-db pg_isready -U igame -d igame
+docker exec igame-test-db psql -U igame -d igame -v ON_ERROR_STOP=1 -c 'CREATE SCHEMA igame_test_extensions; CREATE EXTENSION pgcrypto WITH SCHEMA igame_test_extensions'
+make test-db DSN='postgres://igame:igame@127.0.0.1:15432/igame?sslmode=disable&search_path=public,igame_test_extensions'
 docker rm -f igame-test-db
 ```
 
