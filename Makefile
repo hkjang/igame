@@ -6,7 +6,7 @@ IMAGE := igame:v$(VERSION)
 COMMIT := $(shell git rev-parse --short=12 HEAD 2>/dev/null || printf unknown)
 BUILD_DATE := $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 
-.PHONY: help deps fmt lint test test-race test-db docs-pdf guide-shots sdk-build web-build check-offline-bundle build docker-build smoke realmguard-smoke defense-smoke release verify-release check-contract clean
+.PHONY: help deps audit-release fmt lint test test-race test-db docs-pdf guide-shots sdk-build web-build check-offline-bundle build docker-build smoke realmguard-smoke defense-smoke release verify-release check-contract clean
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*## "; printf "igame build targets:\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -15,6 +15,11 @@ deps: ## Install locked Go and Node dependencies
 	go mod download
 	npm --prefix sdk/gamehub-js ci
 	npm --prefix web ci
+
+audit-release: ## Audit all Node dependencies and reachable Go vulnerabilities for release
+	npm --prefix sdk/gamehub-js audit --audit-level=low
+	npm --prefix web audit --audit-level=low
+	go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
 
 fmt: ## Format Go source
 	gofmt -w $$(find . -name '*.go' -not -path './web/*' -not -path './sdk/*')

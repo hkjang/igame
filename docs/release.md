@@ -10,7 +10,7 @@
 - `VERSION` 파일에는 앞의 `v` 없이 semantic version 기록
 - 런타임 환경변수: `POSTGRES_DSN`, `BOOTSTRAP_ADMIN`, `BOOTSTRAP_ADMIN_PASSWORD`, `ENCRYPTION_KEY`만 사용
 
-SBOM과 checksum은 CI에서 생성·검증하고 workflow evidence artifact와 job summary에 남깁니다. 별도 release asset으로 올리거나 이미지 archive 내부에 삽입하지 않습니다. 일반 CI와 Release workflow는 Web·SDK lockfile을 `npm audit --audit-level=low`로 검사하고, 정확히 고정한 `govulncheck v1.6.0`으로 reachable Go 취약점을 검사합니다. SDK build chain은 Windows 개발 서버 경로 탐색 advisory를 피하도록 esbuild `0.27.2`를 root override로 고정합니다. Builder는 `golang:1.26.6-alpine3.23`이며, 최종 이미지는 package manager와 shell이 없는 `scratch`입니다. 최종 이미지에는 정적 `/app/igame`, CA 신뢰 번들, 오프라인 검토용 license metadata만 포함합니다. 두 workflow 모두 고정된 Anchore scan action과 Grype `v0.117.0`으로 최종 이미지를 검사해 High/Critical 발견 시 중단하며, `io.igame.build.go-version` 라벨과 추출한 `/app/igame`의 `go version -m`이 모두 `go1.26.6`인지 확인합니다. 이미지 `User`는 `10001:10001`이며 Compose는 read-only filesystem, `cap_drop: ALL`, `no-new-privileges` 계약을 유지합니다. Docker healthcheck는 shell utility 대신 `/app/igame healthcheck`를 실행합니다.
+SBOM과 checksum은 CI에서 생성·검증하고 workflow evidence artifact와 job summary에 남깁니다. 별도 release asset으로 올리거나 이미지 archive 내부에 삽입하지 않습니다. 일반 CI는 Web·SDK lockfile의 production 의존성을 `npm audit --omit=dev --audit-level=low`로 검사해 실패 시 차단합니다. dev 의존성을 포함한 전체 감사는 별도 단계에서 job summary에 보고하며 차단하지 않습니다. Release workflow는 dev 의존성까지 포함한 전체를 `npm audit --audit-level=low`로 검사해 실패 시 차단합니다. 두 workflow 모두 정확히 고정한 `govulncheck v1.6.0`으로 reachable Go 취약점을 검사합니다. SDK build chain은 Windows 개발 서버 경로 탐색 advisory를 피하도록 esbuild `0.27.2`를 root override로 고정합니다. Builder는 `golang:1.26.6-alpine3.23`이며, 최종 이미지는 package manager와 shell이 없는 `scratch`입니다. 최종 이미지에는 정적 `/app/igame`, CA 신뢰 번들, 오프라인 검토용 license metadata만 포함합니다. 두 workflow 모두 고정된 Anchore scan action과 Grype `v0.117.0`으로 최종 이미지를 검사해 High/Critical 발견 시 중단하며, `io.igame.build.go-version` 라벨과 추출한 `/app/igame`의 `go version -m`이 모두 `go1.26.6`인지 확인합니다. 이미지 `User`는 `10001:10001`이며 Compose는 read-only filesystem, `cap_drop: ALL`, `no-new-privileges` 계약을 유지합니다. Docker healthcheck는 shell utility 대신 `/app/igame healthcheck`를 실행합니다.
 
 
 관리자 설정 왕복은 `scripts/smoke-settings.sh`가 검사합니다. 설정 조회가 돌려준 값을 그대로 저장했을 때 받아들여지는지, 설정 값 안에 `_configured` 같은 파생 field가 섞이지 않는지, secret이 저장된 채로 유지되면서도 절대 다시 읽히지 않는지, 그러면서 모르는 field는 여전히 400으로 거부되는지를 확인합니다. Keycloak OIDC 설정이 저장되지 않던 원인이 정확히 이 왕복이 깨진 것이었습니다.
@@ -39,9 +39,12 @@ Release browser gate와 같은 `mcr.microsoft.com/playwright:v1.55.0-noble` 컨�
 
 ## 로컬 후보 생성
 
+먼저 `make audit-release`로 릴리즈 의존성 감사를 재현합니다. SDK·Web의 dev 포함 전체 npm 감사와 고정 버전 `govulncheck@v1.6.0`을 직렬 실행하고, 실패하면 뒤 검사를 실행하지 않습니다. 감사 DB 온라인 조회와 최초 Go 도구·의존성 다운로드를 위한 네트워크 연결이 필요하며, 기존 전역 검사 도구는 덮어쓰지 않습니다. 컨테이너 취약점 검사와 smoke는 이 타깃에 포함되지 않습니다.
+
 Docker daemon을 준비한 다음 실행합니다. Syft가 있으면 SPDX JSON도 만들고, 없으면 단일 archive와 그 checksum을 만들며 경고합니다. GitHub CI에서는 Syft가 필수로 설치됩니다.
 
 ```bash
+make audit-release
 make test
 make check-offline-bundle
 make release

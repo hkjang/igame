@@ -97,10 +97,13 @@ printf 'ENCRYPTION_KEY=base64:%s\n' "$(openssl rand -base64 32 | tr -d '\n')"
 ```bash
 make test
 make test-race
+make audit-release
 make build
 make docker-build
 make smoke
 ```
+
+`make audit-release`는 SDK → Web의 dev 포함 전체 Node 의존성 감사(`--audit-level=low`) → `govulncheck@v1.6.0`의 Go 도달 가능 취약점 검사를 순서대로 실행하며, 하나라도 실패하면 중단합니다. Node.js/npm과 프로젝트 Go 버전이 필요하고, 감사 DB의 온라인 조회 및 최초 Go 검사 도구·의존성 다운로드를 위한 네트워크 연결이 필요합니다. `go run`으로 고정 버전을 실행하므로 기존 전역 `govulncheck` 바이너리를 덮어쓰지 않습니다. 이 명령의 범위는 의존성 감사이며 컨테이너 검사와 smoke는 포함하지 않습니다.
 
 일부 동작은 PostgreSQL이 판정합니다. 해당 테스트는 `IGAME_TEST_DSN`이 있을 때만 실행되며, 지정한 데이터베이스에 마이그레이션을 적용하고 데이터를 씁니다 — 버려도 되는 데이터베이스를 주세요.
 
