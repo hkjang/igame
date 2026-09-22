@@ -52,6 +52,9 @@ func Load() (Config, error) {
 	if utf8.RuneCountInString(c.BootstrapPassword) < 12 {
 		return Config{}, fmt.Errorf("%s must be at least 12 characters", EnvBootstrapAdminPass)
 	}
+	if len(c.BootstrapPassword) > 72 {
+		return Config{}, fmt.Errorf("%s must be at most 72 bytes", EnvBootstrapAdminPass)
+	}
 	key, err := ParseEncryptionKey(keyText)
 	if err != nil {
 		return Config{}, fmt.Errorf("%s: %w", EnvEncryptionKey, err)

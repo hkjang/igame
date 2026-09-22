@@ -71,7 +71,7 @@ PostgreSQL 데이터베이스를 먼저 준비한 뒤 `.env.example`을 `.env`�
 | --- | --- |
 | `POSTGRES_DSN` | PostgreSQL 연결 문자열 |
 | `BOOTSTRAP_ADMIN` | 최초 로컬 관리자 ID |
-| `BOOTSTRAP_ADMIN_PASSWORD` | 최초 로컬 관리자 암호 |
+| `BOOTSTRAP_ADMIN_PASSWORD` | 최초 로컬 관리자 암호 (최소 12문자, 최대 72 UTF-8 바이트) |
 | `ENCRYPTION_KEY` | 저장 비밀을 감싸는 32바이트 마스터 키 |
 
 ```bash
