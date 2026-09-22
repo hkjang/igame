@@ -60,7 +60,7 @@ BOOTSTRAP_ADMIN_PASSWORD=<long-random-password>
 ENCRYPTION_KEY=base64:<base64-of-exactly-32-random-bytes>
 ```
 
-`BOOTSTRAP_ADMIN_PASSWORD`는 16자 이상의 고유한 임의 값으로 만들고 최초 로그인 직후 프로필에서 실제 계정 비밀번호를 변경합니다. 이후 `.env` 값도 빈 DB 복구에 사용할 별도 임의 값으로 교체해 비밀 관리소에 보관합니다. 기존 DB의 암호는 환경변수로 다시 덮어쓰지 않습니다. `ENCRYPTION_KEY`는 아래처럼 생성하고 서비스 데이터 백업과 분리된 비밀 관리소에 보관합니다.
+`BOOTSTRAP_ADMIN_PASSWORD`는 최소 12문자, 최대 72 UTF-8 바이트여야 합니다. 16자 이상의 고유한 임의 값을 권장하며, 최초 로그인 직후 프로필에서 실제 계정 비밀번호를 변경합니다. 이후 `.env` 값도 빈 DB 복구에 사용할 별도 임의 값으로 교체해 비밀 관리소에 보관합니다. 기존 DB의 암호는 환경변수로 다시 덮어쓰지 않습니다. `ENCRYPTION_KEY`는 아래처럼 생성하고 서비스 데이터 백업과 분리된 비밀 관리소에 보관합니다.
 
 ```bash
 openssl rand -base64 32 | tr -d '\n'
