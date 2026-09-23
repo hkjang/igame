@@ -486,6 +486,18 @@ func (s *Server) finishGameSession(w http.ResponseWriter, r *http.Request) {
 	if len(in.Result) == 0 {
 		in.Result = []byte("{}")
 	}
+	// result is merged into the jsonb column with `||`, which promotes a
+	// non-object operand to a one-element array instead of setting keys: a
+	// non-object result would leave game_sessions.result an array that
+	// submitScore can no longer write 'score' onto. A pointer distinguishes
+	// the JSON literal null, which unmarshals into a map without error.
+	// Checked before any query so a rejected request leaves the session as
+	// it was.
+	var result *map[string]any
+	if json.Unmarshal(in.Result, &result) != nil || result == nil {
+		writeError(w, 400, "invalid_result", "result must be a JSON object")
+		return
+	}
 	hash := sha256.Sum256([]byte(in.SessionToken))
 	var gameSlug string
 	if err := s.DB.QueryRow(r.Context(), `SELECT g.slug FROM game_sessions gs JOIN games g ON g.id=gs.game_id WHERE gs.id=$1 AND gs.user_id=$2 AND gs.session_token_hash=$3`, id, p.UserID, hash[:]).Scan(&gameSlug); err != nil {
