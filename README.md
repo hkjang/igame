@@ -55,7 +55,7 @@ Defense Series 콘텐츠 `0.4.0`은 RealmGuard의 데이터 기반 방어 메커
 
 ## 접근성과 운영
 
-`v0.7.18`은 실제 PostgreSQL에서 마이그레이션의 체크섬·원자성·재시도 계약을 검증하는 테스트를 추가한 패치 릴리스입니다. 세 테스트는 UUID 전용 스키마에서 실제 `Migrate`와 embedded SQL을 실행하여 재실행 시 SHA-256·`applied_at`·seed 불변, 체크섬 변조 거부와 복구, `010` 이력 INSERT 실패 시 DDL·이력 롤백 및 앞선 commit 보존·재시도를 확인합니다. `make test-db`는 API와 database 패키지를 함께 실행하며, 아래 테스트 절차는 `pgcrypto` 확장 전용 스키마 사전 설치와 검색 경로를 설명합니다. 프로덕션 로더와 SQL, API 및 게임 콘텐츠는 바뀌지 않습니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`, 기존 진행도와 랭킹을 유지하며 `v0.7.17`의 포털 공통 업적 수정도 포함합니다.
+`v0.7.19`는 세션 종료가 점수 기록을 영구히 막을 수 있던 문제를 고친 패치 릴리스입니다. `POST /api/v1/sessions/{id}/finish`의 `result`는 `game_sessions.result` jsonb에 `||`로 병합되는데, PostgreSQL은 오브젝트가 아닌 피연산자를 1원소 배열로 승격한 뒤 이어 붙입니다. 그래서 `result:[1,2]`나 `result:5`를 보내면 컬럼이 오브젝트에서 배열로 뒤집히고, 그 뒤 점수 제출의 `result||jsonb_build_object('score',…)`가 키를 설정하는 대신 원소를 덧붙여 `result->>'score'`를 다시는 읽을 수 없었습니다. 이제 `finishGameSession`은 세션 시작이 `metadata`에 이미 적용하던 것과 같은 계약으로 `result`가 JSON 오브젝트일 것을 요구하고, 그렇지 않으면 어떤 질의보다 앞서 `400 invalid_result`로 거부해 세션을 `active`인 채 그대로 둡니다. 포인터 대상으로 받아 map에 그냥 통과하던 JSON 리터럴 `null`도 함께 걸립니다. 검증은 실제 라우터로 세션을 연 PostgreSQL 테스트가 저장된 `jsonb_typeof`까지 확인합니다. 게임 콘텐츠와 나머지 API는 바뀌지 않습니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`, 기존 진행도와 랭킹을 유지하며 `v0.7.18`의 마이그레이션 회귀 테스트도 포함합니다.
 
 포털은 본문 건너뛰기 link, 화면 전환 시 focus 이동과 음성 안내, route별 브라우저 제목을 제공합니다. 어두운 화면과 밝은 화면을 모두 지원하고 기본값은 운영체제 설정을 따르며, 두 palette 모두 본문·버튼 대비가 WCAG AA를 만족하는지 테스트로 확인합니다. 게시된 공지는 `/notices`에서 전체를 검색해 볼 수 있습니다. 사용자에게 보이는 API 오류는 한국어로 표시하고, session이 만료되면 로그인 화면으로 돌려보낸 뒤 보던 위치로 복귀합니다.
 
@@ -117,7 +117,7 @@ docker rm -f igame-test-db
 
 릴리스 이미지는 `VERSION`을 기준으로 만듭니다. 결과물 `dist/igame-v<version>.tar.gz`는 별도 tar 포장 없이 `docker save igame:v<version> | gzip`의 출력입니다.
 
-서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.7.17`으로 정렬됩니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
+서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.7.19`로 정렬됩니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
 
 ```bash
 make release
