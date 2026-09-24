@@ -55,7 +55,7 @@ Defense Series 콘텐츠 `0.4.0`은 RealmGuard의 데이터 기반 방어 메커
 
 ## 접근성과 운영
 
-`v0.7.19`는 세션 종료가 점수 기록을 영구히 막을 수 있던 문제를 고친 패치 릴리스입니다. `POST /api/v1/sessions/{id}/finish`의 `result`는 `game_sessions.result` jsonb에 `||`로 병합되는데, PostgreSQL은 오브젝트가 아닌 피연산자를 1원소 배열로 승격한 뒤 이어 붙입니다. 그래서 `result:[1,2]`나 `result:5`를 보내면 컬럼이 오브젝트에서 배열로 뒤집히고, 그 뒤 점수 제출의 `result||jsonb_build_object('score',…)`가 키를 설정하는 대신 원소를 덧붙여 `result->>'score'`를 다시는 읽을 수 없었습니다. 이제 `finishGameSession`은 세션 시작이 `metadata`에 이미 적용하던 것과 같은 계약으로 `result`가 JSON 오브젝트일 것을 요구하고, 그렇지 않으면 어떤 질의보다 앞서 `400 invalid_result`로 거부해 세션을 `active`인 채 그대로 둡니다. 포인터 대상으로 받아 map에 그냥 통과하던 JSON 리터럴 `null`도 함께 걸립니다. 검증은 실제 라우터로 세션을 연 PostgreSQL 테스트가 저장된 `jsonb_typeof`까지 확인합니다. 게임 콘텐츠와 나머지 API는 바뀌지 않습니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`, 기존 진행도와 랭킹을 유지하며 `v0.7.18`의 마이그레이션 회귀 테스트도 포함합니다.
+`v0.7.20`은 개인 API key 옆에 사내 SSO 액세스 토큰으로도 `/mcp`를 열 수 있게 한 패치 릴리스입니다. MCP 인가 규격은 OAuth 2.1이므로, URL만 받은 client는 401의 `resource_metadata`를 읽고 Keycloak에서 사용자를 로그인시킨 뒤 액세스 토큰을 들고 돌아옵니다. igame은 여기서 resource server일 뿐입니다. `/.well-known/oauth-protected-resource[/mcp]`를 CORS 개방된 순수 JSON으로 게시하고(꺼져 있으면 404), 오직 `/mcp`의 401에서만 그 주소를 가리키며, key가 쓰던 것과 같은 `Authorization: Bearer` 헤더의 JWT를 OIDC issuer JWKS로 검증합니다. 비대칭 알고리즘만 허용하고 `iss`·`exp`·`nbf`를 확인하며 `typ=ID`와 `cnf`는 거부하고, audience는 `aud`의 resource identifier 또는 `mcp.oauth.audience`·web client id와 맞는 `aud`/`azp`를 받습니다 — 실제 Keycloak 26은 client id를 `azp`에 넣기 때문입니다. 거부는 무엇을 보았고 무엇을 적어야 하는지 밝힙니다. 계정은 만들지 않으므로 subject는 이미 web 로그인으로 존재하는 활성 사용자여야 하고, 권한은 관리자가 정한 `mcp.oauth.scopes`를 토큰 scope로 좁힌 뒤 개인 key와 같은 정책으로 판정합니다. 관리자 토큰도 더는 session 전용 역할 우회를 물려받지 않습니다. 설정은 `mcp` 키 아래(`oauth.enabled`/`resource`/`audience`/`scopes`)에 있고 issuer 없이는 저장이 거부되며 기본값이 꺼짐이므로 신규 설치의 동작은 그대로입니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`, 기존 진행도와 랭킹을 유지하며 `v0.7.19`의 세션 종료 `result` 계약 수정도 포함합니다.
 
 포털은 본문 건너뛰기 link, 화면 전환 시 focus 이동과 음성 안내, route별 브라우저 제목을 제공합니다. 어두운 화면과 밝은 화면을 모두 지원하고 기본값은 운영체제 설정을 따르며, 두 palette 모두 본문·버튼 대비가 WCAG AA를 만족하는지 테스트로 확인합니다. 게시된 공지는 `/notices`에서 전체를 검색해 볼 수 있습니다. 사용자에게 보이는 API 오류는 한국어로 표시하고, session이 만료되면 로그인 화면으로 돌려보낸 뒤 보던 위치로 복귀합니다.
 
@@ -117,7 +117,7 @@ docker rm -f igame-test-db
 
 릴리스 이미지는 `VERSION`을 기준으로 만듭니다. 결과물 `dist/igame-v<version>.tar.gz`는 별도 tar 포장 없이 `docker save igame:v<version> | gzip`의 출력입니다.
 
-서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.7.19`로 정렬됩니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
+서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.7.20`으로 정렬됩니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
 
 ```bash
 make release

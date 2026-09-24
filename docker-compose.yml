@@ -2,7 +2,7 @@ name: igame
 
 services:
   igame:
-    image: igame:v0.7.19
+    image: igame:v0.7.20
     pull_policy: never
     container_name: igame
     restart: unless-stopped
