@@ -1,6 +1,6 @@
 # REST 및 streaming API
 
-기본 경로는 `/api/v1`이며 JSON을 사용합니다. 공개 endpoint는 health, readiness, version, 공개 설정과 OIDC 시작/callback입니다. 브라우저는 보안 session cookie, 자동화는 `Authorization: Bearer <personal-api-key>`를 사용합니다. 개인 키의 scope와 만료/폐기 상태를 매 요청 확인합니다.
+기본 경로는 `/api/v1`이며 JSON을 사용합니다. 공개 endpoint는 health, readiness, version, 공개 설정과 OIDC 시작/callback입니다. 브라우저는 보안 session cookie, 자동화는 `Authorization: Bearer <personal-api-key>`를 사용합니다. 개인 키의 scope와 만료/폐기 상태를 매 요청 확인합니다. 관리자가 MCP SSO(OAuth)를 켠 배포에서는 `/mcp`에 한해 같은 헤더로 Keycloak 액세스 토큰(JWT)도 받으며, REST 경로는 받지 않습니다([MCP](mcp.md#키-없이-sso로-연결)).
 
 ## 공통 규칙
 
@@ -65,7 +65,8 @@
 | GET | `/api/v1/admin/dashboard` | 관리자/운영자 session 또는 `admin:*`, 운영 요약 |
 | GET | `/api/v1/admin/analytics` | 관리자/운영자 session 또는 `admin:*`, DAU/WAU/MAU 등 |
 | GET | `/api/v1/admin/settings` | admin session 또는 admin 역할 + `admin:*` 키, 전체 설정 조회 |
-| GET/PUT | `/api/v1/admin/settings/{key}` | admin session 또는 admin 역할 + `admin:*` 키, 일반 설정 조회/변경 |
+| GET/PUT | `/api/v1/admin/settings/{key}` | admin session 또는 admin 역할 + `admin:*` 키, 일반 설정 조회/변경 (`mcp` 키의 `oauth` 객체가 MCP SSO 설정) |
+| GET | `/.well-known/oauth-protected-resource`, `…/mcp` | 인증 없음, RFC 9728 보호 리소스 메타데이터(맨 JSON, `Access-Control-Allow-Origin: *`). MCP SSO가 꺼져 있으면 404 |
 | GET/DELETE | `/api/v1/admin/tracking/violations` | admin, 방문 추적이 켜진 동안 브라우저가 신고한 차단 출처 목록 조회/비우기 |
 | POST | `/api/v1/admin/tracking/allow` | admin, `{"origin":"https://host"}`를 `tracking.allowed_hosts`에 더한다 |
 | POST | `/api/v1/tracking/csp-report` | 인증 없음, 브라우저의 CSP 위반 신고(`application/csp-report`). 항상 `204` |
