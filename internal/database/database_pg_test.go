@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"os"
 	"reflect"
 	"slices"
@@ -257,6 +258,148 @@ func TestMigrateRollsBackDDLAndHistoryThenRetries(t *testing.T) {
 	if _, err := pool.Exec(ctx, `DROP TRIGGER reject_migration_history ON schema_migrations; DROP FUNCTION reject_migration_history()`); err != nil {
 		t.Fatal(err)
 	}
+	if err := Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	after := migrationHistory(t, ctx, pool)
+	assertMigrationHistory(t, after, names)
+	assertSilentColumn(true)
+	for name, record := range before {
+		if after[name] != record {
+			t.Fatalf("retry rewrote completed migration %s", name)
+		}
+	}
+	if after := migrationSeed(t, ctx, pool); after != seed {
+		t.Fatal("retry changed previously committed seed")
+	}
+}
+
+// A start-up can be cancelled while a migration is open: a container
+// healthcheck gives up, the orchestrator sends SIGTERM, the DSN deadline
+// expires. The three tests above only ever fail a migration through the
+// server, so none of them says what that leaves behind. This one stops 010
+// inside its own transaction, cancels the context there, and then asks a
+// living context what survived and whether the same pool can still finish.
+func TestMigrateCancelledMidMigrationLeavesNothingAndRetries(t *testing.T) {
+	ctx, pool, schema := migrationPool(t)
+	const target = "010_silent_sso.sql"
+	names := embeddedMigrationNames(t)
+	index := slices.Index(names, target)
+	if index < 1 {
+		t.Fatalf("expected migrations preceding %s", target)
+	}
+	// The lock holder stays outside the pool: the pool's two connections are
+	// for the migration and for observing it, and cancelling the first must
+	// not cost us the second. Advisory locks are shared by the whole database,
+	// so the key is drawn per run; keeping it inside 32 bits also keeps it
+	// readable in pg_locks.objid with a zero classid.
+	holder, err := pgx.Connect(ctx, os.Getenv("IGAME_TEST_DSN"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		closeCtx, closeCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer closeCancel()
+		if err := holder.Close(closeCtx); err != nil {
+			t.Errorf("close lock holder: %v", err)
+		}
+	})
+	key := int64(rand.Uint32()) + 1
+	if _, err := holder.Exec(ctx, `SELECT pg_advisory_lock($1)`, key); err != nil {
+		t.Fatal(err)
+	}
+	// Same shape as the rollback test, except the trigger blocks where that one
+	// raises: 010's transaction stays open, holding the ALTER TABLE it has
+	// already run, until this test decides to cancel it.
+	_, err = pool.Exec(ctx, fmt.Sprintf(`
+ CREATE TABLE schema_migrations (
+  name text PRIMARY KEY, checksum text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now());
+ CREATE FUNCTION hold_migration_history() RETURNS trigger LANGUAGE plpgsql AS $$
+ BEGIN
+  IF NEW.name = '010_silent_sso.sql' THEN
+   IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+      WHERE table_schema = TG_TABLE_SCHEMA AND table_name = 'oidc_flows' AND column_name = 'silent') THEN
+    RAISE EXCEPTION '010 DDL was not executed';
+   END IF;
+   PERFORM pg_advisory_lock(TG_ARGV[0]::bigint);
+  END IF;
+  RETURN NEW;
+ END $$;
+ CREATE TRIGGER hold_migration_history BEFORE INSERT ON schema_migrations
+ FOR EACH ROW EXECUTE FUNCTION hold_migration_history('%d');`, key))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- Migrate(mctx, pool) }()
+	// Cancel on state rather than on a sleep: the waiter appears only once
+	// 010's trigger has reached the advisory lock, which is after its ALTER
+	// TABLE ran in the same, still-open transaction.
+	var blocked int32
+	for deadline := time.Now().Add(time.Minute); ; {
+		err := holder.QueryRow(ctx, `SELECT pid FROM pg_locks WHERE locktype='advisory'
+   AND classid=0 AND objid::bigint=$1 AND objsubid=1 AND NOT granted`, key).Scan(&blocked)
+		if err == nil {
+			break
+		}
+		if err != pgx.ErrNoRows {
+			t.Fatal(err)
+		}
+		select {
+		case err := <-done:
+			t.Fatalf("Migrate finished without stopping inside %s: %v", target, err)
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%s never reached the advisory lock", target)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	cancel()
+	err = <-done
+	if err == nil || !errors.Is(err, context.Canceled) || !strings.Contains(err.Error(), target) {
+		t.Fatalf("want a context.Canceled error naming %s, got %v", target, err)
+	}
+	assertSilentColumn := func(want bool) {
+		t.Helper()
+		var exists bool
+		if err := pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM information_schema.columns
+   WHERE table_schema=$1 AND table_name='oidc_flows' AND column_name='silent')`, schema).Scan(&exists); err != nil {
+			t.Fatal(err)
+		}
+		if exists != want {
+			t.Fatalf("silent column exists=%v, want %v", exists, want)
+		}
+	}
+	before := migrationHistory(t, ctx, pool)
+	assertMigrationHistory(t, before, names[:index])
+	seed := migrationSeed(t, ctx, pool)
+	assertSilentColumn(false)
+	// A cancelled backend holds 010's locks until it actually ends, so wait for
+	// that instead of racing the retry against someone else's rollback.
+	for deadline := time.Now().Add(time.Minute); ; {
+		var alive bool
+		if err := holder.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pid=$1)`, blocked).Scan(&alive); err != nil {
+			t.Fatal(err)
+		}
+		if !alive {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("backend %d still running after the cancellation", blocked)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if _, err := holder.Exec(ctx, `SELECT pg_advisory_unlock($1)`, key); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `DROP TRIGGER hold_migration_history ON schema_migrations; DROP FUNCTION hold_migration_history()`); err != nil {
+		t.Fatal(err)
+	}
+	// The same pool, so a connection killed by the cancellation cannot be what
+	// the next start-up would be handed.
 	if err := Migrate(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
