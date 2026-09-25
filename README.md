@@ -55,7 +55,7 @@ Defense Series 콘텐츠 `0.4.0`은 RealmGuard의 데이터 기반 방어 메커
 
 ## 접근성과 운영
 
-`v0.7.20`은 개인 API key 옆에 사내 SSO 액세스 토큰으로도 `/mcp`를 열 수 있게 한 패치 릴리스입니다. MCP 인가 규격은 OAuth 2.1이므로, URL만 받은 client는 401의 `resource_metadata`를 읽고 Keycloak에서 사용자를 로그인시킨 뒤 액세스 토큰을 들고 돌아옵니다. igame은 여기서 resource server일 뿐입니다. `/.well-known/oauth-protected-resource[/mcp]`를 CORS 개방된 순수 JSON으로 게시하고(꺼져 있으면 404), 오직 `/mcp`의 401에서만 그 주소를 가리키며, key가 쓰던 것과 같은 `Authorization: Bearer` 헤더의 JWT를 OIDC issuer JWKS로 검증합니다. 비대칭 알고리즘만 허용하고 `iss`·`exp`·`nbf`를 확인하며 `typ=ID`와 `cnf`는 거부하고, audience는 `aud`의 resource identifier 또는 `mcp.oauth.audience`·web client id와 맞는 `aud`/`azp`를 받습니다 — 실제 Keycloak 26은 client id를 `azp`에 넣기 때문입니다. 거부는 무엇을 보았고 무엇을 적어야 하는지 밝힙니다. 계정은 만들지 않으므로 subject는 이미 web 로그인으로 존재하는 활성 사용자여야 하고, 권한은 관리자가 정한 `mcp.oauth.scopes`를 토큰 scope로 좁힌 뒤 개인 key와 같은 정책으로 판정합니다. 관리자 토큰도 더는 session 전용 역할 우회를 물려받지 않습니다. 설정은 `mcp` 키 아래(`oauth.enabled`/`resource`/`audience`/`scopes`)에 있고 issuer 없이는 저장이 거부되며 기본값이 꺼짐이므로 신규 설치의 동작은 그대로입니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`, 기존 진행도와 랭킹을 유지하며 `v0.7.19`의 세션 종료 `result` 계약 수정도 포함합니다.
+`v0.7.21`은 마이그레이션 도중 context가 취소되었을 때의 계약을 실제 PostgreSQL에서 검증하는 테스트를 추가한 패치 릴리스입니다. 기존 세 테스트는 실패를 모두 서버 예외로만 만들어 취소 경로가 비어 있었습니다. 새 테스트는 UUID 전용 스키마에서 실제 `Migrate`와 embedded SQL을 실행하되, `schema_migrations`에 미리 심은 `BEFORE INSERT` 트리거가 advisory lock으로 `010`을 트랜잭션이 열린 채 붙잡게 하고, `pg_locks`에 대기자가 나타난 시점 — 즉 `010`의 ALTER TABLE이 이미 실행된 열린 트랜잭션 안임이 보장된 시점 — 에만 취소합니다. 그렇게 해서 반환 에러가 `context.Canceled`를 감싸며 실패한 파일명을 담는지, `010`의 이력 행도 `oidc_flows.silent` 컬럼도 남지 않고 앞선 이력과 seed는 그대로인지, 트리거를 걷어낸 뒤 **같은 pool**로 다시 부르면 완주하는지를 확인합니다. 세 기준이 현재 로더에서 그대로 성립하므로 프로덕션 로더와 SQL, API 및 게임 콘텐츠는 바뀌지 않습니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`, 기존 진행도와 랭킹을 유지하며 `v0.7.20`의 `/mcp` SSO 인가도 포함합니다.
 
 포털은 본문 건너뛰기 link, 화면 전환 시 focus 이동과 음성 안내, route별 브라우저 제목을 제공합니다. 어두운 화면과 밝은 화면을 모두 지원하고 기본값은 운영체제 설정을 따르며, 두 palette 모두 본문·버튼 대비가 WCAG AA를 만족하는지 테스트로 확인합니다. 게시된 공지는 `/notices`에서 전체를 검색해 볼 수 있습니다. 사용자에게 보이는 API 오류는 한국어로 표시하고, session이 만료되면 로그인 화면으로 돌려보낸 뒤 보던 위치로 복귀합니다.
 
@@ -117,7 +117,7 @@ docker rm -f igame-test-db
 
 릴리스 이미지는 `VERSION`을 기준으로 만듭니다. 결과물 `dist/igame-v<version>.tar.gz`는 별도 tar 포장 없이 `docker save igame:v<version> | gzip`의 출력입니다.
 
-서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.7.20`으로 정렬됩니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
+서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.7.21`로 정렬됩니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
 
 ```bash
 make release

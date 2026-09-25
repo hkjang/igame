@@ -1,6 +1,6 @@
 {
   "name": "@igame/gamehub-js",
-  "version": "0.7.20",
+  "version": "0.7.21",
   "description": "Browser SDK for the igame game platform",
   "type": "module",
   "main": "./dist/index.cjs",
