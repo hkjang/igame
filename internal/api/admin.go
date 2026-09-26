@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -125,6 +126,15 @@ func (s *Server) putSetting(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(wrapper.Value) == 0 || !json.Valid(wrapper.Value) {
 		writeError(w, 400, "invalid_setting", "value must be valid JSON")
+		return
+	}
+	// Every editable setting is an object, and validateSetting reads each one
+	// into a struct. Unmarshalling the JSON literal `null` into a struct
+	// succeeds without writing a field, so `{"value": null}` would pass every
+	// key's validation and store jsonb `null` — the setting then reads back as
+	// its zero value, which is a silent reset to defaults rather than a save.
+	if trimmed := bytes.TrimSpace(wrapper.Value); len(trimmed) == 0 || trimmed[0] != '{' {
+		writeError(w, 400, "invalid_setting", "value must be a JSON object")
 		return
 	}
 	if err := validateSetting(key, wrapper.Value); err != "" {
