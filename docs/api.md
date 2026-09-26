@@ -65,7 +65,7 @@
 | GET | `/api/v1/admin/dashboard` | 관리자/운영자 session 또는 `admin:*`, 운영 요약 |
 | GET | `/api/v1/admin/analytics` | 관리자/운영자 session 또는 `admin:*`, DAU/WAU/MAU 등 |
 | GET | `/api/v1/admin/settings` | admin session 또는 admin 역할 + `admin:*` 키, 전체 설정 조회 |
-| GET/PUT | `/api/v1/admin/settings/{key}` | admin session 또는 admin 역할 + `admin:*` 키, 일반 설정 조회/변경 (`mcp` 키의 `oauth` 객체가 MCP SSO 설정) |
+| GET/PUT | `/api/v1/admin/settings/{key}` | admin session 또는 admin 역할 + `admin:*` 키, 일반 설정 조회/변경 (`mcp` 키의 `oauth` 객체가 MCP SSO 설정). PUT 본문의 `value`는 JSON 객체여야 하며 `null`·배열·숫자·문자열·불리언은 `400 invalid_setting`으로 거부합니다 — 설정을 비우는 쓰기는 저장되지 않습니다 |
 | GET | `/.well-known/oauth-protected-resource`, `…/mcp` | 인증 없음, RFC 9728 보호 리소스 메타데이터(맨 JSON, `Access-Control-Allow-Origin: *`). MCP SSO가 꺼져 있으면 404 |
 | GET/DELETE | `/api/v1/admin/tracking/violations` | admin, 방문 추적이 켜진 동안 브라우저가 신고한 차단 출처 목록 조회/비우기 |
 | POST | `/api/v1/admin/tracking/allow` | admin, `{"origin":"https://host"}`를 `tracking.allowed_hosts`에 더한다 |
