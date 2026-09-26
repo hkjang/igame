@@ -55,7 +55,7 @@ Defense Series 콘텐츠 `0.4.0`은 RealmGuard의 데이터 기반 방어 메커
 
 ## 접근성과 운영
 
-`v0.7.21`은 마이그레이션 도중 context가 취소되었을 때의 계약을 실제 PostgreSQL에서 검증하는 테스트를 추가한 패치 릴리스입니다. 기존 세 테스트는 실패를 모두 서버 예외로만 만들어 취소 경로가 비어 있었습니다. 새 테스트는 UUID 전용 스키마에서 실제 `Migrate`와 embedded SQL을 실행하되, `schema_migrations`에 미리 심은 `BEFORE INSERT` 트리거가 advisory lock으로 `010`을 트랜잭션이 열린 채 붙잡게 하고, `pg_locks`에 대기자가 나타난 시점 — 즉 `010`의 ALTER TABLE이 이미 실행된 열린 트랜잭션 안임이 보장된 시점 — 에만 취소합니다. 그렇게 해서 반환 에러가 `context.Canceled`를 감싸며 실패한 파일명을 담는지, `010`의 이력 행도 `oidc_flows.silent` 컬럼도 남지 않고 앞선 이력과 seed는 그대로인지, 트리거를 걷어낸 뒤 **같은 pool**로 다시 부르면 완주하는지를 확인합니다. 세 기준이 현재 로더에서 그대로 성립하므로 프로덕션 로더와 SQL, API 및 게임 콘텐츠는 바뀌지 않습니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`, 기존 진행도와 랭킹을 유지하며 `v0.7.20`의 `/mcp` SSO 인가도 포함합니다.
+`v0.7.22`는 관리자 설정 PUT이 객체가 아닌 값을 거부하게 한 패치 릴리스입니다. 편집 가능한 설정은 모두 `validateSetting`이 struct로 읽어 들이는 객체인데, JSON 리터럴 `null`은 struct로 unmarshal해도 필드를 하나도 쓰지 않은 채 성공합니다. 그래서 `{"value": null}`이 `json.Valid`와 모든 키의 검증을 통과해 jsonb `null`로 저장되었고, `service`·`play_policy`·`privacy`가 조용히 struct의 zero value로 되돌아가 GET이 `null`을 그대로 내주었습니다. 이제 `json.Valid` 검사 직후에 값이 JSON 객체인지 요구하고, 아니면 기존 `invalid_setting` 코드로 거부합니다. 본문 전체를 typed struct로 디코드하는 `oidc`와 `ai` 키는 그보다 앞에서 갈라지므로 영향이 없습니다. 새 PostgreSQL 테스트는 실제 관리자 세션으로 실제 router를 호출해, 거부된 쓰기 뒤에 row와 그 `updated_at`, 감사 기록이 모두 그대로인지 확인합니다. 스키마와 API의 나머지, 게임 콘텐츠는 바뀌지 않고 마이그레이션도 함께 가지 않습니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`, 기존 진행도와 랭킹을 유지하며 `v0.7.21`의 마이그레이션 취소 계약 검증도 포함합니다.
 
 포털은 본문 건너뛰기 link, 화면 전환 시 focus 이동과 음성 안내, route별 브라우저 제목을 제공합니다. 어두운 화면과 밝은 화면을 모두 지원하고 기본값은 운영체제 설정을 따르며, 두 palette 모두 본문·버튼 대비가 WCAG AA를 만족하는지 테스트로 확인합니다. 게시된 공지는 `/notices`에서 전체를 검색해 볼 수 있습니다. 사용자에게 보이는 API 오류는 한국어로 표시하고, session이 만료되면 로그인 화면으로 돌려보낸 뒤 보던 위치로 복귀합니다.
 
@@ -117,7 +117,7 @@ docker rm -f igame-test-db
 
 릴리스 이미지는 `VERSION`을 기준으로 만듭니다. 결과물 `dist/igame-v<version>.tar.gz`는 별도 tar 포장 없이 `docker save igame:v<version> | gzip`의 출력입니다.
 
-서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.7.21`로 정렬됩니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
+서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.7.22`로 정렬됩니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
 
 ```bash
 make release
