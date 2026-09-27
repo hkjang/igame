@@ -27,14 +27,14 @@
 | GET | `/api/v1/version` | 공개 build version/commit/date |
 | GET | `/api/v1/games` | `games:read`, 공개 게임 검색 |
 | GET | `/api/v1/games/{gameId}` | `games:read`, 게임 metadata |
-| POST | `/api/v1/games/{gameId}/sessions` | `sessions:write`, server session/token 생성 |
+| POST | `/api/v1/games/{gameId}/sessions` | `sessions:write`, server session/token 생성. `metadata`는 JSON 오브젝트여야 하며(생략하면 `{}`), 배열·숫자·문자열·불리언·`null`은 세션을 만들지 않고 `400 invalid_metadata` |
 | POST | `/api/v1/sessions/{sessionId}/finish` | `sessions:write`, 결과 종료. `result`는 JSON 오브젝트여야 하며(생략하면 `{}`), 배열·숫자·문자열·불리언·`null`은 세션을 바꾸지 않고 `400 invalid_result` |
 | POST | `/api/v1/scores` | `scores:write`, 검증 가능한 점수 제출 |
-| POST | `/api/v1/telemetry` | `sessions:write`, 세션 token으로 SDK event 제출; RealmGuard와 Defense Series는 UUID/순서 원장 계약 적용 |
+| POST | `/api/v1/telemetry` | `sessions:write`, 세션 token으로 SDK event 제출; RealmGuard와 Defense Series는 UUID/순서 원장 계약 적용. `data`는 JSON 오브젝트여야 하며(생략하면 `{}`), 배열·숫자·문자열·불리언·`null`은 event를 저장하지 않고 `400 invalid_telemetry` |
 | GET | `/api/v1/rankings` | `rankings:read`, 기간/팀/부서 랭킹 |
 | GET | `/api/v1/rankings/{gameId}` | `rankings:read`, 게임별 랭킹 |
 | GET | `/api/v1/achievements` | 로그인, 업적 목록 |
-| POST | `/api/v1/me/achievements` | `scores:write`, client-unlockable 업적 해제 — `criteria.client_unlockable`이 true인 업적만, 본인 세션의 `session_id`·`session_token`으로. 게임에 묶인 업적은 그 게임 세션에서만, 게임이 비어 있는 포털 공통 업적은 어느 게임 세션에서든 해제되며 그 외는 `403 achievement_not_unlockable` |
+| POST | `/api/v1/me/achievements` | `scores:write`, client-unlockable 업적 해제 — `criteria.client_unlockable`이 true인 업적만, 본인 세션의 `session_id`·`session_token`으로. 게임에 묶인 업적은 그 게임 세션에서만, 게임이 비어 있는 포털 공통 업적은 어느 게임 세션에서든 해제되며 그 외는 `403 achievement_not_unlockable`. `metadata`는 JSON 오브젝트여야 하며(생략하면 `{}`), 배열·숫자·문자열·불리언·`null`은 업적을 해제하지 않고 `400 invalid_achievement_unlock` |
 | GET | `/api/v1/me` | `profile:read`, 본인 프로필 |
 | PATCH | `/api/v1/me` | `profile:write`, 본인 개인정보/공개 설정 |
 | GET/PUT | `/api/v1/me/preferences` | `profile:read` 조회 / `profile:write` 변경 |
