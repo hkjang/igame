@@ -459,6 +459,12 @@ func (s *Server) unlockAchievement(w http.ResponseWriter, r *http.Request) {
 	if len(in.Metadata) == 0 {
 		in.Metadata = []byte("{}")
 	}
+	// Checked before the lookup so a rejected unlock touches nothing;
+	// user_achievements.metadata is returned to the portal as-is.
+	if !jsonObjectBody(in.Metadata) {
+		writeError(w, 400, "invalid_achievement_unlock", "metadata must be a JSON object")
+		return
+	}
 	hash := sha256.Sum256([]byte(in.SessionToken))
 	var achievementID uuid.UUID
 	// An achievement bound to a game is unlocked only from a session of that

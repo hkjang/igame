@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -194,6 +195,16 @@ func (s *Server) parseGameIdentifier(r *http.Request) (uuid.UUID, error) {
 	return id, err
 }
 
+// jsonObjectBody reports whether raw is a JSON object. The columns these bodies
+// land in are jsonb objects with a '{}' default and are read back with object
+// operators, so anything else has to be refused at the edge. Unmarshalling into
+// a map or struct is not enough on its own: the JSON literal `null` succeeds
+// there without writing anything, and reaches the column as jsonb null.
+func jsonObjectBody(raw json.RawMessage) bool {
+	trimmed := bytes.TrimSpace(raw)
+	return len(trimmed) > 0 && trimmed[0] == '{'
+}
+
 // parseGameID accepts both UUID and stable slug so the Game SDK remains readable.
 func (s *Server) startGameSession(w http.ResponseWriter, r *http.Request) {
 	p, _ := principalFrom(r)
@@ -207,7 +218,7 @@ func (s *Server) startGameSession(w http.ResponseWriter, r *http.Request) {
 	if len(in.Metadata) == 0 {
 		in.Metadata = []byte("{}")
 	} else {
-		if json.Unmarshal(in.Metadata, &metadata) != nil {
+		if !jsonObjectBody(in.Metadata) || json.Unmarshal(in.Metadata, &metadata) != nil {
 			writeError(w, 400, "invalid_metadata", "metadata must be a JSON object")
 			return
 		}
@@ -653,6 +664,12 @@ func (s *Server) submitTelemetry(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(in.Data) == 0 {
 		in.Data = []byte("{}")
+	}
+	// Checked ahead of the per-game branches so every game's telemetry stores an
+	// object, and ahead of any query so a rejected event writes nothing.
+	if !jsonObjectBody(in.Data) {
+		writeError(w, 400, "invalid_telemetry", "telemetry data must be a JSON object")
+		return
 	}
 	if len(in.Data) > 64<<10 {
 		writeError(w, 400, "invalid_telemetry", "telemetry data must be at most 64 KiB")
