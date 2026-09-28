@@ -44,9 +44,8 @@ func newSettingFixture(t *testing.T) settingFixture {
 }
 
 // preserve remembers a setting the test is about to write and puts the stored
-// value back afterwards. Setting keys are global and the API fixture shares the
-// default schema, so a test that edits `service` edits it for every other test
-// in the package.
+// value back afterwards. Subtests using the same parent fixture share setting
+// keys, so restore each edit before the next subtest uses that fixture.
 func (f settingFixture) preserve(t *testing.T, key string) {
 	t.Helper()
 	value, at, ok := f.row(t, key)

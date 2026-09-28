@@ -10,16 +10,18 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/hkjang/igame/internal/database"
 )
 
 // migratedPool opens the disposable database named by IGAME_TEST_DSN and brings
-// it up to the current schema.
+// a fresh, owned schema up to the current migration version.
 //
 // Whether a password reset actually closes the sessions opened with the old
 // password is decided by PostgreSQL, not by Go, so these tests need a real
@@ -30,12 +32,45 @@ func migratedPool(t *testing.T) *pgxpool.Pool {
 	if dsn == "" {
 		t.Skip("IGAME_TEST_DSN is not set")
 	}
-	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, dsn)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	admin, err := pgxpool.New(ctx, dsn)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(pool.Close)
+	t.Cleanup(admin.Close)
+	var extensionSchema string
+	if err := admin.QueryRow(ctx, `SELECT n.nspname FROM pg_extension e JOIN pg_namespace n ON n.oid=e.extnamespace WHERE e.extname='pgcrypto'`).Scan(&extensionSchema); err != nil {
+		t.Fatalf("read preinstalled pgcrypto (prepare a dedicated extension schema; see README): %v", err)
+	}
+	if extensionSchema == "public" {
+		t.Fatal("prepare pgcrypto in a dedicated extension schema, not public (see README)")
+	}
+	schema := "api_test_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	quoted := pgx.Identifier{schema}.Sanitize()
+	if _, err := admin.Exec(ctx, `CREATE SCHEMA `+quoted); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cleanupCancel()
+		if _, err := admin.Exec(cleanupCtx, `DROP SCHEMA `+quoted+` CASCADE`); err != nil {
+			t.Errorf("drop owned schema: %v", err)
+		}
+	})
+	config, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Startup parameters cover every connection, including replacements, without
+	// falling back to public or the application's original search path.
+	config.ConnConfig.RuntimeParams["search_path"] = quoted + "," + pgx.Identifier{extensionSchema}.Sanitize()
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close) // LIFO: fixture cleanup, pool close, schema drop, admin close.
+
 	if err := database.Migrate(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
