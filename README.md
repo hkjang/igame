@@ -55,7 +55,7 @@ Defense Series 콘텐츠 `0.4.0`은 RealmGuard의 데이터 기반 방어 메커
 
 ## 접근성과 운영
 
-`v0.7.24`는 API PostgreSQL 테스트의 fixture를 호출마다 독립된 UUID 스키마로 격리한 패치 릴리스입니다. 각 pool은 실제 embedded migration을 자기 스키마에 적용하고, 연결 시작 시 `search_path`를 해당 스키마와 사전 설치한 `pgcrypto` 스키마로 제한합니다. 별도 관리 pool과 유한 setup/drop context, LIFO cleanup으로 자식 fixture 정리 후에도 형제 fixture와 DB 전역 확장을 보존하며 기존 preserve 동작을 유지합니다. 새 회귀 테스트는 같은 setting key의 독립성, pool별 동시 연결의 스키마와 검색 경로, cleanup 뒤 형제 데이터 및 `pgcrypto` 보존을 검증합니다. 제품 동작과 스키마, 게임 콘텐츠는 바뀌지 않고 새 마이그레이션도 없습니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`, 기존 진행도와 랭킹을 유지하며 `v0.7.23`의 JSON 오브젝트 쓰기 계약도 포함합니다.
+`v0.7.25`는 아키텍처·보안 백서를 실제 비밀 저장 방식에 맞춘 문서 패치 릴리스입니다. 백서는 사용자·테넌트별 DEK를 마스터 키로 래핑하는 2계층 봉투 암호화와 유예 기간을 둔 무중단 키 회전을 기술했지만, 구현은 그렇지 않았습니다. OIDC client secret과 AI API key는 환경변수 `ENCRYPTION_KEY`의 설치키로 직접 AES-256-GCM 암호화해 저장하고, 개인 API/MCP 키는 암호화가 아니라 SHA-256 검증값으로 저장하며 `rotate`는 같은 트랜잭션에서 기존 키를 즉시 폐기합니다. 백서의 해당 절을 이 두 계층으로 나눠 다시 쓰고, 설치키 자동 회전과 재암호화 도구가 없다는 점, 중첩 전환이 필요하면 새 키 생성 → consumer 전환 → 이전 키 폐기 순서를 따라야 한다는 점을 명시했습니다. 구성도는 PDF 인쇄에서 깨지던 박스 문자를 ASCII로 바꾸고, 컨테이너 안에서는 열리지 않는 상대 link 대신 저장소의 `docs/security.md`를 가리키도록 고쳤습니다. 코드와 API, 스키마, 게임 콘텐츠는 바뀌지 않고 마이그레이션도 함께 가지 않습니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`, 기존 진행도와 랭킹을 유지하며 `v0.7.24`의 테스트 fixture 격리도 포함합니다.
 
 포털은 본문 건너뛰기 link, 화면 전환 시 focus 이동과 음성 안내, route별 브라우저 제목을 제공합니다. 어두운 화면과 밝은 화면을 모두 지원하고 기본값은 운영체제 설정을 따르며, 두 palette 모두 본문·버튼 대비가 WCAG AA를 만족하는지 테스트로 확인합니다. 게시된 공지는 `/notices`에서 전체를 검색해 볼 수 있습니다. 사용자에게 보이는 API 오류는 한국어로 표시하고, session이 만료되면 로그인 화면으로 돌려보낸 뒤 보던 위치로 복귀합니다.
 
@@ -117,7 +117,7 @@ docker rm -f igame-test-db
 
 릴리스 이미지는 `VERSION`을 기준으로 만듭니다. 결과물 `dist/igame-v<version>.tar.gz`는 별도 tar 포장 없이 `docker save igame:v<version> | gzip`의 출력입니다.
 
-서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.7.24`로 정렬됩니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
+서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.7.25`로 정렬됩니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
 
 ```bash
 make release
