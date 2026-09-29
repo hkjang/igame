@@ -1,6 +1,6 @@
 # igame 아키텍처 및 보안 백서 (Architecture & Security Whitepaper)
 
-본 문서는 igame의 단일 바이너리 모듈러 모놀리스 아키텍처, 2계층 봉투 암호화, Keycloak OIDC SSO 및 Model Context Protocol (MCP) 연동에 대한 기술 사양서입니다.
+본 문서는 igame의 단일 바이너리 모듈러 모놀리스 아키텍처, 설치키 기반 공급자 비밀 암호화와 개인 API/MCP 키의 해시 저장·즉시 회전, Keycloak OIDC SSO 및 Model Context Protocol (MCP) 연동에 대한 기술 사양서입니다.
 
 ---
 
@@ -10,23 +10,24 @@ igame은 Go 1.26+ 기반의 단일 실행 바이너리 안에 React 19 정적 �
 
 ```
 Client Browser (React 19 + Phaser)
-                 │ (HTTPS / Bearer Token / Session)
-                 ▼
-┌──────────────────────────────────────────────────────────────┐
-│ igame Modular Monolith (:8080)                               │
-│  ├─ Core Control Plane (REST / SSE / MCP Streamable HTTP)    │
-│  ├─ Keycloak OIDC SSO & Local Bootstrap Auth                 │
-│  ├─ Deterministic Battle Kernel & Replay Verifier            │
-│  ├─ Game Session & Telemetry Ledger Validator                │
-│  ├─ Leaderboard, Season & Tournament Engine                  │
-│  ├─ Per-User AES-256-GCM Envelope Encryption Vault           │
-│  └─ Embedded Web Assets (dist/*)                             │
-└──────────────────────────────────────────────────────────────┘
-                 │ (SQL / pgxpool)
-                 ▼
-┌──────────────────────────────────────────────────────────────┐
-│ PostgreSQL 16+ (ACID Transactional Data Store)               │
-└──────────────────────────────────────────────────────────────┘
+                 | (HTTPS / Bearer Token / Session)
+                 v
++--------------------------------------------------------------+
+| igame Modular Monolith (:8080)                               |
+|  +- Core Control Plane (REST / SSE / MCP Streamable HTTP)    |
+|  +- Keycloak OIDC SSO & Local Bootstrap Auth                 |
+|  +- Deterministic Battle Kernel & Replay Verifier            |
+|  +- Game Session & Telemetry Ledger Validator                |
+|  +- Leaderboard, Season & Tournament Engine                  |
+|  +- OIDC/AI Secrets: Installation-Key AES-256-GCM            |
+|  +- Personal API/MCP Keys: SHA-256 Verification Hashes       |
+|  +- Embedded Web Assets (dist/*)                             |
++--------------------------------------------------------------+
+                 | (SQL / pgxpool)
+                 v
++--------------------------------------------------------------+
+| PostgreSQL 16+ (ACID Transactional Data Store)               |
++--------------------------------------------------------------+
 ```
 
 ### 1.1 서버 권위 전투 검증 (Server-Authoritative Battle Replay)
@@ -45,12 +46,21 @@ Browser                                    Server
 
 ---
 
-## 🔐 2. 2계층 봉투 암호화 (Envelope Encryption)
+## 🔐 2. 비밀 저장 및 개인 키 회전
 
-- **마스터 키 (MEK):** 환경변수 `ENCRYPTION_KEY` (32바이트 AES-256-GCM)로 관리
-- **데이터 암호화 키 (DEK):** 사용자 및 테넌트별로 고유한 DEK를 생성하여 마스터 키로 래핑
-- **비밀 정보 보호:** 모든 개인 API 키, OIDC 클라이언트 시크릿, AI API 토큰은 DEK로 암호화되어 DB에 저장
-- **Zero-Downtime Key Rotation:** 구 키와 신 키의 유예 기간을 두어 서비스 중단 없는 실시간 키 회전 지원
+### 2.1 공급자 비밀: 설치키로 직접 암호화
+
+OIDC client secret과 AI API key는 환경변수 `ENCRYPTION_KEY`의 32바이트 설치키로 직접 AES-256-GCM 암호화하여 DB에 저장합니다. 암호화할 때마다 무작위 nonce를 생성하며, AAD는 `igame:v1`, 저장 형식은 `v1:` 접두사와 nonce·암호문을 담은 Base64URL 문자열입니다. 사용자·테넌트별 DEK를 생성하거나 래핑하는 봉투 암호화 및 Per-User Vault는 구현되어 있지 않습니다.
+
+설치키는 DB와 별도의 비밀 관리소에 보관해야 합니다. 설치키 자동 회전이나 기존 암호문의 재암호화 도구는 제공하지 않으며, 환경변수만 새 키로 바꾸면 이전 키로 암호화한 공급자 비밀을 복호화할 수 없습니다.
+
+### 2.2 개인 API/MCP 키: 해시 저장과 즉시 회전
+
+개인 API/MCP 키는 암호화해 복구하는 공급자 비밀과 저장 방식이 다릅니다. 서버에는 원문 대신 SHA-256 검증값(`key_hash`)과 prefix·소유자·scope·만료 등 메타데이터를 저장합니다. 원문은 생성 또는 회전의 발급 응답에서 한 번만 제공하며, 이후 조회하거나 복호화해 복구할 수 없습니다.
+
+개인 키의 `rotate`는 기존 키 폐기와 새 키 저장을 같은 트랜잭션으로 처리합니다. 트랜잭션이 성공하면 기존 키는 즉시 폐기되고 새 키 원문을 응답합니다. 구 키와 신 키를 함께 허용하는 자동 유예 기간은 없습니다.
+
+중첩 전환이 필요하면 **별도 새 키 생성 → consumer를 새 키로 전환 → 이전 키 폐기** 순서로 진행합니다. 이 절차는 `rotate`와 구분되며, 활성 키 수와 권한·만료 정책도 확인해야 합니다. 자세한 운영 기준은 [보안 및 키 관리 — 세 가지 키 계층](security.md#세-가지-키-계층)을 참고하세요.
 
 ---
 
