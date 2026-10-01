@@ -55,7 +55,7 @@ Defense Series 콘텐츠 `0.4.0`은 RealmGuard의 데이터 기반 방어 메커
 
 ## 접근성과 운영
 
-`v0.7.25`는 아키텍처·보안 백서를 실제 비밀 저장 방식에 맞춘 문서 패치 릴리스입니다. 백서는 사용자·테넌트별 DEK를 마스터 키로 래핑하는 2계층 봉투 암호화와 유예 기간을 둔 무중단 키 회전을 기술했지만, 구현은 그렇지 않았습니다. OIDC client secret과 AI API key는 환경변수 `ENCRYPTION_KEY`의 설치키로 직접 AES-256-GCM 암호화해 저장하고, 개인 API/MCP 키는 암호화가 아니라 SHA-256 검증값으로 저장하며 `rotate`는 같은 트랜잭션에서 기존 키를 즉시 폐기합니다. 백서의 해당 절을 이 두 계층으로 나눠 다시 쓰고, 설치키 자동 회전과 재암호화 도구가 없다는 점, 중첩 전환이 필요하면 새 키 생성 → consumer 전환 → 이전 키 폐기 순서를 따라야 한다는 점을 명시했습니다. 구성도는 PDF 인쇄에서 깨지던 박스 문자를 ASCII로 바꾸고, 컨테이너 안에서는 열리지 않는 상대 link 대신 저장소의 `docs/security.md`를 가리키도록 고쳤습니다. 코드와 API, 스키마, 게임 콘텐츠는 바뀌지 않고 마이그레이션도 함께 가지 않습니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`, 기존 진행도와 랭킹을 유지하며 `v0.7.24`의 테스트 fixture 격리도 포함합니다.
+`v0.7.26`은 개인 API 키의 실제 권한 범위를 실제 데이터베이스로 고정한 테스트 패치 릴리스입니다. 키가 무엇을 할 수 있는지는 키 행의 permissions가 아니라 요청마다 다시 읽는 `api_keys` 정책 설정과 소유자의 현재 role이 함께 정하는데, 기존 테스트는 Principal과 정책을 손으로 만들어 주입했기 때문에 실제 인증 경로를 한 번도 지나지 않았습니다. 새 테스트는 실제 router를 띄우고 전용 스키마의 PostgreSQL에 실제 마이그레이션을 적용한 다음, `POST /api/v1/me/api-keys`로 발급한 키를 클라이언트와 똑같이 `Authorization: Bearer` 요청으로 제시합니다. 관리자가 `api_keys` 정책에서 범위를 빼면 이미 발급된 키가 키 행을 다시 쓰지 않아도 다음 요청에서 바로 거부되고 정책을 되돌리면 다시 허용된다는 것, 소유자의 role이 내려가면 같은 키가 관리자 경로를 잃는다는 것, 어떤 범위를 받았든 키로는 키를 관리할 수 없다는 것, 회전·폐기·만료가 각각 그 자리에서 인증을 끊는다는 것을 고정합니다. 제품 코드와 API, 스키마, 게임 콘텐츠는 바뀌지 않고 마이그레이션도 함께 가지 않습니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`, 기존 진행도와 랭킹을 유지하며 `v0.7.25`의 백서 정정도 포함합니다.
 
 포털은 본문 건너뛰기 link, 화면 전환 시 focus 이동과 음성 안내, route별 브라우저 제목을 제공합니다. 어두운 화면과 밝은 화면을 모두 지원하고 기본값은 운영체제 설정을 따르며, 두 palette 모두 본문·버튼 대비가 WCAG AA를 만족하는지 테스트로 확인합니다. 게시된 공지는 `/notices`에서 전체를 검색해 볼 수 있습니다. 사용자에게 보이는 API 오류는 한국어로 표시하고, session이 만료되면 로그인 화면으로 돌려보낸 뒤 보던 위치로 복귀합니다.
 
@@ -117,7 +117,7 @@ docker rm -f igame-test-db
 
 릴리스 이미지는 `VERSION`을 기준으로 만듭니다. 결과물 `dist/igame-v<version>.tar.gz`는 별도 tar 포장 없이 `docker save igame:v<version> | gzip`의 출력입니다.
 
-서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.7.25`로 정렬됩니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
+서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.7.26`로 정렬됩니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
 
 ```bash
 make release
