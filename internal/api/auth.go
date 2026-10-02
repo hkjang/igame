@@ -320,6 +320,17 @@ func (s *Server) oidcCallback(w http.ResponseWriter, r *http.Request) {
 	var nonce, verifier, returnTo string
 	err := s.DB.QueryRow(r.Context(), `DELETE FROM oidc_flows WHERE state_hash=$1 AND expires_at>now() RETURNING nonce,code_verifier,return_to`, stateHash[:]).Scan(&nonce, &verifier, &returnTo)
 	if err != nil {
+		// A missing row is the ordinary answer for a state that expired, was
+		// already spent, or was never minted here, and keeps its 400. Any other
+		// failure is the database declining to answer at all, which is the same
+		// site-wide outage oidcUnreadable reports for the setting — it only
+		// surfaces here instead because the flow is consumed first. Folding the
+		// two together pointed the operator at the state table and left no
+		// trace of the real cause, since writeError carries no error.
+		if !errors.Is(err, pgx.ErrNoRows) {
+			s.serverError(w, r, http.StatusServiceUnavailable, "oidc_unavailable", "OIDC login is unavailable", err)
+			return
+		}
 		writeError(w, 400, "invalid_state", "expired or invalid OIDC state")
 		return
 	}

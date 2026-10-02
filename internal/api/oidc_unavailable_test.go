@@ -144,6 +144,27 @@ func TestOIDCLoginReportsAnUnreadableSettingAsAnOutage(t *testing.T) {
 	}
 }
 
+// The callback consumes the state row before it reads the setting, so an
+// unreachable database surfaces there first. That is still the same site-wide
+// outage, and answering it as an invalid state sent the operator looking at the
+// state table and wrote nothing down.
+func TestOIDCCallbackReportsAnUnreachableDatabaseAsAnOutage(t *testing.T) {
+	s, logged := oidcSettingServer(t, `{"enabled":true,"issuer":"https://idp.example","client_id":"igame"}`)
+	s.DB = unreachablePool(t)
+
+	recorder := httptest.NewRecorder()
+	s.Router().ServeHTTP(recorder, httptest.NewRequest(http.MethodGet,
+		"/api/v1/auth/oidc/callback?code=auth-code&state=minted-state", nil))
+
+	code, _ := errorEnvelope(t, recorder.Body.Bytes())
+	if recorder.Code != http.StatusServiceUnavailable || code != "oidc_unavailable" {
+		t.Fatalf("status %d code %q, want 503 oidc_unavailable", recorder.Code, code)
+	}
+	if logged.Len() == 0 {
+		t.Fatal("a callback outage was answered without logging the cause")
+	}
+}
+
 func TestOIDCLoginStillReportsAnUnconfiguredProviderAsDisabled(t *testing.T) {
 	// These are the answers the portal's own wording depends on, and the first
 	// of them is what a freshly migrated installation serves: migrations seed

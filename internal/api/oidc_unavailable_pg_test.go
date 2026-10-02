@@ -14,12 +14,14 @@ import (
 )
 
 // The callback reads the OIDC setting only after the state row has been
-// consumed, so the outage it has to report cannot be reached without a
-// database: a pool that fails every query fails the consuming DELETE first and
-// the answer is the invalid state it always was. These tests therefore mint a
-// real flow row against a real database and then make the setting unreadable,
-// which is the order a live outage arrives in. They are skipped when
-// IGAME_TEST_DSN is unset; `make test-db DSN=...` runs them.
+// consumed, so a pool that fails every query never gets that far: it reports
+// the outage from the consuming DELETE instead, which
+// TestOIDCCallbackReportsAnUnreachableDatabaseAsAnOutage pins without a
+// database. Reaching the *setting* leg therefore needs a database that answers
+// the DELETE and then hands back a setting that cannot be read — the order a
+// live key change or a poisoned row arrives in — so these tests mint a real
+// flow row first. They are skipped when IGAME_TEST_DSN is unset; `make test-db
+// DSN=...` runs them.
 
 // startCallbackFlow records a flow row the way the login leg does and returns
 // the state that names it.
