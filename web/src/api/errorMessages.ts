@@ -24,6 +24,7 @@ const USER_FACING_MESSAGES: Record<string, string> = {
   local_login_disabled: '관리자 로그인이 비활성화되어 있습니다. 사내 SSO로 로그인해 주세요.',
   session_required: '이 작업은 브라우저 로그인 세션에서만 할 수 있습니다.',
   oidc_disabled: '사내 SSO가 설정되어 있지 않습니다. 서비스 관리자에게 문의하세요.',
+  oidc_unavailable: '사내 SSO 설정을 읽을 수 없습니다. 잠시 후 다시 시도하거나 서비스 관리자에게 문의하세요.',
   oidc_discovery_failed: '사내 SSO 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.',
 
   // 비밀번호

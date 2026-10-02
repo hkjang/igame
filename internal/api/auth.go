@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -208,8 +209,31 @@ func (s *Server) loadOIDCSetting(ctx context.Context) (oidcSetting, error) {
 	return cfg, nil
 }
 
+// oidcUnreadable reports a setting the handler could not read at all, which is
+// a site-wide login outage and not a provider that was never configured: either
+// the database could not answer, or the installation key no longer opens the
+// stored client secret. Both used to be answered as "not configured", which
+// sent the visitor to the administrator about a setting that was already there
+// and left no trace of the cause in the log — writeError carries no error.
+//
+// A missing row keeps its old meaning. That is the one read failure that really
+// does say "nothing was configured", and it is the state a freshly migrated
+// installation is in.
+func (s *Server) oidcUnreadable(w http.ResponseWriter, r *http.Request, err error) bool {
+	if err == nil || errors.Is(err, pgx.ErrNoRows) {
+		return false
+	}
+	// Only err goes to the log. The setting it came from still carries the
+	// sealed client secret when it was the decryption that failed.
+	s.serverError(w, r, http.StatusServiceUnavailable, "oidc_unavailable", "OIDC configuration is unavailable", err)
+	return true
+}
+
 func (s *Server) oidcLogin(w http.ResponseWriter, r *http.Request) {
 	cfg, err := s.loadOIDCSetting(r.Context())
+	if s.oidcUnreadable(w, r, err) {
+		return
+	}
 	if err != nil || !cfg.Enabled || cfg.Issuer == "" || cfg.ClientID == "" {
 		writeError(w, 404, "oidc_disabled", "OIDC login is not configured")
 		return
@@ -300,6 +324,9 @@ func (s *Server) oidcCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cfg, err := s.loadOIDCSetting(r.Context())
+	if s.oidcUnreadable(w, r, err) {
+		return
+	}
 	if err != nil || !cfg.Enabled {
 		writeError(w, 400, "oidc_disabled", "OIDC login is not configured")
 		return
