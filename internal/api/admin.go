@@ -540,12 +540,16 @@ func (s *Server) adminDashboard(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, data)
 }
 
+// usersFilter is the predicate the user page and its total both read, so a
+// count can never answer for a different set of rows than the page shows.
+const usersFilter = ` FROM users WHERE $1='' OR username ILIKE $1 OR display_name ILIKE $1 OR email ILIKE $1 OR department ILIKE $1 OR team ILIKE $1`
+
 func (s *Server) listUsers(w http.ResponseWriter, r *http.Request) {
 	limit, offset := pageParams(r)
 	q := r.URL.Query().Get("q")
-	// count(*) OVER() carries the unpaged total alongside the page, so the
-	// console can say how much is there without a second round trip.
-	rows, err := s.DB.Query(r.Context(), `SELECT id,username,display_name,email,department,team,role,status,created_at,last_login_at,count(*) OVER() FROM users WHERE $1='' OR username ILIKE $1 OR display_name ILIKE $1 OR email ILIKE $1 OR department ILIKE $1 OR team ILIKE $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`, searchPattern(q), limit, offset)
+	// count(*) OVER() carries the unpaged total alongside the page, so a page
+	// with rows on it tells the console how much is there in one round trip.
+	rows, err := s.DB.Query(r.Context(), `SELECT id,username,display_name,email,department,team,role,status,created_at,last_login_at,count(*) OVER()`+usersFilter+` ORDER BY created_at DESC LIMIT $2 OFFSET $3`, searchPattern(q), limit, offset)
 	if err != nil {
 		s.dbError(w, r, err)
 		return
@@ -568,7 +572,30 @@ func (s *Server) listUsers(w http.ResponseWriter, r *http.Request) {
 		s.dbError(w, r, err)
 		return
 	}
+	total, err = s.pagedTotal(r, total, len(items), offset, `SELECT count(*)`+usersFilter, searchPattern(q))
+	if err != nil {
+		s.dbError(w, r, err)
+		return
+	}
 	writeJSON(w, 200, map[string]any{"items": items, "total": total, "limit": limit, "offset": offset})
+}
+
+// pagedTotal supplies the filtered total for a page that came back empty.
+//
+// The total travels with the rows as count(*) OVER(), so a page with no rows
+// carries no count and would report zero matches. Nothing in the response then
+// separates an offset past the end from a filter that matched nothing, which is
+// the one answer a client paging by the reported total cannot recover from.
+// Only a page after the first can be empty while rows exist, so that is the
+// only case worth a second round trip.
+func (s *Server) pagedTotal(r *http.Request, total int64, items, offset int, countQuery string, args ...any) (int64, error) {
+	if items > 0 || offset == 0 {
+		return total, nil
+	}
+	if err := s.DB.QueryRow(r.Context(), countQuery, args...).Scan(&total); err != nil {
+		return 0, err
+	}
+	return total, nil
 }
 
 func (s *Server) updateUser(w http.ResponseWriter, r *http.Request) {
@@ -643,6 +670,13 @@ func (s *Server) updateUser(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(204)
 }
 
+// auditLogFilter is the predicate every read of the audit trail shares — the
+// page, its total, and the CSV export. Separate copies could drift, and an
+// export that selected other rows than the screen showed would be taken for
+// the trail the operator was looking at.
+const auditLogFilter = ` FROM audit_logs a LEFT JOIN users u ON u.id=a.actor_id
+	WHERE $1='' OR u.username ILIKE $1 OR a.action ILIKE $1 OR a.resource_type ILIKE $1 OR a.resource_id ILIKE $1 OR a.remote_addr ILIKE $1`
+
 func (s *Server) listAuditLogs(w http.ResponseWriter, r *http.Request) {
 	limit, offset := pageParams(r)
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
@@ -652,9 +686,7 @@ func (s *Server) listAuditLogs(w http.ResponseWriter, r *http.Request) {
 	}
 	// An audit trail is only useful if an operator can reach past the newest
 	// page, so the query carries both a filter and the unpaged total.
-	rows, err := s.DB.Query(r.Context(), `SELECT a.id,a.actor_id,COALESCE(u.username,''),a.action,a.resource_type,a.resource_id,a.remote_addr,a.user_agent,a.detail,a.created_at,count(*) OVER()
-		FROM audit_logs a LEFT JOIN users u ON u.id=a.actor_id
-		WHERE $1='' OR u.username ILIKE $1 OR a.action ILIKE $1 OR a.resource_type ILIKE $1 OR a.resource_id ILIKE $1 OR a.remote_addr ILIKE $1
+	rows, err := s.DB.Query(r.Context(), `SELECT a.id,a.actor_id,COALESCE(u.username,''),a.action,a.resource_type,a.resource_id,a.remote_addr,a.user_agent,a.detail,a.created_at,count(*) OVER()`+auditLogFilter+`
 		ORDER BY a.created_at DESC LIMIT $2 OFFSET $3`, searchPattern(q), limit, offset)
 	if err != nil {
 		s.dbError(w, r, err)
@@ -676,6 +708,11 @@ func (s *Server) listAuditLogs(w http.ResponseWriter, r *http.Request) {
 		items = append(items, map[string]any{"id": id, "actor_id": actor, "actor_username": username, "action": action, "resource_type": typ, "resource_id": rid, "remote_addr": remote, "user_agent": agent, "detail": detail, "created_at": created})
 	}
 	if err := rows.Err(); err != nil {
+		s.dbError(w, r, err)
+		return
+	}
+	total, err = s.pagedTotal(r, total, len(items), offset, `SELECT count(*)`+auditLogFilter, searchPattern(q))
+	if err != nil {
 		s.dbError(w, r, err)
 		return
 	}
