@@ -55,7 +55,7 @@ Defense Series 콘텐츠 `0.4.0`은 RealmGuard의 데이터 기반 방어 메커
 
 ## 접근성과 운영
 
-`v0.7.27`은 OIDC 로그인 장애를 "SSO 미설정"으로 감추던 보고를 고친 패치 릴리스입니다. `oidcLogin`과 `oidcCallback`은 OIDC 설정을 읽다가 난 오류를 `enabled=false`와 같은 분기에 넣어, 일시적인 데이터베이스 장애나 설치키(`ENCRYPTION_KEY`) 변경으로 client secret 복호화가 실패하는 전사 로그인 장애를 "OIDC login is not configured"로 답하고 로그조차 남기지 않았습니다. 운영자는 멀쩡히 설정된 SSO가 갑자기 꺼진 것처럼 보이는데 서버 로그에는 아무 단서도 없었습니다. 이제 설정 행이 없는 경우만 미설정으로 취급하고, 그 밖의 읽기 실패는 503 `oidc_unavailable`로 돌려주면서 원인을 요청 identity와 함께 로그에 남깁니다. 갓 설치한 상태의 미설정 응답(로그인 404, 콜백 400 `oidc_disabled`)과 콜백이 설정을 읽기 전에 flow state를 먼저 소비하는 순서는 그대로입니다. 스키마와 게임 콘텐츠는 바뀌지 않고 마이그레이션도 함께 가지 않습니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`, 기존 진행도와 랭킹을 유지하며 `v0.7.26`의 API 키 범위 테스트도 포함합니다.
+`v0.7.28`은 관리자 목록이 끝을 지난 페이지에서 전체 건수를 0으로 보고하던 것을 고친 패치 릴리스입니다. `docs/api.md`가 약속하는 `total`(필터 적용 후 전체 건수)은 `count(*) OVER()`로 페이지의 행에 실려 오기 때문에, 행이 하나도 없는 페이지는 건수를 전혀 싣지 못하고 핸들러가 `total: 0`을 답했습니다. 그러면 응답만 보고는 "일치하는 기록이 없음"과 "끝을 지난 페이지"를 구분할 수 없습니다. 이제 `listUsers`와 `listAuditLogs`는 첫 페이지가 아닌 `offset`이 빈 페이지를 돌려줄 때만 같은 술어로 건수를 한 번 더 읽습니다 — 행이 있는 페이지와 `offset=0`에는 추가 왕복이 없습니다. 술어는 목록당 상수 하나로 묶어 건수가 페이지와 다른 행 집합을 고를 수 없게 했고, 같은 술어를 그대로 베껴 쓰던 감사 CSV 내보내기도 그 상수를 읽으므로 화면과 내보내기가 갈라지지 않습니다. 번들된 콘솔은 빈 페이지에서 한 페이지 되돌아가 스스로 회복하므로 증상은 되돌아가는 렌더 동안의 `전체 0건`과 CSV 내보내기 버튼 비활성에 그쳤지만, 되돌릴 장치가 없는 SDK·스크립트 호출자는 끝을 넘긴 페이지에서 "아무것도 없음"으로 멈췄습니다. 스키마와 게임 콘텐츠는 바뀌지 않고 마이그레이션도 함께 가지 않습니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`, 기존 진행도와 랭킹을 유지하며 `v0.7.27`의 OIDC 장애 보고 수정도 포함합니다.
 
 포털은 본문 건너뛰기 link, 화면 전환 시 focus 이동과 음성 안내, route별 브라우저 제목을 제공합니다. 어두운 화면과 밝은 화면을 모두 지원하고 기본값은 운영체제 설정을 따르며, 두 palette 모두 본문·버튼 대비가 WCAG AA를 만족하는지 테스트로 확인합니다. 게시된 공지는 `/notices`에서 전체를 검색해 볼 수 있습니다. 사용자에게 보이는 API 오류는 한국어로 표시하고, session이 만료되면 로그인 화면으로 돌려보낸 뒤 보던 위치로 복귀합니다.
 
@@ -117,7 +117,7 @@ docker rm -f igame-test-db
 
 릴리스 이미지는 `VERSION`을 기준으로 만듭니다. 결과물 `dist/igame-v<version>.tar.gz`는 별도 tar 포장 없이 `docker save igame:v<version> | gzip`의 출력입니다.
 
-서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.7.27`로 정렬됩니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
+서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.7.28`로 정렬됩니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
 
 ```bash
 make release
