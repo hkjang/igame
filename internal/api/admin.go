@@ -399,9 +399,20 @@ func (s *Server) putOIDCSetting(w http.ResponseWriter, r *http.Request) {
 		in.ClientSecret = sealed
 	}
 	configured := in.ClientSecret != ""
-	raw, _ := encodeSetting(in)
+	raw, err := encodeSetting(in)
+	if err != nil {
+		s.dbError(w, r, err)
+		return
+	}
 	p, _ := principalFrom(r)
-	_, err := s.DB.Exec(r.Context(), `UPDATE system_settings SET value=$1,secret=true,updated_by=$2,updated_at=now() WHERE key='oidc'`, raw, p.UserID)
+	// An UPDATE matching no row is not an error, so a bare one answered 200 and
+	// recorded an oidc.update entry naming the group it had just granted
+	// administrator, having written nothing. putSetting above has always written
+	// this table with an upsert; this is the same contract. secret=true belongs
+	// on both halves — on only one of them, either a row created here or a row
+	// updated here would be left unmarked.
+	_, err = s.DB.Exec(r.Context(), `INSERT INTO system_settings(key,value,secret,updated_by) VALUES('oidc',$1,true,$2)
+		ON CONFLICT(key) DO UPDATE SET value=excluded.value,secret=true,updated_by=excluded.updated_by,updated_at=now()`, raw, p.UserID)
 	if err != nil {
 		s.dbError(w, r, err)
 		return
@@ -504,9 +515,17 @@ func (s *Server) putAISetting(w http.ResponseWriter, r *http.Request) {
 		}
 		in.APIKey = sealed
 	}
-	raw, _ := encodeSetting(in)
+	raw, err := encodeSetting(in)
+	if err != nil {
+		s.dbError(w, r, err)
+		return
+	}
 	p, _ := principalFrom(r)
-	_, err := s.DB.Exec(r.Context(), `UPDATE system_settings SET value=$1,secret=true,updated_by=$2,updated_at=now() WHERE key='ai'`, raw, p.UserID)
+	// Written as an upsert for the same reason as the OIDC setting above: a bare
+	// UPDATE silently kept nothing when the row was absent and still reported
+	// the save as done.
+	_, err = s.DB.Exec(r.Context(), `INSERT INTO system_settings(key,value,secret,updated_by) VALUES('ai',$1,true,$2)
+		ON CONFLICT(key) DO UPDATE SET value=excluded.value,secret=true,updated_by=excluded.updated_by,updated_at=now()`, raw, p.UserID)
 	if err != nil {
 		s.dbError(w, r, err)
 		return
