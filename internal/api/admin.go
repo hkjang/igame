@@ -573,8 +573,10 @@ func (s *Server) listUsers(w http.ResponseWriter, r *http.Request) {
 	// statement writing several accounts stamps them identically — and OFFSET
 	// only divides a result set into pages if the order is total. Under a tie
 	// each page request is free to order the tied rows differently, which hands
-	// one row out twice and another not at all. Every paged list here sorts to
-	// a unique column for that reason, as the ranking query already does.
+	// one row out twice and another not at all. The three admin lists in this
+	// file sort to a unique column for that reason, as the ranking query
+	// already does; the public catalog, play history and score moderation
+	// lists still do not.
 	rows, err := s.DB.Query(r.Context(), `SELECT id,username,display_name,email,department,team,role,status,created_at,last_login_at,count(*) OVER()`+usersFilter+` ORDER BY created_at DESC,id DESC LIMIT $2 OFFSET $3`, searchPattern(q), limit, offset)
 	if err != nil {
 		s.dbError(w, r, err)
