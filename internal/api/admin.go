@@ -568,7 +568,14 @@ func (s *Server) listUsers(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	// count(*) OVER() carries the unpaged total alongside the page, so a page
 	// with rows on it tells the console how much is there in one round trip.
-	rows, err := s.DB.Query(r.Context(), `SELECT id,username,display_name,email,department,team,role,status,created_at,last_login_at,count(*) OVER()`+usersFilter+` ORDER BY created_at DESC LIMIT $2 OFFSET $3`, searchPattern(q), limit, offset)
+	//
+	// The sort runs on to id because created_at alone is not unique — one
+	// statement writing several accounts stamps them identically — and OFFSET
+	// only divides a result set into pages if the order is total. Under a tie
+	// each page request is free to order the tied rows differently, which hands
+	// one row out twice and another not at all. Every paged list here sorts to
+	// a unique column for that reason, as the ranking query already does.
+	rows, err := s.DB.Query(r.Context(), `SELECT id,username,display_name,email,department,team,role,status,created_at,last_login_at,count(*) OVER()`+usersFilter+` ORDER BY created_at DESC,id DESC LIMIT $2 OFFSET $3`, searchPattern(q), limit, offset)
 	if err != nil {
 		s.dbError(w, r, err)
 		return
@@ -706,7 +713,7 @@ func (s *Server) listAuditLogs(w http.ResponseWriter, r *http.Request) {
 	// An audit trail is only useful if an operator can reach past the newest
 	// page, so the query carries both a filter and the unpaged total.
 	rows, err := s.DB.Query(r.Context(), `SELECT a.id,a.actor_id,COALESCE(u.username,''),a.action,a.resource_type,a.resource_id,a.remote_addr,a.user_agent,a.detail,a.created_at,count(*) OVER()`+auditLogFilter+`
-		ORDER BY a.created_at DESC LIMIT $2 OFFSET $3`, searchPattern(q), limit, offset)
+		ORDER BY a.created_at DESC,a.id DESC LIMIT $2 OFFSET $3`, searchPattern(q), limit, offset)
 	if err != nil {
 		s.dbError(w, r, err)
 		return
@@ -743,7 +750,7 @@ func chiURLParam(r *http.Request, key string) string { return chi.URLParam(r, ke
 func (s *Server) adminListGames(w http.ResponseWriter, r *http.Request) {
 	p, _ := principalFrom(r)
 	limit, offset := pageParams(r)
-	rows, err := s.DB.Query(r.Context(), gameSelect+` ORDER BY g.created_at DESC LIMIT $2 OFFSET $3`, p.UserID, limit, offset)
+	rows, err := s.DB.Query(r.Context(), gameSelect+` ORDER BY g.created_at DESC,g.id DESC LIMIT $2 OFFSET $3`, p.UserID, limit, offset)
 	if err != nil {
 		s.dbError(w, r, err)
 		return
