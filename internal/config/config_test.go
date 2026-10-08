@@ -1,23 +1,116 @@
 package config
 
 import (
+	"bytes"
+	"encoding/base64"
+	"encoding/hex"
+	"fmt"
 	"strings"
 	"testing"
 )
 
-func TestParseEncryptionKey(t *testing.T) {
-	for _, in := range []string{
-		"12345678901234567890123456789012",
-		"hex:3132333435363738393031323334353637383930313233343536373839303132",
-		"base64:MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=",
+type encryptionKeyCase struct {
+	name    string
+	input   string
+	payload string
+	want    []byte // nil means the input must be rejected.
+}
+
+func encryptionKeyCases() []encryptionKeyCase {
+	// Synthetic, non-repeating bytes make incorrect decoding visible.
+	const material = "0123456789abcdefghijklmnopqrstuvw"
+	var cases []encryptionKeyCase
+	for _, format := range []struct {
+		name   string
+		encode func([]byte) string
+	}{
+		{"plain", func(b []byte) string { return string(b) }},
+		{"hex", func(b []byte) string { return "hex:" + hex.EncodeToString(b) }},
+		{"base64", func(b []byte) string { return "base64:" + base64.StdEncoding.EncodeToString(b) }},
 	} {
-		got, err := ParseEncryptionKey(in)
-		if err != nil || len(got) != 32 {
-			t.Fatalf("ParseEncryptionKey(%q) = %d, %v", in, len(got), err)
+		for _, size := range []int{0, 16, 24, 31, 32, 33} {
+			payload := material[:size]
+			var want []byte
+			if size == 32 {
+				want = []byte(payload)
+			}
+			cases = append(cases, encryptionKeyCase{
+				name:  fmt.Sprintf("%s/%d_bytes", format.name, size),
+				input: format.encode([]byte(payload)), payload: payload, want: want,
+			})
 		}
 	}
-	if _, err := ParseEncryptionKey("short"); err == nil {
-		t.Fatal("expected short key error")
+	hexKey := hex.EncodeToString([]byte(material[:32]))
+	base64Key := base64.StdEncoding.EncodeToString([]byte(material[:32]))
+	utf8Key := strings.Repeat("가", 10) + "ab"
+	return append(cases,
+		encryptionKeyCase{name: "short", input: "short", payload: "short"},
+		encryptionKeyCase{name: "hex/odd_length", input: "hex:" + hexKey[:63], payload: hexKey[:63]},
+		encryptionKeyCase{name: "hex/non_hex", input: "hex:z" + hexKey[1:], payload: "z" + hexKey[1:]},
+		encryptionKeyCase{name: "base64/invalid_character", input: "base64:!" + base64Key[1:], payload: "!" + base64Key[1:]},
+		encryptionKeyCase{name: "base64/missing_padding", input: "base64:" + strings.TrimRight(base64Key, "="), payload: strings.TrimRight(base64Key, "=")},
+		encryptionKeyCase{name: "plain/utf8_32_bytes", input: utf8Key, payload: utf8Key, want: []byte(utf8Key)},
+		encryptionKeyCase{name: "plain/utf8_32_characters", input: strings.Repeat("가", 32), payload: strings.Repeat("가", 32)},
+	)
+}
+
+func assertEncryptionKeyResult(t *testing.T, tc encryptionKeyCase, got []byte, err error) {
+	t.Helper()
+	if tc.want != nil {
+		if err != nil {
+			t.Fatal("valid encryption key was rejected")
+		}
+		if !bytes.Equal(got, tc.want) {
+			t.Fatal("decoded encryption key does not match the expected bytes")
+		}
+		return
+	}
+	if err == nil {
+		t.Fatal("invalid encryption key was accepted")
+	}
+	if len(got) != 0 {
+		t.Error("rejected input returned an encryption key")
+	}
+	encodedPayload := strings.TrimPrefix(strings.TrimPrefix(tc.input, "hex:"), "base64:")
+	for _, payload := range []string{tc.payload, encodedPayload} {
+		if payload != "" && strings.Contains(err.Error(), payload) {
+			t.Error("error exposed the encryption key payload")
+		}
+	}
+}
+
+func TestParseEncryptionKey(t *testing.T) {
+	for _, tc := range encryptionKeyCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := ParseEncryptionKey(tc.input)
+			assertEncryptionKeyResult(t, tc, got, err)
+		})
+	}
+}
+
+func TestLoadEncryptionKeyContract(t *testing.T) {
+	t.Setenv(EnvPostgresDSN, "postgres://example/igame")
+	t.Setenv(EnvBootstrapAdmin, "admin")
+	t.Setenv(EnvBootstrapAdminPass, "long-enough-12")
+	cases := encryptionKeyCases()
+	// Only Load trims outer whitespace; the parser receives the input as-is.
+	for _, tc := range encryptionKeyCases() {
+		if tc.want != nil {
+			tc.name += "/outer_whitespace"
+			tc.input = " \t\n" + tc.input + "\n\t "
+			cases = append(cases, tc)
+		}
+	}
+	cases = append(cases, encryptionKeyCase{name: "whitespace_only", input: " \t\n "})
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(EnvEncryptionKey, tc.input)
+			got, err := Load()
+			assertEncryptionKeyResult(t, tc, got.EncryptionKey, err)
+			if err != nil && !strings.Contains(err.Error(), EnvEncryptionKey) {
+				t.Error("Load failed for a setting other than the encryption key")
+			}
+		})
 	}
 }
 
