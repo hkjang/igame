@@ -55,7 +55,7 @@ Defense Series 콘텐츠 `0.4.0`은 RealmGuard의 데이터 기반 방어 메커
 
 ## 접근성과 운영
 
-`v0.7.31`은 `ENCRYPTION_KEY`의 기존 입력 계약을 고정하는 테스트 보강 패치 릴리스입니다. 파서 25개와 실제 `Load` 30개 사례가 32바이트 길이, raw·hex·base64 인코딩, UTF-8 바이트 수, 공백 처리, 잘못된 입력의 오류 비노출과 반환 키 부재를 확인합니다. 파서는 입력을 trim하지 않고 `Load`만 앞뒤 공백을 제거하는 기존 차이도 검증합니다. 변경 전 테스트와 새 테스트가 모두 최초 실행부터 통과했으므로, 확인된 결함 수정이나 Red→Green을 주장하지 않습니다. 제품 코드·스키마·게임 콘텐츠는 바뀌지 않으며 별도 마이그레이션이나 설정 변경은 필요하지 않습니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`, 기존 진행도와 랭킹을 유지하며 `v0.7.30`까지의 수정도 포함합니다.
+`v0.7.32`는 공개 게임 카탈로그에서 이름이 같은 게임의 페이지 순서를 안정화한 패치 릴리스입니다. `GET /api/v1/games`는 이름 오름차순 다음에 고유 ID 오름차순으로 정렬합니다. 실제 PostgreSQL과 Router를 사용하는 회귀 테스트로 이름 우선 정렬, active·검색·카테고리·즐겨찾기 필터, 페이지 응답과 이미 조회한 게임의 설명만 수정한 뒤의 순서를 확인했습니다. 수정 전 순서 불일치를 재현했고 ID 보조 정렬을 제거하면 두 테스트가 다시 실패합니다. 페이지 요청 사이 삽입·삭제 또는 정렬·필터 값 변경에 대한 snapshot 보장은 아니며, 내 세션 기록과 점수 심사 목록은 이번 범위에 포함하지 않습니다. 스키마·게임 콘텐츠는 바뀌지 않아 별도 마이그레이션이나 설정 변경은 필요하지 않습니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`, 기존 진행도와 랭킹을 유지하며 `v0.7.31`까지의 수정도 포함합니다.
 
 포털은 본문 건너뛰기 link, 화면 전환 시 focus 이동과 음성 안내, route별 브라우저 제목을 제공합니다. 어두운 화면과 밝은 화면을 모두 지원하고 기본값은 운영체제 설정을 따르며, 두 palette 모두 본문·버튼 대비가 WCAG AA를 만족하는지 테스트로 확인합니다. 게시된 공지는 `/notices`에서 전체를 검색해 볼 수 있습니다. 사용자에게 보이는 API 오류는 한국어로 표시하고, session이 만료되면 로그인 화면으로 돌려보낸 뒤 보던 위치로 복귀합니다.
 
@@ -117,7 +117,7 @@ docker rm -f igame-test-db
 
 릴리스 이미지는 `VERSION`을 기준으로 만듭니다. 결과물 `dist/igame-v<version>.tar.gz`는 별도 tar 포장 없이 `docker save igame:v<version> | gzip`의 출력입니다.
 
-서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.7.31`로 정렬됩니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
+서비스, Docker image, web application과 `gamehub-js` SDK는 이 release에서 root `VERSION` `0.7.32`로 정렬됩니다. RealmGuard 콘텐츠 `0.3.1`과 Defense Series 콘텐츠 `0.4.0`은 별도 수명 주기를 가지므로 서비스 버전으로 덮어쓰지 않습니다.
 
 ```bash
 make release
