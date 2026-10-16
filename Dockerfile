@@ -18,7 +18,7 @@ COPY scripts/check-offline-bundle.sh ./scripts/check-offline-bundle.sh
 RUN npm --prefix web run build \
     && sh ./scripts/check-offline-bundle.sh /src
 
-FROM golang:1.26.6-alpine3.23 AS go-build
+FROM golang:1.26.9-alpine3.23 AS go-build
 WORKDIR /src
 RUN apk add --no-cache ca-certificates
 
@@ -56,7 +56,7 @@ LABEL org.opencontainers.image.title="igame" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${COMMIT}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
-      io.igame.build.go-version="1.26.6"
+      io.igame.build.go-version="1.26.9"
 
 COPY --from=go-build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=go-build --chown=10001:10001 /out/app /app
