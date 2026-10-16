@@ -106,7 +106,7 @@ jobs:
           image="igame:v$(cat VERSION)"
           test "$(docker image inspect --format '{{.Architecture}}' "${image}")" = "amd64"
           test "$(docker image inspect --format '{{.Config.User}}' "${image}")" = "10001:10001"
-          test "$(docker image inspect --format '{{ index .Config.Labels "io.igame.build.go-version" }}' "${image}")" = "1.26.6"
+          test "$(docker image inspect --format '{{ index .Config.Labels "io.igame.build.go-version" }}' "${image}")" = "1.26.9"
           container_id="$(docker create "${image}")"
           binary_dir="$(mktemp -d)"
           cleanup() {
@@ -117,7 +117,7 @@ jobs:
           docker cp "${container_id}:/app/igame" "${binary_dir}/igame"
           mkdir -p "${binary_dir}/licenses"
           docker cp "${container_id}:/licenses/." "${binary_dir}/licenses"
-          go version -m "${binary_dir}/igame" | grep -Fq 'go1.26.6'
+          go version -m "${binary_dir}/igame" | grep -Fq 'go1.26.9'
           test -x "${binary_dir}/igame"
           test -r "${binary_dir}/licenses/web/package.json"
           test -r "${binary_dir}/licenses/web/package-lock.json"

@@ -11,7 +11,7 @@ readonly WEB_LOCK="${REPO_DIR}/web/package-lock.json"
 readonly SDK_PACKAGE="${REPO_DIR}/sdk/gamehub-js/package.json"
 readonly SDK_LOCK="${REPO_DIR}/sdk/gamehub-js/package-lock.json"
 
-if ! grep -Fqx 'go 1.26.6' "${REPO_DIR}/go.mod" \
+if ! grep -Fqx 'go 1.26.9' "${REPO_DIR}/go.mod" \
   || ! grep -Fq 'github.com/coreos/go-oidc/v3 v3.20.0' "${REPO_DIR}/go.mod" \
   || ! grep -Fq 'github.com/go-chi/chi/v5 v5.3.2' "${REPO_DIR}/go.mod" \
   || ! grep -Fq 'github.com/jackc/pgx/v5 v5.10.0' "${REPO_DIR}/go.mod" \
@@ -71,10 +71,10 @@ if ! grep -Fqx 'USER 10001:10001' "${REPO_DIR}/Dockerfile" \
   exit 1
 fi
 
-if ! grep -Fq 'FROM golang:1.26.6-alpine3.23 AS go-build' "${REPO_DIR}/Dockerfile" \
+if ! grep -Fq 'FROM golang:1.26.9-alpine3.23 AS go-build' "${REPO_DIR}/Dockerfile" \
   || ! grep -Fqx 'FROM scratch AS runtime' "${REPO_DIR}/Dockerfile" \
-  || ! grep -Fq 'io.igame.build.go-version="1.26.6"' "${REPO_DIR}/Dockerfile"; then
-  printf '%s\n' 'The release builder and OCI build metadata must pin Go 1.26.6 exactly.' >&2
+  || ! grep -Fq 'io.igame.build.go-version="1.26.9"' "${REPO_DIR}/Dockerfile"; then
+  printf '%s\n' 'The release builder and OCI build metadata must pin Go 1.26.9 exactly.' >&2
   exit 1
 fi
 
@@ -107,7 +107,7 @@ for workflow in "${REPO_DIR}/.github/workflows/ci.yml" "${REPO_DIR}/.github/work
     || ! grep -Fq "'{{.Config.User}}'" "${workflow}" \
     || ! grep -Fq '"10001:10001"' "${workflow}" \
     || ! grep -Fq 'go version -m "${binary_dir}/igame"' "${workflow}" \
-    || ! grep -Fq "grep -Fq 'go1.26.6'" "${workflow}" \
+    || ! grep -Fq "grep -Fq 'go1.26.9'" "${workflow}" \
     || ! grep -Fq 'io.igame.build.go-version' "${workflow}" \
     || ! grep -Fq 'anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0' "${workflow}" \
     || ! grep -Fq 'severity-cutoff: high' "${workflow}" \
@@ -115,7 +115,7 @@ for workflow in "${REPO_DIR}/.github/workflows/ci.yml" "${REPO_DIR}/.github/work
     || ! grep -Fq 'fail-build: true' "${workflow}" \
     || ! grep -Fq 'docker cp "${container_id}:/licenses/." "${binary_dir}/licenses"' "${workflow}" \
     || grep -Fq -- '--entrypoint /bin/sh' "${workflow}"; then
-    printf 'Workflow must audit dependencies, scan the final image, and inspect the shell-free non-root Go 1.26.6 image: %s\n' "${workflow}" >&2
+    printf 'Workflow must audit dependencies, scan the final image, and inspect the shell-free non-root Go 1.26.9 image: %s\n' "${workflow}" >&2
     exit 1
   fi
 done
