@@ -987,7 +987,7 @@ func (s *Server) rankings(w http.ResponseWriter, r *http.Request) {
 func (s *Server) playHistory(w http.ResponseWriter, r *http.Request) {
 	p, _ := principalFrom(r)
 	limit, offset := pageParams(r)
-	rows, err := s.DB.Query(r.Context(), `SELECT gs.id,gs.game_id,g.name,g.slug,gs.status,gs.started_at,gs.ended_at,gs.duration_ms,s.score,s.verified FROM game_sessions gs JOIN games g ON g.id=gs.game_id LEFT JOIN scores s ON s.session_id=gs.id WHERE gs.user_id=$1 ORDER BY gs.started_at DESC LIMIT $2 OFFSET $3`, p.UserID, limit, offset)
+	rows, err := s.DB.Query(r.Context(), `SELECT gs.id,gs.game_id,g.name,g.slug,gs.status,gs.started_at,gs.ended_at,gs.duration_ms,s.score,s.verified FROM game_sessions gs JOIN games g ON g.id=gs.game_id LEFT JOIN scores s ON s.session_id=gs.id WHERE gs.user_id=$1 ORDER BY gs.started_at DESC,gs.id DESC LIMIT $2 OFFSET $3`, p.UserID, limit, offset)
 	if err != nil {
 		s.dbError(w, r, err)
 		return
