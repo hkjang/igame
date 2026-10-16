@@ -578,7 +578,7 @@ func (s *Server) adminRankings(w http.ResponseWriter, r *http.Request) {
 	limit, offset := pageParams(r)
 	status := r.URL.Query().Get("status")
 	game := r.URL.Query().Get("game_id")
-	rows, err := s.DB.Query(r.Context(), `SELECT s.id,s.session_id,s.user_id,u.username,u.display_name,u.department,u.team,s.game_id,g.name,s.score,s.verified,s.moderation_status,s.rejection_reason,s.metadata,s.created_at FROM scores s JOIN users u ON u.id=s.user_id JOIN games g ON g.id=s.game_id WHERE ($1='' OR s.moderation_status=$1) AND ($2='' OR s.game_id::text=$2 OR g.slug=$2) ORDER BY s.created_at DESC LIMIT $3 OFFSET $4`, status, game, limit, offset)
+	rows, err := s.DB.Query(r.Context(), `SELECT s.id,s.session_id,s.user_id,u.username,u.display_name,u.department,u.team,s.game_id,g.name,s.score,s.verified,s.moderation_status,s.rejection_reason,s.metadata,s.created_at FROM scores s JOIN users u ON u.id=s.user_id JOIN games g ON g.id=s.game_id WHERE ($1='' OR s.moderation_status=$1) AND ($2='' OR s.game_id::text=$2 OR g.slug=$2) ORDER BY s.created_at DESC, s.id DESC LIMIT $3 OFFSET $4`, status, game, limit, offset)
 	if err != nil {
 		s.dbError(w, r, err)
 		return
